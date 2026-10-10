@@ -21,6 +21,7 @@ import { type Diagnostic, Locale } from '../compiler/diagnostics.js';
 import { type CompilerOptions, JsxEmit, ModuleKind, ScriptTarget } from '../compiler/options.js';
 import { parseSourceFile } from '../compiler/parser.js';
 import { getDefaultLibFileName, getLibFileName } from '../compiler/program-utilities.js';
+import './lowering.js';
 
 const libDirectory = '/libs/';
 
