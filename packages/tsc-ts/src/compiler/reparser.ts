@@ -1112,47 +1112,33 @@ function isAssignmentDeclaration(bin: BinaryExpression): boolean {
   return left instanceof ElementAccessExpression && isEntityNameExpression(left.expression, inJS);
 }
 
-// Fields of function-like and other hosts. (One `instanceof` per statement: scriptc can't access
-// fields through a union of classes.)
+// Fields of function-like and other hosts.
 
 function getFullSignature(node: Node): Node | undefined {
-  if (node instanceof FunctionDeclaration) return node.fullSignature;
-  if (node instanceof MethodDeclaration) return node.fullSignature;
-  if (node instanceof ConstructorDeclaration) return node.fullSignature;
-  if (node instanceof GetAccessorDeclaration) return node.fullSignature;
-  if (node instanceof SetAccessorDeclaration) return node.fullSignature;
-  if (node instanceof FunctionExpression) return node.fullSignature;
-  if (node instanceof ArrowFunction) return node.fullSignature;
+  if (
+    node instanceof FunctionDeclaration ||
+    node instanceof MethodDeclaration ||
+    node instanceof ConstructorDeclaration ||
+    node instanceof GetAccessorDeclaration ||
+    node instanceof SetAccessorDeclaration ||
+    node instanceof FunctionExpression ||
+    node instanceof ArrowFunction
+  )
+    return node.fullSignature;
   return undefined;
 }
 
 /** tsgo stores a full signature on every function-like node, but only these visit it. */
 function setFullSignature(node: Node, value: Node): boolean {
-  if (node instanceof FunctionDeclaration) {
-    node.fullSignature = value;
-    return true;
-  }
-  if (node instanceof MethodDeclaration) {
-    node.fullSignature = value;
-    return true;
-  }
-  if (node instanceof ConstructorDeclaration) {
-    node.fullSignature = value;
-    return true;
-  }
-  if (node instanceof GetAccessorDeclaration) {
-    node.fullSignature = value;
-    return true;
-  }
-  if (node instanceof SetAccessorDeclaration) {
-    node.fullSignature = value;
-    return true;
-  }
-  if (node instanceof FunctionExpression) {
-    node.fullSignature = value;
-    return true;
-  }
-  if (node instanceof ArrowFunction) {
+  if (
+    node instanceof FunctionDeclaration ||
+    node instanceof MethodDeclaration ||
+    node instanceof ConstructorDeclaration ||
+    node instanceof GetAccessorDeclaration ||
+    node instanceof SetAccessorDeclaration ||
+    node instanceof FunctionExpression ||
+    node instanceof ArrowFunction
+  ) {
     node.fullSignature = value;
     return true;
   }
@@ -1160,55 +1146,21 @@ function setFullSignature(node: Node, value: Node): boolean {
 }
 
 function setTypeParameters(node: Node, value: NodeList | undefined): boolean {
-  if (node instanceof FunctionDeclaration) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof MethodDeclaration) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof ConstructorDeclaration) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof GetAccessorDeclaration) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof SetAccessorDeclaration) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof FunctionExpression) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof ArrowFunction) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof MethodSignatureDeclaration) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof CallSignatureDeclaration) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof ConstructSignatureDeclaration) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof FunctionTypeNode) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof ConstructorTypeNode) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof JSDocSignature) {
+  if (
+    node instanceof FunctionDeclaration ||
+    node instanceof MethodDeclaration ||
+    node instanceof ConstructorDeclaration ||
+    node instanceof GetAccessorDeclaration ||
+    node instanceof SetAccessorDeclaration ||
+    node instanceof FunctionExpression ||
+    node instanceof ArrowFunction ||
+    node instanceof MethodSignatureDeclaration ||
+    node instanceof CallSignatureDeclaration ||
+    node instanceof ConstructSignatureDeclaration ||
+    node instanceof FunctionTypeNode ||
+    node instanceof ConstructorTypeNode ||
+    node instanceof JSDocSignature
+  ) {
     node.typeParameters = value;
     return true;
   }
@@ -1216,59 +1168,22 @@ function setTypeParameters(node: Node, value: NodeList | undefined): boolean {
 }
 
 function setParameters(node: Node, value: NodeList): boolean {
-  if (node instanceof FunctionDeclaration) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof MethodDeclaration) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof ConstructorDeclaration) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof GetAccessorDeclaration) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof SetAccessorDeclaration) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof FunctionExpression) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof ArrowFunction) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof MethodSignatureDeclaration) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof CallSignatureDeclaration) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof ConstructSignatureDeclaration) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof IndexSignatureDeclaration) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof FunctionTypeNode) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof ConstructorTypeNode) {
-    node.parameters = value;
-    return true;
-  }
-  if (node instanceof JSDocSignature) {
+  if (
+    node instanceof FunctionDeclaration ||
+    node instanceof MethodDeclaration ||
+    node instanceof ConstructorDeclaration ||
+    node instanceof GetAccessorDeclaration ||
+    node instanceof SetAccessorDeclaration ||
+    node instanceof FunctionExpression ||
+    node instanceof ArrowFunction ||
+    node instanceof MethodSignatureDeclaration ||
+    node instanceof CallSignatureDeclaration ||
+    node instanceof ConstructSignatureDeclaration ||
+    node instanceof IndexSignatureDeclaration ||
+    node instanceof FunctionTypeNode ||
+    node instanceof ConstructorTypeNode ||
+    node instanceof JSDocSignature
+  ) {
     node.parameters = value;
     return true;
   }
@@ -1276,87 +1191,29 @@ function setParameters(node: Node, value: NodeList): boolean {
 }
 
 function setType(node: Node, value: Node): boolean {
-  if (node instanceof FunctionDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof MethodDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof ConstructorDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof GetAccessorDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof SetAccessorDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof FunctionExpression) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof ArrowFunction) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof MethodSignatureDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof CallSignatureDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof ConstructSignatureDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof IndexSignatureDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof FunctionTypeNode) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof ConstructorTypeNode) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof JSDocSignature) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof VariableDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof ExportAssignment) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof PropertyDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof PropertyAssignment) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof ShorthandPropertyAssignment) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof ParameterDeclaration) {
-    node.type = value;
-    return true;
-  }
-  if (node instanceof BinaryExpression) {
+  if (
+    node instanceof FunctionDeclaration ||
+    node instanceof MethodDeclaration ||
+    node instanceof ConstructorDeclaration ||
+    node instanceof GetAccessorDeclaration ||
+    node instanceof SetAccessorDeclaration ||
+    node instanceof FunctionExpression ||
+    node instanceof ArrowFunction ||
+    node instanceof MethodSignatureDeclaration ||
+    node instanceof CallSignatureDeclaration ||
+    node instanceof ConstructSignatureDeclaration ||
+    node instanceof IndexSignatureDeclaration ||
+    node instanceof FunctionTypeNode ||
+    node instanceof ConstructorTypeNode ||
+    node instanceof JSDocSignature ||
+    node instanceof VariableDeclaration ||
+    node instanceof ExportAssignment ||
+    node instanceof PropertyDeclaration ||
+    node instanceof PropertyAssignment ||
+    node instanceof ShorthandPropertyAssignment ||
+    node instanceof ParameterDeclaration ||
+    node instanceof BinaryExpression
+  ) {
     node.type = value;
     return true;
   }
@@ -1364,15 +1221,7 @@ function setType(node: Node, value: Node): boolean {
 }
 
 function setExpression(node: Node, value: Node): boolean {
-  if (node instanceof ReturnStatement) {
-    node.expression = value;
-    return true;
-  }
-  if (node instanceof ParenthesizedExpression) {
-    node.expression = value;
-    return true;
-  }
-  if (node instanceof ExportAssignment) {
+  if (node instanceof ReturnStatement || node instanceof ParenthesizedExpression || node instanceof ExportAssignment) {
     node.expression = value;
     return true;
   }
@@ -1380,27 +1229,14 @@ function setExpression(node: Node, value: Node): boolean {
 }
 
 function setModifiers(node: Node, value: ModifierList): boolean {
-  if (node instanceof MethodDeclaration) {
-    node.modifiers = value;
-    return true;
-  }
-  if (node instanceof GetAccessorDeclaration) {
-    node.modifiers = value;
-    return true;
-  }
-  if (node instanceof SetAccessorDeclaration) {
-    node.modifiers = value;
-    return true;
-  }
-  if (node instanceof PropertyDeclaration) {
-    node.modifiers = value;
-    return true;
-  }
-  if (node instanceof ConstructorDeclaration) {
-    node.modifiers = value;
-    return true;
-  }
-  if (node instanceof BinaryExpression) {
+  if (
+    node instanceof MethodDeclaration ||
+    node instanceof GetAccessorDeclaration ||
+    node instanceof SetAccessorDeclaration ||
+    node instanceof PropertyDeclaration ||
+    node instanceof ConstructorDeclaration ||
+    node instanceof BinaryExpression
+  ) {
     node.modifiers = value;
     return true;
   }
@@ -1408,22 +1244,17 @@ function setModifiers(node: Node, value: ModifierList): boolean {
 }
 
 function getInitializer(node: Node): Node | undefined {
-  if (node instanceof VariableDeclaration) return node.initializer;
-  if (node instanceof PropertyDeclaration) return node.initializer;
-  if (node instanceof PropertyAssignment) return node.initializer;
+  if (node instanceof VariableDeclaration || node instanceof PropertyDeclaration || node instanceof PropertyAssignment)
+    return node.initializer;
   return undefined;
 }
 
 function setInitializer(node: Node, value: Node): boolean {
-  if (node instanceof VariableDeclaration) {
-    node.initializer = value;
-    return true;
-  }
-  if (node instanceof PropertyDeclaration) {
-    node.initializer = value;
-    return true;
-  }
-  if (node instanceof PropertyAssignment) {
+  if (
+    node instanceof VariableDeclaration ||
+    node instanceof PropertyDeclaration ||
+    node instanceof PropertyAssignment
+  ) {
     node.initializer = value;
     return true;
   }
@@ -1431,17 +1262,12 @@ function setInitializer(node: Node, value: Node): boolean {
 }
 
 function getHeritageClauses(node: Node): NodeList | undefined {
-  if (node instanceof ClassDeclaration) return node.heritageClauses;
-  if (node instanceof ClassExpression) return node.heritageClauses;
+  if (node instanceof ClassDeclaration || node instanceof ClassExpression) return node.heritageClauses;
   return undefined;
 }
 
 function setHeritageClauses(node: Node, value: NodeList): boolean {
-  if (node instanceof ClassDeclaration) {
-    node.heritageClauses = value;
-    return true;
-  }
-  if (node instanceof ClassExpression) {
+  if (node instanceof ClassDeclaration || node instanceof ClassExpression) {
     node.heritageClauses = value;
     return true;
   }
@@ -1449,17 +1275,12 @@ function setHeritageClauses(node: Node, value: NodeList): boolean {
 }
 
 function getClassTypeParameters(node: Node): NodeList | undefined {
-  if (node instanceof ClassDeclaration) return node.typeParameters;
-  if (node instanceof ClassExpression) return node.typeParameters;
+  if (node instanceof ClassDeclaration || node instanceof ClassExpression) return node.typeParameters;
   return undefined;
 }
 
 function setClassTypeParameters(node: Node, value: NodeList | undefined): boolean {
-  if (node instanceof ClassDeclaration) {
-    node.typeParameters = value;
-    return true;
-  }
-  if (node instanceof ClassExpression) {
+  if (node instanceof ClassDeclaration || node instanceof ClassExpression) {
     node.typeParameters = value;
     return true;
   }

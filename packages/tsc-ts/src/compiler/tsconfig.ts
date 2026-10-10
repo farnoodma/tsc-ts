@@ -470,15 +470,10 @@ export function findArrayElement(property: PropertyAssignment | undefined, value
 
 /** The text of a property name, or `undefined` for computed names that aren't literals. */
 export function propertyNameText(name: Node): string | undefined {
-  // Separate tests: scriptc can't access members through a union of classes.
-  if (name instanceof Identifier) return name.text;
-  if (name instanceof StringLiteral) return name.text;
-  if (name instanceof NumericLiteral) return name.text;
+  if (name instanceof Identifier || name instanceof StringLiteral || name instanceof NumericLiteral) return name.text;
   if (name instanceof ComputedPropertyName) {
     const expression = name.expression;
-    if (expression instanceof StringLiteral) return expression.text;
-    if (expression instanceof NumericLiteral) return expression.text;
-    return undefined;
+    return expression instanceof StringLiteral || expression instanceof NumericLiteral ? expression.text : undefined;
   }
   if (name.kind === SyntaxKind.PrivateIdentifier || name.kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
     return getText(name);

@@ -6866,9 +6866,8 @@ function isDoubleQuotedString(node: Node): boolean {
 /** Whether a speculatively parsed return type means the arrow function parse should be abandoned. */
 function typeHasArrowFunctionBlockingParseError(node: TypeNode): boolean {
   if (node instanceof TypeReferenceNode) return nodeIsMissing(node.typeName);
-  // Separate checks: a union of classes can't be a receiver natively.
-  if (node instanceof FunctionTypeNode) return node.parameters.isMissingList || typeHasBlockingError(node.type);
-  if (node instanceof ConstructorTypeNode) return node.parameters.isMissingList || typeHasBlockingError(node.type);
+  if (node instanceof FunctionTypeNode || node instanceof ConstructorTypeNode)
+    return node.parameters.isMissingList || typeHasBlockingError(node.type);
   if (node instanceof ParenthesizedTypeNode) return typeHasArrowFunctionBlockingParseError(node.type);
   return false;
 }
