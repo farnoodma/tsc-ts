@@ -402,8 +402,7 @@ class ParentSetter extends NodeVisitor {
 }
 
 function appendRange(to: Node[], from: readonly Node[], start: number, end: number): void {
-  // `i += 1`: scriptc rejects `i++` here (the bounds come from array elements).
-  for (let i = start; i < end; i += 1) to.push(from[i]!);
+  for (let i = start; i < end; i++) to.push(from[i]!);
 }
 
 /** Parses `text` as the file `fileName`. The script kind defaults to the one implied by the extension. */

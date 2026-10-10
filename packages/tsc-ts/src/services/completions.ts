@@ -553,7 +553,7 @@ function getCompletionData(
       // Without `@`, only `*`, whitespace and a few separators may precede the position on its line.
       const lineStart = getLineStartPositionForPosition(position, file);
       let noCommentPrefix = true;
-      for (let i = lineStart; i < position; i += 1) {
+      for (let i = lineStart; i < position; i++) {
         const ch = file.text.charCodeAt(i);
         if (
           !(isWhiteSpaceSingleLineChar(ch) || ch === 0x2a || ch === 0x2f || ch === 0x28 || ch === 0x29 || ch === 0x7c)
