@@ -271,10 +271,13 @@ export function isIdentifierText(name: string, languageVariant = LanguageVariant
   return true;
 }
 
-/** Receives scanner diagnostics. An abstract class rather than a function so native builds dispatch statically. */
-export abstract class ScannerErrorReporter {
-  abstract onError(message: DiagnosticMessage, start: number, length: number, args: readonly string[]): void;
-}
+/** Receives scanner diagnostics. */
+export type ScannerErrorCallback = (
+  message: DiagnosticMessage,
+  start: number,
+  length: number,
+  args: readonly string[],
+) => void;
 
 const noArgs: readonly string[] = [];
 
@@ -550,7 +553,7 @@ export class Scanner {
   /** @internal */ end: number;
   private languageVariant: LanguageVariant;
   private scriptTarget: ScriptTarget;
-  private onError: ScannerErrorReporter | undefined;
+  private onError: ScannerErrorCallback | undefined;
   private skipTrivia: boolean;
 
   /** @internal Current position; the end of the current token. */
@@ -631,8 +634,8 @@ export class Scanner {
     this.skipJSDocLeadingAsterisks = 0;
   }
 
-  setOnError(reporter: ScannerErrorReporter | undefined): void {
-    this.onError = reporter;
+  setOnError(onError: ScannerErrorCallback | undefined): void {
+    this.onError = onError;
   }
 
   setLanguageVariant(languageVariant: LanguageVariant): void {
@@ -807,7 +810,7 @@ export class Scanner {
 
   /** @internal */
   errorAt(message: DiagnosticMessage, start: number, length: number, args: readonly string[]): void {
-    if (this.onError !== undefined) this.onError.onError(message, start, length, args);
+    if (this.onError !== undefined) this.onError(message, start, length, args);
   }
 
   /** @internal The code unit at `pos`, or -1 at the end. */

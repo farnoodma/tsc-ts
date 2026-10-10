@@ -231,7 +231,6 @@ import { ModuleKind } from './module-resolution-types.js';
 import { isDeclarationFileName, isExternalModuleNameRelative } from './path.js';
 import {
   Scanner,
-  ScannerErrorReporter,
   ScannerState,
   getLeadingCommentRanges,
   getViableKeywordSuggestions,
@@ -460,7 +459,7 @@ function getLanguageVariant(scriptKind: ScriptKind): LanguageVariant {
   return LanguageVariant.Standard;
 }
 
-export class Parser extends ScannerErrorReporter {
+export class Parser {
   readonly scanner: Scanner;
   readonly fileName: string;
   readonly path: string;
@@ -519,7 +518,6 @@ export class Parser extends ScannerErrorReporter {
     scriptKind: ScriptKind,
     externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
   ) {
-    super();
     if (scriptKind === ScriptKind.Unknown) throw new Error('ScriptKind must be specified when parsing ' + fileName);
     this.fileName = fileName;
     this.path = path;
@@ -556,7 +554,7 @@ export class Parser extends ScannerErrorReporter {
     this.speculation = [];
     this.speculationDepth = 0;
     this.scanner = new Scanner(sourceText);
-    this.scanner.setOnError(this);
+    this.scanner.setOnError((message, start, length, args) => this.parseErrorAt(start, start + length, message, args));
     this.scanner.setLanguageVariant(this.languageVariant);
   }
 
@@ -569,10 +567,6 @@ export class Parser extends ScannerErrorReporter {
   }
 
   // Diagnostics
-
-  onError(message: DiagnosticMessage, start: number, length: number, args: readonly string[]): void {
-    this.parseErrorAt(start, start + length, message, args);
-  }
 
   /** Reports an error unless the previous one starts at the same position. */
   parseErrorAt(

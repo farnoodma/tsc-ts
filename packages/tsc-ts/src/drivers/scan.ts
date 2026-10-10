@@ -6,7 +6,6 @@ import { performance } from 'node:perf_hooks';
 import { messageCode, type DiagnosticMessage } from '../compiler/diagnostics.js';
 import {
   Scanner,
-  ScannerErrorReporter,
   computeLineStarts,
   getLeadingCommentRanges,
   getTrailingCommentRanges,
@@ -77,11 +76,10 @@ function quote(s: string): string {
   return result + '"';
 }
 
-class Printer extends ScannerErrorReporter {
+class Printer {
   offsets: Int32Array;
 
   constructor(offsets: Int32Array) {
-    super();
     this.offsets = offsets;
   }
 
@@ -211,7 +209,7 @@ function jsdoc(p: Printer, text: string, target: ScriptTarget): void {
   }
   const s = new Scanner(text);
   s.setScriptTarget(target);
-  s.setOnError(p);
+  s.setOnError((message, start, length, args) => p.onError(message, start, length, args));
   for (let i = 0; i < starts.length; i++) {
     const start = starts[i];
     const end = ends[i];
@@ -286,7 +284,7 @@ function main(): void {
       if (k === SyntaxKind.EndOfFile) break;
     }
   } else {
-    s.setOnError(p);
+    s.setOnError((message, start, length, args) => p.onError(message, start, length, args));
     if (rescan) {
       let line = 'LS';
       for (const start of computeLineStarts(text)) line += ' ' + p.byte(start);

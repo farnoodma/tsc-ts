@@ -129,7 +129,7 @@ import { Diagnostic, DiagnosticCategory, type DiagnosticMessage, messageCategory
 import { ModuleKind, ScriptTarget, getEmitModuleKind } from './options.js';
 import { fileExtensionIsOneOf, isExternalModuleNameRelative } from './path.js';
 import { SourceFileMetadata, getEmitModuleFormatOfFile, getImpliedNodeFormatForEmit } from './program-utilities.js';
-import { Scanner, ScannerErrorReporter, computeLineOfPosition, skipTrivia, tokenToString } from './scanner.js';
+import { Scanner, computeLineOfPosition, skipTrivia, tokenToString } from './scanner.js';
 import { SymbolFlags } from './symbol.js';
 import { typeToString } from './type-printer.js';
 import type { ScriptTarget as LanguageTarget } from './types.js';
@@ -3540,12 +3540,11 @@ function checkGrammarBigIntLiteral(g: GrammarChecker, node: Node): boolean {
 }
 
 /** Reports the errors of rescanning a regular expression; spelling suggestions become related information. */
-class RegularExpressionErrorReporter extends ScannerErrorReporter {
+class RegularExpressionErrorReporter {
   readonly g: GrammarChecker;
   lastError: Diagnostic | undefined = undefined;
 
   constructor(g: GrammarChecker) {
-    super();
     this.g = g;
   }
 
@@ -3570,7 +3569,7 @@ function checkGrammarRegularExpressionLiteral(g: GrammarChecker, node: Node): bo
   if (g.hasParseErrors) return false;
   const scanner = g.getScanner();
   const reporter = new RegularExpressionErrorReporter(g);
-  scanner.setOnError(reporter);
+  scanner.setOnError((message, start, length, args) => reporter.onError(message, start, length, args));
   scanner.resetTokenState(node.pos);
   scanner.scan();
   scanner.reScanSlashToken(true);
