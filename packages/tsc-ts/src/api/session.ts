@@ -197,7 +197,6 @@ export class Session {
     try {
       return { ok: true, reply: this.dispatch(method, params) };
     } catch (e) {
-      // Classified here: natively, a caught value passed on loses its class.
       // Compiler failures read like Go panics.
       if (e instanceof ApiError) return { ok: false, error: e.message };
       if (e instanceof SyntaxError) {

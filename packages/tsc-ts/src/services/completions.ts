@@ -192,11 +192,8 @@ import { CompletionItemKind, getCompletionsSymbolKind, getSymbolKind, ScriptElem
 import { getStringLiteralCompletions } from './string-completions.js';
 import { getJSDocSnippetCompletion } from './jsdoc-snippet.js';
 
-/** Thrown where tsgo needs its auto-import registry. */
 /** A completion request tsgo can't answer. */
-export class CompletionsError {
-  constructor(readonly message: string) {}
-}
+export class CompletionsError extends Error {}
 
 /** Thrown where tsgo needs its auto-import registry. */
 export class NeedsAutoImports extends CompletionsError {
