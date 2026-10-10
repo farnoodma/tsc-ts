@@ -75,41 +75,27 @@ export function getRootDeclaration(node: Node): Node {
 
 /** Modifier flags of a variable declaration combined with its list's and statement's. */
 export function getCombinedModifierFlags(node: Node): ModifierFlags {
-  // Locals stay non-optional: native builds box a `Node | undefined` local at every assignment.
-  let current = getRootDeclaration(node);
+  let current: Node | undefined = getRootDeclaration(node);
   let flags = getModifierFlags(current);
-  if (current.kind === SyntaxKind.VariableDeclaration) {
-    const parent = current.parent;
-    if (parent === undefined) return flags;
-    current = parent;
-  }
-  if (current.kind === SyntaxKind.VariableDeclarationList) {
+  if (current.kind === SyntaxKind.VariableDeclaration) current = current.parent;
+  if (current !== undefined && current.kind === SyntaxKind.VariableDeclarationList) {
     flags |= getModifierFlags(current);
-    const parent = current.parent;
-    if (parent === undefined) return flags;
-    current = parent;
+    current = current.parent;
   }
-  if (current.kind === SyntaxKind.VariableStatement) flags |= getModifierFlags(current);
+  if (current !== undefined && current.kind === SyntaxKind.VariableStatement) flags |= getModifierFlags(current);
   return flags;
 }
 
 /** Node flags of a variable declaration combined with its list's and statement's. */
 export function getCombinedNodeFlags(node: Node): NodeFlags {
-  // Locals stay non-optional, as in getCombinedModifierFlags.
-  let current = getRootDeclaration(node);
+  let current: Node | undefined = getRootDeclaration(node);
   let flags = current.flags;
-  if (current.kind === SyntaxKind.VariableDeclaration) {
-    const parent = current.parent;
-    if (parent === undefined) return flags;
-    current = parent;
-  }
-  if (current.kind === SyntaxKind.VariableDeclarationList) {
+  if (current.kind === SyntaxKind.VariableDeclaration) current = current.parent;
+  if (current !== undefined && current.kind === SyntaxKind.VariableDeclarationList) {
     flags |= current.flags;
-    const parent = current.parent;
-    if (parent === undefined) return flags;
-    current = parent;
+    current = current.parent;
   }
-  if (current.kind === SyntaxKind.VariableStatement) flags |= current.flags;
+  if (current !== undefined && current.kind === SyntaxKind.VariableStatement) flags |= current.flags;
   return flags;
 }
 
@@ -137,14 +123,8 @@ export function isGlobalSourceFile(node: Node): boolean {
 }
 
 export function getSourceFileOfNode(node: Node): SourceFile {
-  // Walks parents without rebinding `node`, which native builds would box at every step.
-  let parent = node.parent;
-  if (parent === undefined) return node as SourceFile;
-  for (;;) {
-    const next: Node | undefined = parent.parent;
-    if (next === undefined) return parent as SourceFile;
-    parent = next;
-  }
+  while (node.parent !== undefined) node = node.parent;
+  return node as SourceFile;
 }
 
 // Kinds

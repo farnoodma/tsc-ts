@@ -377,25 +377,14 @@ export class ParserState extends ScannerState {
 /** Sets the parent of every visited node to `node`. */
 class ParentSetter extends NodeVisitor {
   node: Node;
-  // `node` as stored in `parent` fields. Optional object fields are boxed natively, so the box is
-  // created on the first child and shared by the rest; leaves need none.
-  parent: Node | undefined;
-  boxed: boolean;
 
   constructor() {
     super();
     this.node = new Token(SyntaxKind.Unknown);
-    this.parent = undefined;
-    this.boxed = false;
   }
 
   visitNode(node: Node): boolean {
-    // A flag rather than `this.parent === undefined`: a narrowed read would box again per child.
-    if (!this.boxed) {
-      this.parent = this.node;
-      this.boxed = true;
-    }
-    node.parent = this.parent;
+    node.parent = this.node;
     return false;
   }
 }
@@ -502,11 +491,6 @@ export class Parser {
   private readonly parentSetter: ParentSetter;
   /** Parses JSDoc comments and, in JavaScript files, reparses their tags. */
   readonly jsdoc: JSDocParser;
-  /**
-   * Returned instead of `undefined` by hot element parsers: a `Node | undefined` result is boxed natively
-   * for every node returned.
-   */
-  readonly noElement: Node;
   // States reused by speculation that ends before the method that started it returns, by depth.
   private readonly speculation: ParserState[];
   private speculationDepth: number;
@@ -550,7 +534,6 @@ export class Parser {
     this.signatureParameterFlags = ParseFlags.None;
     this.parentSetter = new ParentSetter();
     this.jsdoc = new JSDocParser(this);
-    this.noElement = new Token(SyntaxKind.Unknown);
     this.speculation = [];
     this.speculationDepth = 0;
     this.scanner = new Scanner(sourceText);
@@ -754,10 +737,6 @@ export class Parser {
     const setter = this.parentSetter;
     setter.node = node;
     node.forEachChild(setter);
-    if (setter.boxed) {
-      setter.parent = undefined;
-      setter.boxed = false;
-    }
   }
 
   // Source files
@@ -905,8 +884,8 @@ export class Parser {
 
   // Lists
 
-  /** The element, or `noElement` if a signature parameter can't start here. */
-  parseListElement(element: ListElement, index: number): Node {
+  /** The element, or `undefined` if a signature parameter can't start here. */
+  parseListElement(element: ListElement, index: number): Node | undefined {
     switch (element) {
       case ListElement.Statement:
         return this.parseStatement();
@@ -949,7 +928,7 @@ export class Parser {
           this.signatureParameterInAwaitContext,
           this.signatureParameterAllowAmbiguity,
         );
-        if (parameter !== this.noElement && (this.signatureParameterFlags & ParseFlags.Type) === 0)
+        if (parameter !== undefined && (this.signatureParameterFlags & ParseFlags.Type) === 0)
           this.checkJSSyntax(parameter);
         return parameter;
       }
@@ -989,7 +968,7 @@ export class Parser {
           }
           this.reparseList = [];
         }
-        if (elt !== this.noElement) list.push(elt);
+        if (elt !== undefined) list.push(elt);
         continue;
       }
       if (this.abortParsingListOrMoveToNextToken(kind)) break;
@@ -1015,7 +994,7 @@ export class Parser {
       if (this.isListElement(kind, false)) {
         const startPos = this.nodePos();
         const result = this.parseListElement(element, list.length);
-        if (result === this.noElement) {
+        if (result === undefined) {
           this.parsingContexts = saveParsingContexts;
           return undefined;
         }
@@ -3655,11 +3634,11 @@ export class Parser {
   }
 
   parseParameter(): Node {
-    return this.parseParameterEx(false, true);
+    return this.parseParameterEx(false, true)!;
   }
 
-  /** The parameter, or `noElement` if ambiguity isn't allowed and no parameter name starts here. */
-  parseParameterEx(inOuterAwaitContext: boolean, allowAmbiguity: boolean): Node {
+  /** The parameter, or `undefined` if ambiguity isn't allowed and no parameter name starts here. */
+  parseParameterEx(inOuterAwaitContext: boolean, allowAmbiguity: boolean): Node | undefined {
     const pos = this.nodePos();
     const jsdoc = this.jsdocScannerInfo();
     // Decorators are parsed in the outer [Await] context, the rest in the function's.
@@ -3687,7 +3666,7 @@ export class Parser {
       return this.finishWithJSDoc(result, pos, jsdoc);
     }
     const dotDotDotToken = this.parseOptionalToken(SyntaxKind.DotDotDotToken);
-    if (!allowAmbiguity && !this.isParameterNameStart()) return this.noElement;
+    if (!allowAmbiguity && !this.isParameterNameStart()) return undefined;
     const name = this.parseNameOfParameter(modifiers);
     const questionToken = this.parseOptionalToken(SyntaxKind.QuestionToken);
     const type = this.parseTypeAnnotation();

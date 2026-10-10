@@ -354,12 +354,6 @@ class Binder extends NodeVisitor {
   blockScopeContainer: Node;
   lastContainer: Node | undefined;
   currentFlow: FlowNode;
-  /**
-   * `currentFlow` as an optional value, shared by the nodes that store it: natively, converting a
-   * `FlowNode` to `FlowNode | undefined` allocates.
-   */
-  private storedFlow: FlowNode;
-  private storedFlowValue: FlowNode | undefined;
   currentBreakTarget: FlowNode | undefined;
   currentContinueTarget: FlowNode | undefined;
   currentReturnTarget: FlowNode | undefined;
@@ -387,8 +381,6 @@ class Binder extends NodeVisitor {
     this.blockScopeContainer = file;
     this.lastContainer = undefined;
     this.currentFlow = this.unreachableFlow;
-    this.storedFlow = this.unreachableFlow;
-    this.storedFlowValue = this.unreachableFlow;
     this.currentBreakTarget = undefined;
     this.currentContinueTarget = undefined;
     this.currentReturnTarget = undefined;
@@ -413,15 +405,6 @@ class Binder extends NodeVisitor {
     return false;
   }
 
-  /** `currentFlow`, for storing in a node's `flowNode`. */
-  currentFlowValue(): FlowNode | undefined {
-    if (this.storedFlow !== this.currentFlow) {
-      this.storedFlow = this.currentFlow;
-      this.storedFlowValue = this.currentFlow;
-    }
-    return this.storedFlowValue;
-  }
-
   newSymbol(flags: SymbolFlags, name: string): Symbol {
     this.symbolCount++;
     return new Symbol(flags, name);
@@ -432,8 +415,6 @@ class Binder extends NodeVisitor {
   /**
    * Declares `node` in `symbolTable` with flags `includes`, merging with an existing symbol
    * of the same name unless its flags intersect `excludes`, which is reported as a duplicate.
-   * Callers pass `parent` as read from the container rather than narrowed, so that its members
-   * share the stored value (see `storedFlow`).
    */
   declareSymbol(
     symbolTable: SymbolTable,
@@ -796,26 +777,26 @@ class Binder extends NodeVisitor {
     // the container's locals; anonymous declarations like type literals go in no table.
     switch (node.kind) {
       case SyntaxKind.Identifier:
-        (node as Identifier).flowNode = this.currentFlowValue();
+        (node as Identifier).flowNode = this.currentFlow;
         this.checkContextualIdentifier(node as Identifier);
         break;
       case SyntaxKind.ThisKeyword:
       case SyntaxKind.SuperKeyword:
         if (node.kind === SyntaxKind.ThisKeyword) this.seenThisKeyword = true;
-        if (node instanceof KeywordExpression) node.flowNode = this.currentFlowValue();
+        if (node instanceof KeywordExpression) node.flowNode = this.currentFlow;
         break;
       case SyntaxKind.QualifiedName:
-        if (isPartOfTypeQuery(node)) (node as QualifiedName).flowNode = this.currentFlowValue();
+        if (isPartOfTypeQuery(node)) (node as QualifiedName).flowNode = this.currentFlow;
         break;
       case SyntaxKind.MetaProperty:
-        (node as MetaProperty).flowNode = this.currentFlowValue();
+        (node as MetaProperty).flowNode = this.currentFlow;
         break;
       case SyntaxKind.PrivateIdentifier:
         this.checkPrivateIdentifier(node);
         break;
       case SyntaxKind.PropertyAccessExpression:
       case SyntaxKind.ElementAccessExpression:
-        if (isNarrowableReference(node)) setFlowNode(node, this.currentFlowValue());
+        if (isNarrowableReference(node)) setFlowNode(node, this.currentFlow);
         break;
       case SyntaxKind.BinaryExpression:
         switch (getAssignmentDeclarationKind(node)) {
@@ -871,7 +852,7 @@ class Binder extends NodeVisitor {
         this.bindVariableDeclarationOrBindingElement(node);
         break;
       case SyntaxKind.BindingElement:
-        (node as BindingElement).flowNode = this.currentFlowValue();
+        (node as BindingElement).flowNode = this.currentFlow;
         this.bindVariableDeclarationOrBindingElement(node);
         break;
       case SyntaxKind.PropertyDeclaration:
@@ -1170,7 +1151,7 @@ class Binder extends NodeVisitor {
       return;
     }
     if (node.kind >= SyntaxKind.FirstStatement && node.kind <= SyntaxKind.LastStatement)
-      setFlowNode(node, this.currentFlowValue());
+      setFlowNode(node, this.currentFlow);
     switch (node.kind) {
       case SyntaxKind.WhileStatement:
         this.bindWhileStatement(node as WhileStatement);
@@ -2055,7 +2036,7 @@ class Binder extends NodeVisitor {
   bindFunctionExpression(node: Node): void {
     if (!this.file.isDeclarationFile && (node.flags & NodeFlags.Ambient) === 0 && isAsyncFunction(node))
       this.emitFlags |= NodeFlags.HasAsyncFunctions;
-    setFlowNode(node, this.currentFlowValue());
+    setFlowNode(node, this.currentFlow);
     let bindingName: string = InternalSymbolName.Function;
     if (node instanceof FunctionExpression) {
       const name = node.name;
@@ -2093,7 +2074,7 @@ class Binder extends NodeVisitor {
   bindPropertyOrMethodOrAccessor(node: Node, symbolFlags: SymbolFlags, symbolExcludes: SymbolFlags): void {
     if (!this.file.isDeclarationFile && (node.flags & NodeFlags.Ambient) === 0 && isAsyncFunction(node))
       this.emitFlags |= NodeFlags.HasAsyncFunctions;
-    if (isObjectLiteralOrClassExpressionMethodOrAccessor(node)) setFlowNode(node, this.currentFlowValue());
+    if (isObjectLiteralOrClassExpressionMethodOrAccessor(node)) setFlowNode(node, this.currentFlow);
     if (hasDynamicName(node)) this.bindAnonymousDeclaration(node, symbolFlags, InternalSymbolName.Computed);
     else this.declareSymbolAndAddToSymbolTable(node, symbolFlags, symbolExcludes);
   }
