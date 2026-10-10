@@ -127,11 +127,14 @@ export function isNamedEvaluation(
 /** The anonymous function definition a NamedEvaluation source names. */
 function namedEvaluationValue(node: Node): Node | undefined {
   if (node instanceof ShorthandPropertyAssignment) return node.objectAssignmentInitializer;
-  if (node instanceof PropertyAssignment) return node.initializer;
-  if (node instanceof VariableDeclaration) return node.initializer;
-  if (node instanceof ParameterDeclaration) return node.initializer;
-  if (node instanceof BindingElement) return node.initializer;
-  if (node instanceof PropertyDeclaration) return node.initializer;
+  if (
+    node instanceof PropertyAssignment ||
+    node instanceof VariableDeclaration ||
+    node instanceof ParameterDeclaration ||
+    node instanceof BindingElement ||
+    node instanceof PropertyDeclaration
+  )
+    return node.initializer;
   if (node instanceof BinaryExpression) return node.right;
   if (node instanceof ExportAssignment) return node.expression;
   return undefined;

@@ -1587,14 +1587,17 @@ function literalOf(node: Node): Node | undefined {
 }
 
 function literalText(node: Node): string {
-  if (node instanceof Identifier) return node.text;
-  if (node instanceof PrivateIdentifier) return node.text;
-  if (node instanceof StringLiteral) return node.text;
-  if (node instanceof NumericLiteral) return node.text;
-  if (node instanceof NoSubstitutionTemplateLiteral) return node.text;
-  if (node instanceof BigIntLiteral) return node.text;
-  if (node instanceof TemplateMiddle) return node.text;
-  if (node instanceof TemplateTail) return node.text;
+  if (
+    node instanceof Identifier ||
+    node instanceof PrivateIdentifier ||
+    node instanceof StringLiteral ||
+    node instanceof NumericLiteral ||
+    node instanceof NoSubstitutionTemplateLiteral ||
+    node instanceof BigIntLiteral ||
+    node instanceof TemplateMiddle ||
+    node instanceof TemplateTail
+  )
+    return node.text;
   return '';
 }
 

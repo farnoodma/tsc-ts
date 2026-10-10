@@ -229,17 +229,23 @@ export class OptionalChainTransformer extends Transformer {
 }
 
 function questionDotTokenOf(node: Node): Node | undefined {
-  if (node instanceof PropertyAccessExpression) return node.questionDotToken;
-  if (node instanceof ElementAccessExpression) return node.questionDotToken;
-  if (node instanceof CallExpression) return node.questionDotToken;
+  if (
+    node instanceof PropertyAccessExpression ||
+    node instanceof ElementAccessExpression ||
+    node instanceof CallExpression
+  )
+    return node.questionDotToken;
   return undefined;
 }
 
 /** The expression a link of a chain accesses or calls. */
 function accessedExpression(node: Node): Node {
-  if (node instanceof PropertyAccessExpression) return node.expression;
-  if (node instanceof ElementAccessExpression) return node.expression;
-  if (node instanceof CallExpression) return node.expression;
+  if (
+    node instanceof PropertyAccessExpression ||
+    node instanceof ElementAccessExpression ||
+    node instanceof CallExpression
+  )
+    return node.expression;
   if (node instanceof TaggedTemplateExpression) return node.tag;
   if (node instanceof ParenthesizedExpression) return node.expression;
   return node;

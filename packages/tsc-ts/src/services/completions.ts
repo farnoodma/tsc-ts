@@ -2089,8 +2089,7 @@ function getJsxAttributeNameText(name: Node): string {
 }
 
 function getJsxAttributes(element: Node): JsxAttributes | undefined {
-  if (element instanceof JsxOpeningElement) return element.attributes;
-  if (element instanceof JsxSelfClosingElement) return element.attributes;
+  if (element instanceof JsxOpeningElement || element instanceof JsxSelfClosingElement) return element.attributes;
   return undefined;
 }
 

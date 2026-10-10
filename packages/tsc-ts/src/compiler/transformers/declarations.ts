@@ -2990,13 +2990,16 @@ function appendFlattened(result: Node[], node: Node): boolean {
 
 /** The JSDoc `@type` signature of a function-like declaration. */
 function getFullSignature(node: Node): Node | undefined {
-  if (node instanceof FunctionExpression) return node.fullSignature;
-  if (node instanceof ArrowFunction) return node.fullSignature;
-  if (node instanceof FunctionDeclaration) return node.fullSignature;
-  if (node instanceof MethodDeclaration) return node.fullSignature;
-  if (node instanceof ConstructorDeclaration) return node.fullSignature;
-  if (node instanceof GetAccessorDeclaration) return node.fullSignature;
-  if (node instanceof SetAccessorDeclaration) return node.fullSignature;
+  if (
+    node instanceof FunctionExpression ||
+    node instanceof ArrowFunction ||
+    node instanceof FunctionDeclaration ||
+    node instanceof MethodDeclaration ||
+    node instanceof ConstructorDeclaration ||
+    node instanceof GetAccessorDeclaration ||
+    node instanceof SetAccessorDeclaration
+  )
+    return node.fullSignature;
   return undefined;
 }
 

@@ -597,8 +597,7 @@ export class Printer extends NameGeneratorHost {
       case SyntaxKind.PrivateIdentifier:
       case SyntaxKind.JsxNamespacedName:
         if (!canUseSourceFile || !this.isInCurrentSourceFile(node)) {
-          if (node instanceof Identifier) return node.text;
-          if (node instanceof PrivateIdentifier) return node.text;
+          if (node instanceof Identifier || node instanceof PrivateIdentifier) return node.text;
           if (node instanceof JsxNamespacedName) return node.namespace.text + ':' + node.name.text;
         }
         break;
@@ -4966,9 +4965,12 @@ function getContainingNodeArray(node: Node): NodeList | undefined {
     case SyntaxKind.Decorator:
       return getModifiers(parent);
     case SyntaxKind.HeritageClause:
-      if (parent instanceof ClassDeclaration) return parent.heritageClauses;
-      if (parent instanceof ClassExpression) return parent.heritageClauses;
-      if (parent instanceof InterfaceDeclaration) return parent.heritageClauses;
+      if (
+        parent instanceof ClassDeclaration ||
+        parent instanceof ClassExpression ||
+        parent instanceof InterfaceDeclaration
+      )
+        return parent.heritageClauses;
       return undefined;
   }
   switch (parent.kind) {
@@ -4977,11 +4979,14 @@ function getContainingNodeArray(node: Node): NodeList | undefined {
     case SyntaxKind.ClassDeclaration:
     case SyntaxKind.ClassExpression:
     case SyntaxKind.EnumDeclaration:
-      if (parent instanceof TypeLiteralNode) return parent.members;
-      if (parent instanceof InterfaceDeclaration) return parent.members;
-      if (parent instanceof ClassDeclaration) return parent.members;
-      if (parent instanceof ClassExpression) return parent.members;
-      if (parent instanceof EnumDeclaration) return parent.members;
+      if (
+        parent instanceof TypeLiteralNode ||
+        parent instanceof InterfaceDeclaration ||
+        parent instanceof ClassDeclaration ||
+        parent instanceof ClassExpression ||
+        parent instanceof EnumDeclaration
+      )
+        return parent.members;
       break;
     case SyntaxKind.UnionType:
       if (parent instanceof UnionTypeNode) return parent.types;

@@ -959,8 +959,7 @@ export function typesOf(node: Node): Node[] {
 
 /** The JSDoc `@type` signature of a function expression, arrow function or method. */
 function getFullSignature(node: Node): Node | undefined {
-  if (node instanceof ArrowFunction) return node.fullSignature;
-  if (node instanceof FunctionExpression) return node.fullSignature;
-  if (node instanceof MethodDeclaration) return node.fullSignature;
+  if (node instanceof ArrowFunction || node instanceof FunctionExpression || node instanceof MethodDeclaration)
+    return node.fullSignature;
   return undefined;
 }

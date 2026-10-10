@@ -247,8 +247,7 @@ function bindingElementName(node: Node): Node | undefined {
 }
 
 export function moduleExportNameText(name: Node): string {
-  if (name instanceof Identifier) return name.text;
-  if (name instanceof StringLiteral) return name.text;
+  if (name instanceof Identifier || name instanceof StringLiteral) return name.text;
   return '';
 }
 

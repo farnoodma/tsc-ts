@@ -534,9 +534,12 @@ export function getTargetOfBindingOrAssignmentElement(element: Node): Node | und
 
 function getInitializerOfBindingOrAssignmentElement(element: Node | undefined): Node | undefined {
   if (element === undefined) return undefined;
-  if (element instanceof VariableDeclaration) return element.initializer;
-  if (element instanceof ParameterDeclaration) return element.initializer;
-  if (element instanceof BindingElement) return element.initializer;
+  if (
+    element instanceof VariableDeclaration ||
+    element instanceof ParameterDeclaration ||
+    element instanceof BindingElement
+  )
+    return element.initializer;
   if (element instanceof PropertyAssignment) {
     const initializer = element.initializer;
     return initializer instanceof BinaryExpression && isAssignmentExpression(initializer, true)
@@ -550,8 +553,7 @@ function getInitializerOfBindingOrAssignmentElement(element: Node | undefined): 
 }
 
 function getRestIndicatorOfBindingOrAssignmentElement(element: Node): Node | undefined {
-  if (element instanceof ParameterDeclaration) return element.dotDotDotToken;
-  if (element instanceof BindingElement) return element.dotDotDotToken;
+  if (element instanceof ParameterDeclaration || element instanceof BindingElement) return element.dotDotDotToken;
   if (element instanceof SpreadElement || element instanceof SpreadAssignment) return element;
   return undefined;
 }

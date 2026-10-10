@@ -669,8 +669,7 @@ export function getLiteralText(node: Node, sourceText: string | undefined, flags
   if (node instanceof TemplateHead) return templateText('`', node.text, node.rawText, '${', flags);
   if (node instanceof TemplateMiddle) return templateText('}', node.text, node.rawText, '${', flags);
   if (node instanceof TemplateTail) return templateText('}', node.text, node.rawText, '`', flags);
-  if (node instanceof NumericLiteral) return node.text;
-  if (node instanceof BigIntLiteral) return node.text;
+  if (node instanceof NumericLiteral || node instanceof BigIntLiteral) return node.text;
   if (node instanceof RegularExpressionLiteral) {
     const text = node.text;
     if ((flags & LiteralTextFlags.TerminateUnterminatedLiterals) !== 0 && isUnterminatedLiteral(node))
@@ -695,8 +694,7 @@ export function getSourceTextOfNode(sourceText: string, node: Node): string {
 }
 
 function getTextOfIdentifierLike(node: Node): string {
-  if (node instanceof Identifier) return node.text;
-  if (node instanceof PrivateIdentifier) return node.text;
+  if (node instanceof Identifier || node instanceof PrivateIdentifier) return node.text;
   throw new Error('Unexpected reparser-transformed node kind');
 }
 

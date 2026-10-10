@@ -1002,9 +1002,8 @@ function getRightMostAssignedExpression(node: Node): Node {
 }
 
 function getExpressionOfReturnOrParenthesized(node: Node): Node | undefined {
-  if (node instanceof ReturnStatement) return node.expression;
-  if (node instanceof ParenthesizedExpression) return node.expression;
-  if (node instanceof ExportAssignment) return node.expression;
+  if (node instanceof ReturnStatement || node instanceof ParenthesizedExpression || node instanceof ExportAssignment)
+    return node.expression;
   return undefined;
 }
 
@@ -1032,8 +1031,7 @@ function isStringOrNumericLiteralLike(node: Node): boolean {
 }
 
 function getAccessExpression(node: Node): Node | undefined {
-  if (node instanceof PropertyAccessExpression) return node.expression;
-  if (node instanceof ElementAccessExpression) return node.expression;
+  if (node instanceof PropertyAccessExpression || node instanceof ElementAccessExpression) return node.expression;
   return undefined;
 }
 

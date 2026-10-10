@@ -309,8 +309,7 @@ function isStringLiteralLike(node: Node | undefined): boolean {
 }
 
 function literalText(node: Node): string {
-  if (node instanceof StringLiteral) return node.text;
-  if (node instanceof NoSubstitutionTemplateLiteral) return node.text;
+  if (node instanceof StringLiteral || node instanceof NoSubstitutionTemplateLiteral) return node.text;
   return '';
 }
 
@@ -333,9 +332,8 @@ export function getResolutionModeOverride(attributes: ImportAttributes | undefin
 
 /** The attributes of an import or export declaration or a JSDoc `@import`, if any. */
 function importOrExportAttributes(node: Node | undefined): ImportAttributes | undefined {
-  if (node instanceof ImportDeclaration) return node.attributes;
-  if (node instanceof ExportDeclaration) return node.attributes;
-  if (node instanceof JSDocImportTag) return node.attributes;
+  if (node instanceof ImportDeclaration || node instanceof ExportDeclaration || node instanceof JSDocImportTag)
+    return node.attributes;
   return undefined;
 }
 

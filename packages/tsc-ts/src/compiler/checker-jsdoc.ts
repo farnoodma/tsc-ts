@@ -113,10 +113,13 @@ export function getIntendedTypeFromJSDocTypeReference(c: Checker, node: Node): T
 /** The JSDoc `@type` of a function, method or arrow function in a JavaScript file. */
 export function getFullSignatureTypeNode(node: Node): Node | undefined {
   if (!isInJSFile(node)) return undefined;
-  if (node instanceof FunctionDeclaration) return node.fullSignature;
-  if (node instanceof MethodDeclaration) return node.fullSignature;
-  if (node instanceof FunctionExpression) return node.fullSignature;
-  if (node instanceof ArrowFunction) return node.fullSignature;
+  if (
+    node instanceof FunctionDeclaration ||
+    node instanceof MethodDeclaration ||
+    node instanceof FunctionExpression ||
+    node instanceof ArrowFunction
+  )
+    return node.fullSignature;
   return undefined;
 }
 

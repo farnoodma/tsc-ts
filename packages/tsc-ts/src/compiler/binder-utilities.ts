@@ -315,10 +315,13 @@ export function skipParentheses(node: Node): Node {
 }
 
 function getQuestionDotToken(node: Node): Node | undefined {
-  if (node instanceof PropertyAccessExpression) return node.questionDotToken;
-  if (node instanceof ElementAccessExpression) return node.questionDotToken;
-  if (node instanceof CallExpression) return node.questionDotToken;
-  if (node instanceof TaggedTemplateExpression) return node.questionDotToken;
+  if (
+    node instanceof PropertyAccessExpression ||
+    node instanceof ElementAccessExpression ||
+    node instanceof CallExpression ||
+    node instanceof TaggedTemplateExpression
+  )
+    return node.questionDotToken;
   return undefined;
 }
 

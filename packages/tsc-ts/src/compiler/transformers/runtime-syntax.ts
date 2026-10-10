@@ -935,7 +935,6 @@ function numberExpression(factory: NodeFactory, value: number): Node {
 }
 
 function modifiersOf(node: Node): ModifierList | undefined {
-  if (node instanceof EnumDeclaration) return node.modifiers;
-  if (node instanceof ModuleDeclaration) return node.modifiers;
+  if (node instanceof EnumDeclaration || node instanceof ModuleDeclaration) return node.modifiers;
   return undefined;
 }

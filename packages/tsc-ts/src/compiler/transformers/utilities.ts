@@ -403,13 +403,16 @@ export function skipOuterExpressions(node: Node, kinds: OuterExpressionKinds): N
 
 /** The operand of an outer expression. */
 export function outerExpressionOperand(node: Node): Node {
-  if (node instanceof ParenthesizedExpression) return node.expression;
-  if (node instanceof TypeAssertion) return node.expression;
-  if (node instanceof AsExpression) return node.expression;
-  if (node instanceof SatisfiesExpression) return node.expression;
-  if (node instanceof ExpressionWithTypeArguments) return node.expression;
-  if (node instanceof NonNullExpression) return node.expression;
-  if (node instanceof PartiallyEmittedExpression) return node.expression;
+  if (
+    node instanceof ParenthesizedExpression ||
+    node instanceof TypeAssertion ||
+    node instanceof AsExpression ||
+    node instanceof SatisfiesExpression ||
+    node instanceof ExpressionWithTypeArguments ||
+    node instanceof NonNullExpression ||
+    node instanceof PartiallyEmittedExpression
+  )
+    return node.expression;
   if (node instanceof BinaryExpression) return node.right;
   return node;
 }

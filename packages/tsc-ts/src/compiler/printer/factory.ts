@@ -748,9 +748,12 @@ function flattenCommaElement(node: Node, expressions: Node[]): boolean {
 }
 
 function textOfLiteralLike(node: Node): string {
-  if (node instanceof Identifier) return node.text;
-  if (node instanceof PrivateIdentifier) return node.text;
-  if (node instanceof StringLiteral) return node.text;
-  if (node instanceof NumericLiteral) return node.text;
+  if (
+    node instanceof Identifier ||
+    node instanceof PrivateIdentifier ||
+    node instanceof StringLiteral ||
+    node instanceof NumericLiteral
+  )
+    return node.text;
   return '';
 }

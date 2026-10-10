@@ -1269,13 +1269,16 @@ function dataType(kind: SyntaxKind): number {
 
 /** The text of a node encoded as a string. */
 function nodeText(node: Node): string {
-  if (node instanceof Identifier) return node.text;
-  if (node instanceof PrivateIdentifier) return node.text;
-  if (node instanceof JsxText) return node.text;
-  if (node instanceof JSDocText) return node.text;
-  if (node instanceof JSDocLink) return node.text;
-  if (node instanceof JSDocLinkPlain) return node.text;
-  if (node instanceof JSDocLinkCode) return node.text;
+  if (
+    node instanceof Identifier ||
+    node instanceof PrivateIdentifier ||
+    node instanceof JsxText ||
+    node instanceof JSDocText ||
+    node instanceof JSDocLink ||
+    node instanceof JSDocLinkPlain ||
+    node instanceof JSDocLinkCode
+  )
+    return node.text;
   return '';
 }
 

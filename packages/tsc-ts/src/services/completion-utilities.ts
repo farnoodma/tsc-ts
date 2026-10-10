@@ -627,14 +627,12 @@ function templateArgumentCount(tag: Node): number {
 }
 
 function getCallTypeArgumentList(node: Node): NodeList | undefined {
-  if (node instanceof CallExpression) return node.typeArguments;
-  if (node instanceof NewExpression) return node.typeArguments;
+  if (node instanceof CallExpression || node instanceof NewExpression) return node.typeArguments;
   return undefined;
 }
 
 function getCallArgumentList(node: Node): NodeList | undefined {
-  if (node instanceof CallExpression) return node.arguments;
-  if (node instanceof NewExpression) return node.arguments;
+  if (node instanceof CallExpression || node instanceof NewExpression) return node.arguments;
   return undefined;
 }
 
