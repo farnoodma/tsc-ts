@@ -217,15 +217,13 @@ export class CommonJSModuleTransformer extends Transformer {
   private visitTopLevel(node: Node): Node | undefined {
     const grandparent = this.pushNode(node);
     let result: Node | undefined;
-    if (node instanceof ImportDeclaration) result = this.visitTopLevelImportDeclaration(node as ImportDeclaration);
-    else if (node instanceof ImportEqualsDeclaration)
-      result = this.visitTopLevelImportEqualsDeclaration(node as ImportEqualsDeclaration);
-    else if (node instanceof ExportDeclaration) result = this.visitTopLevelExportDeclaration(node as ExportDeclaration);
-    else if (node instanceof ExportAssignment) result = this.visitTopLevelExportAssignment(node as ExportAssignment);
-    else if (node instanceof FunctionDeclaration)
-      result = this.visitTopLevelFunctionDeclaration(node as FunctionDeclaration);
-    else if (node instanceof ClassDeclaration) result = this.visitTopLevelClassDeclaration(node as ClassDeclaration);
-    else if (node instanceof VariableStatement) result = this.visitTopLevelVariableStatement(node as VariableStatement);
+    if (node instanceof ImportDeclaration) result = this.visitTopLevelImportDeclaration(node);
+    else if (node instanceof ImportEqualsDeclaration) result = this.visitTopLevelImportEqualsDeclaration(node);
+    else if (node instanceof ExportDeclaration) result = this.visitTopLevelExportDeclaration(node);
+    else if (node instanceof ExportAssignment) result = this.visitTopLevelExportAssignment(node);
+    else if (node instanceof FunctionDeclaration) result = this.visitTopLevelFunctionDeclaration(node);
+    else if (node instanceof ClassDeclaration) result = this.visitTopLevelClassDeclaration(node);
+    else if (node instanceof VariableStatement) result = this.visitTopLevelVariableStatement(node);
     else result = this.visitTopLevelNestedNoStack(node);
     this.popNode(grandparent);
     return result;
@@ -234,40 +232,39 @@ export class CommonJSModuleTransformer extends Transformer {
   private visitTopLevelNestedNoStack(node: Node): Node | undefined {
     const factory = this.factory;
     const nested = this.topLevelNested;
-    if (node instanceof VariableStatement) return this.visitTopLevelVariableStatement(node as VariableStatement);
-    if (node instanceof ForStatement) return this.visitTopLevelNestedForStatement(node as ForStatement);
-    if (node instanceof ForInOrOfStatement)
-      return this.visitTopLevelNestedForInOrOfStatement(node as ForInOrOfStatement);
+    if (node instanceof VariableStatement) return this.visitTopLevelVariableStatement(node);
+    if (node instanceof ForStatement) return this.visitTopLevelNestedForStatement(node);
+    if (node instanceof ForInOrOfStatement) return this.visitTopLevelNestedForInOrOfStatement(node);
     if (node instanceof DoStatement)
       return factory.updateDoStatement(
-        node as DoStatement,
+        node,
         nested.visitIterationBody(node.statement)!,
         this.visitNode(node.expression)!,
       );
     if (node instanceof WhileStatement)
       return factory.updateWhileStatement(
-        node as WhileStatement,
+        node,
         this.visitNode(node.expression)!,
         nested.visitIterationBody(node.statement)!,
       );
     if (node instanceof LabeledStatement) {
       const statement = nested.visitStatement(node.statement);
       return factory.updateLabeledStatement(
-        node as LabeledStatement,
+        node,
         node.label,
         statement !== undefined ? statement : factory.created(new EmptyStatement()),
       );
     }
     if (node instanceof WithStatement)
       return factory.updateWithStatement(
-        node as WithStatement,
+        node,
         this.visitNode(node.expression)!,
         nested.visitStatement(node.statement)!,
       );
     if (node instanceof IfStatement) {
       const thenStatement = nested.visitStatement(node.thenStatement);
       return factory.updateIfStatement(
-        node as IfStatement,
+        node,
         this.visitNode(node.expression)!,
         thenStatement !== undefined ? thenStatement : factory.createBlock([], false),
         nested.visitStatement(node.elseStatement),
@@ -276,36 +273,32 @@ export class CommonJSModuleTransformer extends Transformer {
     if (node instanceof SwitchStatement) {
       const caseBlock = nested.visitNode(node.caseBlock);
       return factory.updateSwitchStatement(
-        node as SwitchStatement,
+        node,
         this.visitNode(node.expression)!,
-        caseBlock instanceof CaseBlock ? (caseBlock as CaseBlock) : node.caseBlock,
+        caseBlock instanceof CaseBlock ? caseBlock : node.caseBlock,
       );
     }
     if (node instanceof CaseBlock || node instanceof TryStatement || node instanceof Block)
       return nested.visitEachChild(node);
     if (node instanceof CaseOrDefaultClause)
       return factory.updateCaseOrDefaultClause(
-        node as CaseOrDefaultClause,
+        node,
         this.visitNode(node.expression),
         nested.visitNodes(node.statements)!,
       );
     if (node instanceof CatchClause) {
       const block = nested.visitNode(node.block);
-      return factory.updateCatchClause(
-        node as CatchClause,
-        node.variableDeclaration,
-        block instanceof Block ? (block as Block) : node.block,
-      );
+      return factory.updateCatchClause(node, node.variableDeclaration, block instanceof Block ? block : node.block);
     }
     return this.visitNoStack(node, false);
   }
 
   /** Visits a node other than a top-level statement; `discarded` if its value is unused. */
   private visitNoStack(node: Node, discarded: boolean): Node | undefined {
-    if (node instanceof SourceFile) return this.visitSourceFile(node as SourceFile);
+    if (node instanceof SourceFile) return this.visitSourceFile(node);
     if (node instanceof ForStatement)
       return this.factory.updateForStatement(
-        node as ForStatement,
+        node,
         this.discarded.visitNode(node.initializer),
         this.visitNode(node.condition),
         this.discarded.visitNode(node.incrementor),
@@ -313,7 +306,7 @@ export class CommonJSModuleTransformer extends Transformer {
       );
     if (node instanceof ForInOrOfStatement)
       return this.factory.updateForInOrOfStatement(
-        node as ForInOrOfStatement,
+        node,
         node.awaitModifier,
         this.discarded.visitNode(node.initializer)!,
         this.visitNode(node.expression)!,
@@ -323,25 +316,22 @@ export class CommonJSModuleTransformer extends Transformer {
       return this.discarded.visitEachChild(node);
     if (node instanceof ParenthesizedExpression)
       return this.factory.updateParenthesizedExpression(
-        node as ParenthesizedExpression,
+        node,
         (discarded ? this.discarded.visitNode(node.expression) : this.visitNode(node.expression))!,
       );
     if (node instanceof PartiallyEmittedExpression)
       return this.factory.updatePartiallyEmittedExpression(
-        node as PartiallyEmittedExpression,
+        node,
         (discarded ? this.discarded.visitNode(node.expression) : this.visitNode(node.expression))!,
       );
-    if (node instanceof CallExpression) return this.visitCallExpression(node as CallExpression);
-    if (node instanceof TaggedTemplateExpression)
-      return this.visitTaggedTemplateExpression(node as TaggedTemplateExpression);
-    if (node instanceof BinaryExpression) return this.visitBinaryExpression(node as BinaryExpression, discarded);
-    if (node instanceof PrefixUnaryExpression) return this.visitPrefixUnaryExpression(node as PrefixUnaryExpression);
-    if (node instanceof PostfixUnaryExpression)
-      return this.visitPostfixUnaryExpression(node as PostfixUnaryExpression, discarded);
-    if (node instanceof ShorthandPropertyAssignment)
-      return this.visitShorthandPropertyAssignment(node as ShorthandPropertyAssignment);
+    if (node instanceof CallExpression) return this.visitCallExpression(node);
+    if (node instanceof TaggedTemplateExpression) return this.visitTaggedTemplateExpression(node);
+    if (node instanceof BinaryExpression) return this.visitBinaryExpression(node, discarded);
+    if (node instanceof PrefixUnaryExpression) return this.visitPrefixUnaryExpression(node);
+    if (node instanceof PostfixUnaryExpression) return this.visitPostfixUnaryExpression(node, discarded);
+    if (node instanceof ShorthandPropertyAssignment) return this.visitShorthandPropertyAssignment(node);
     if (node instanceof Identifier)
-      return isIdentifierReference(node, this.parentNode) ? this.visitExpressionIdentifier(node as Identifier) : node;
+      return isIdentifierReference(node, this.parentNode) ? this.visitExpressionIdentifier(node) : node;
     return this.visitEachChild(node);
   }
 
@@ -476,7 +466,7 @@ export class CommonJSModuleTransformer extends Transformer {
   }
 
   private cloneName(name: Node): Node {
-    return name instanceof Identifier ? this.factory.cloneIdentifier(name as Identifier) : name;
+    return name instanceof Identifier ? this.factory.cloneIdentifier(name) : name;
   }
 
   /** `module.exports = x;` for `export = x`. */
@@ -911,7 +901,7 @@ export class CommonJSModuleTransformer extends Transformer {
           initializer === undefined
             ? variable
             : factory.updateVariableDeclaration(
-                variable as VariableDeclaration,
+                variable,
                 name,
                 undefined,
                 undefined,
@@ -938,13 +928,13 @@ export class CommonJSModuleTransformer extends Transformer {
         context.assignCommentAndSourceMapRanges(access, name);
         splitter.pushExpression(factory.createAssignment(access, this.cloneName(name)));
       } else if (name instanceof Identifier) {
-        const expression = this.transformInitializedVariable(variable as VariableDeclaration);
+        const expression = this.transformInitializedVariable(variable);
         if (expression !== undefined) splitter.pushExpression(this.visitNode(expression)!);
       } else if (name instanceof BindingPattern) {
-        const expression = this.transformInitializedVariable(variable as VariableDeclaration);
+        const expression = this.transformInitializedVariable(variable);
         if (expression !== undefined) splitter.pushExpression(expression);
       } else {
-        const expression = convertVariableDeclarationToAssignment(this, variable as VariableDeclaration);
+        const expression = convertVariableDeclarationToAssignment(this, variable);
         if (expression !== undefined) splitter.pushExpression(this.visitNode(expression)!);
       }
     }
@@ -978,17 +968,12 @@ export class CommonJSModuleTransformer extends Transformer {
     const initializer = node.initializer;
     if (initializer instanceof VariableDeclarationList && (initializer.flags & NodeFlags.BlockScoped) === 0) {
       const exports: Node[] = [];
-      this.appendExportsOfVariableDeclarationList(exports, initializer as VariableDeclarationList, false);
+      this.appendExportsOfVariableDeclarationList(exports, initializer, false);
       if (exports.length > 0) {
         // var x = 0; exports.x = x; for (; ;) { }
         const list = this.discarded.visitNode(initializer);
         const statements: Node[] = [
-          factory.createVariableStatement(
-            undefined,
-            list instanceof VariableDeclarationList
-              ? (list as VariableDeclarationList)
-              : (initializer as VariableDeclarationList),
-          ),
+          factory.createVariableStatement(undefined, list instanceof VariableDeclarationList ? list : initializer),
         ];
         appendAll(statements, exports);
         const updated: Node | undefined = factory.updateForStatement(
@@ -1124,16 +1109,12 @@ export class CommonJSModuleTransformer extends Transformer {
       return false;
     }
     if (node instanceof Identifier) {
-      const exportedNames = this.getExports(node as Identifier);
+      const exportedNames = this.getExports(node);
       const count = exportedNames === undefined ? 0 : exportedNames.length;
       if ((this.context.getEmitFlags(node) & EmitFlags.ExportName) !== 0) return count > 1;
       if (count === 0) return false;
       // A single direct export of the same name becomes `exports.x` natively.
-      if (
-        count === 1 &&
-        this.isDirectExport(node as Identifier) &&
-        moduleExportNameText(exportedNames![0]) === node.text
-      )
+      if (count === 1 && this.isDirectExport(node) && moduleExportNameText(exportedNames![0]) === node.text)
         return false;
       return true;
     }
@@ -1175,7 +1156,7 @@ export class CommonJSModuleTransformer extends Transformer {
   private isDirectExport(name: Identifier): boolean {
     const location = this.context.mostOriginal(name);
     if (!(location instanceof Identifier) || (location.flags & NodeFlags.Synthesized) !== 0) return false;
-    return this.resolver.getReferencedExportContainer(location as Identifier, false) instanceof SourceFile;
+    return this.resolver.getReferencedExportContainer(location, false) instanceof SourceFile;
   }
 
   private visitPrefixUnaryExpression(node: PrefixUnaryExpression): Node {
@@ -1403,10 +1384,7 @@ export class CommonJSModuleTransformer extends Transformer {
     const synthesized = (location.flags & NodeFlags.Synthesized) !== 0;
     const container = synthesized
       ? undefined
-      : this.resolver.getReferencedExportContainer(
-          location as Identifier,
-          (context.getEmitFlags(node) & EmitFlags.ExportName) !== 0,
-        );
+      : this.resolver.getReferencedExportContainer(location, (context.getEmitFlags(node) & EmitFlags.ExportName) !== 0);
     if (container instanceof SourceFile) {
       const reference = factory.createPropertyAccessExpression(
         factory.createIdentifier('exports'),
@@ -1417,7 +1395,7 @@ export class CommonJSModuleTransformer extends Transformer {
       reference.end = node.end;
       return reference;
     }
-    const declaration = this.resolver.getReferencedImportDeclaration(location as Identifier);
+    const declaration = this.resolver.getReferencedImportDeclaration(location);
     if (declaration instanceof ImportClause && declaration.parent !== undefined) {
       const reference = factory.createPropertyAccessExpression(
         factory.createGeneratedNameForNode(declaration.parent, 0, '', ''),
@@ -1460,10 +1438,10 @@ export class CommonJSModuleTransformer extends Transformer {
     if (!context.hasAutoGenerateInfo(name)) {
       const location = context.mostOriginal(name);
       if (!(location instanceof Identifier) || (location.flags & NodeFlags.Synthesized) !== 0) return undefined;
-      const importDeclaration = this.resolver.getReferencedImportDeclaration(location as Identifier);
+      const importDeclaration = this.resolver.getReferencedImportDeclaration(location);
       if (importDeclaration !== undefined) return info.getExportedBindings(importDeclaration);
       // An exported namespace or enum may merge with ambient declarations, so all value declarations count.
-      const declarations = this.resolver.getReferencedValueDeclarations(location as Identifier);
+      const declarations = this.resolver.getReferencedValueDeclarations(location);
       if (declarations === undefined) return undefined;
       const bindings: Node[] = [];
       for (let i = 0; i < declarations.length; i++) {
@@ -1590,7 +1568,7 @@ function namespaceNameOf(node: Node): Node {
 
 function findImportDeclaration(node: Node): ImportDeclaration | undefined {
   for (let current: Node | undefined = node; current !== undefined; current = current.parent)
-    if (current instanceof ImportDeclaration) return current as ImportDeclaration;
+    if (current instanceof ImportDeclaration) return current;
   return undefined;
 }
 

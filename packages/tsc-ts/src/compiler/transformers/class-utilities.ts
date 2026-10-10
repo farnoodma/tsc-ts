@@ -156,29 +156,29 @@ export function classHasClassThisAssignment(context: EmitContext, members: NodeL
 
 /** The members of a class declaration or expression. */
 export function getClassMembers(node: Node): NodeList {
-  if (node instanceof ClassDeclaration) return (node as ClassDeclaration).members;
-  if (node instanceof ClassExpression) return (node as ClassExpression).members;
+  if (node instanceof ClassDeclaration) return node.members;
+  if (node instanceof ClassExpression) return node.members;
   throw new Error('Expected a class');
 }
 
 /** The heritage clauses of a class declaration or expression. */
 export function getClassHeritageClauses(node: Node): NodeList | undefined {
-  if (node instanceof ClassDeclaration) return (node as ClassDeclaration).heritageClauses;
-  if (node instanceof ClassExpression) return (node as ClassExpression).heritageClauses;
+  if (node instanceof ClassDeclaration) return node.heritageClauses;
+  if (node instanceof ClassExpression) return node.heritageClauses;
   return undefined;
 }
 
 /** The name of a class declaration or expression. */
 export function getClassName(node: Node): Identifier | undefined {
-  if (node instanceof ClassDeclaration) return (node as ClassDeclaration).name;
-  if (node instanceof ClassExpression) return (node as ClassExpression).name;
+  if (node instanceof ClassDeclaration) return node.name;
+  if (node instanceof ClassExpression) return node.name;
   return undefined;
 }
 
 /** A class declaration or expression with other members. */
 export function updateClassMembers(factory: NodeFactory, node: Node, members: NodeList): Node {
   if (node instanceof ClassDeclaration) {
-    const declaration = node as ClassDeclaration;
+    const declaration = node;
     return factory.updateClassDeclaration(
       declaration,
       declaration.modifiers,
@@ -189,7 +189,7 @@ export function updateClassMembers(factory: NodeFactory, node: Node, members: No
     );
   }
   if (node instanceof ClassExpression) {
-    const expression = node as ClassExpression;
+    const expression = node;
     return factory.updateClassExpression(
       expression,
       expression.modifiers,

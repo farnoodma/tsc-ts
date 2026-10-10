@@ -82,7 +82,7 @@ export function isExternalModule(file: SourceFile): boolean {
 export function getInnermostModuleDeclaration(node: ModuleDeclaration): ModuleDeclaration {
   let body = node.body;
   while (body instanceof ModuleDeclaration) {
-    node = body as ModuleDeclaration;
+    node = body;
     body = node.body;
   }
   return node;
@@ -158,7 +158,7 @@ class ModuleInstanceStates {
           const elements = node.exportClause.elements.nodes;
           for (const specifier of elements) {
             if (!(specifier instanceof ExportSpecifier)) continue;
-            const specifierState = this.ofAliasTarget(specifier as ExportSpecifier, inner);
+            const specifierState = this.ofAliasTarget(specifier, inner);
             if (specifierState > state) state = specifierState;
             if (state === ModuleInstanceState.Instantiated) return state;
           }
@@ -328,11 +328,7 @@ export function createForOfBindingStatement(factory: NodeFactory, node: Node, bo
     const declaration = factory.updateVariableDeclaration(first, first.name, undefined, undefined, boundValue);
     const statement = factory.createVariableStatement(
       undefined,
-      factory.updateVariableDeclarationList(
-        node as VariableDeclarationList,
-        factory.createNodeList([declaration as Node]),
-        node.flags,
-      ),
+      factory.updateVariableDeclarationList(node, factory.createNodeList([declaration as Node]), node.flags),
     );
     statement.pos = node.pos;
     statement.end = node.end;

@@ -20,7 +20,7 @@ export class OptionalCatchTransformer extends Transformer {
       return factory.created(
         new CatchClause(
           factory.createVariableDeclaration(factory.createTempVariable(0), undefined, undefined, undefined),
-          block instanceof Block ? (block as Block) : node.block,
+          block instanceof Block ? block : node.block,
         ),
       );
     }

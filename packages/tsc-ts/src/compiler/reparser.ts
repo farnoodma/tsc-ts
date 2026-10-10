@@ -3,9 +3,6 @@
 // Hosted tags (`@type`, `@param`, `@returns`, …) add children to the node they document; unhosted
 // tags (`@typedef`, `@callback`, `@import`, `@overload`) produce declarations in `Parser.reparseList`.
 // Reparsed nodes are flagged `NodeFlags.Reparsed`.
-//
-// Fields of `instanceof`-narrowed nodes are read through `as` casts: scriptc reads them
-// statically, but reads fields of a narrowed value dynamically.
 import {
   ArrayTypeNode,
   ArrowFunction,
@@ -185,10 +182,9 @@ export class Reparser {
 
   /** Reports an invalid identifier name, at the preceding character if it's missing. */
   checkNonIdentifierName(name: Node): Node {
-    if (name instanceof Identifier && !isValidIdentifier((name as Identifier).text)) {
-      if ((name as Identifier).end - (name as Identifier).pos === 0)
-        this.p.parseErrorAt((name as Identifier).pos - 1, (name as Identifier).pos, Diagnostics.Identifier_expected);
-      else this.p.parseErrorAt((name as Identifier).pos, (name as Identifier).end, Diagnostics.Identifier_expected);
+    if (name instanceof Identifier && !isValidIdentifier(name.text)) {
+      if (name.end - name.pos === 0) this.p.parseErrorAt(name.pos - 1, name.pos, Diagnostics.Identifier_expected);
+      else this.p.parseErrorAt(name.pos, name.end, Diagnostics.Identifier_expected);
     }
     return name;
   }
@@ -200,11 +196,10 @@ export class Reparser {
     for (const doc of jsDoc) {
       const isLast = index === jsDoc.length - 1;
       index++;
-      const j = asJSDoc(doc);
-      if (j === undefined || j.tags === undefined) continue;
-      for (const tag of j.tags.nodes) {
-        this.reparseUnhosted(tag, parent, j);
-        if (isLast) this.reparseHosted(tag, parent, j);
+      if (!(doc instanceof JSDoc) || doc.tags === undefined) continue;
+      for (const tag of doc.tags.nodes) {
+        this.reparseUnhosted(tag, parent, doc);
+        if (isLast) this.reparseHosted(tag, parent, doc);
       }
     }
     return true;
@@ -213,17 +208,16 @@ export class Reparser {
   reparseUnhosted(tag: Node, parent: Node, jsDoc: JSDoc): boolean {
     const p = this.p;
     if (tag instanceof JSDocTypedefTag) {
-      const typeExpression = (tag as JSDocTypedefTag).typeExpression;
+      const typeExpression = tag.typeExpression;
       if (typeExpression === undefined) return false;
-      const fullName = (tag as JSDocTypedefTag).name;
+      const fullName = tag.name;
       const modifiers = fullName instanceof ModuleDeclaration ? this.createExportModifier(tag) : undefined;
       const name = this.cloneTypeAliasName(
         this.checkNonIdentifierName(this.getInnermostNameOfJSDocNamespace(fullName)!),
       );
       const typeParameters = this.gatherTypeParameters(jsDoc, true);
       let type: Node;
-      if (typeExpression instanceof JSDocTypeExpression)
-        type = this.addDeepCloneReparse((typeExpression as JSDocTypeExpression).type);
+      if (typeExpression instanceof JSDocTypeExpression) type = this.addDeepCloneReparse(typeExpression.type);
       else if (typeExpression instanceof JSDocTypeLiteral) type = this.reparseJSDocTypeLiteral(typeExpression);
       else throw new Error('typedef tag type expression should be a name reference or a type expression');
       const typeAlias = new TypeAliasDeclaration(
@@ -239,15 +233,9 @@ export class Reparser {
       return true;
     }
     if (tag instanceof JSDocCallbackTag) {
-      const fullName = (tag as JSDocCallbackTag).name;
+      const fullName = tag.name;
       const modifiers = fullName instanceof ModuleDeclaration ? this.createExportModifier(tag) : undefined;
-      const functionType = this.reparseJSDocSignature(
-        (tag as JSDocCallbackTag).typeExpression,
-        tag,
-        jsDoc,
-        tag,
-        undefined,
-      );
+      const functionType = this.reparseJSDocSignature(tag.typeExpression, tag, jsDoc, tag, undefined);
       const name = this.cloneTypeAliasName(this.getInnermostNameOfJSDocNamespace(fullName)!);
       const typeParameters = this.gatherTypeParameters(jsDoc, true);
       const typeAlias = new TypeAliasDeclaration(
@@ -263,14 +251,14 @@ export class Reparser {
       return true;
     }
     if (tag instanceof JSDocImportTag) {
-      const tagImportClause = (tag as JSDocImportTag).importClause;
+      const tagImportClause = tag.importClause;
       if (tagImportClause === undefined) return false;
       const importClause = tagImportClause.copy();
       this.finishClone(importClause);
       p.reparsedClones.push(importClause);
       importClause.phaseModifier = SyntaxKind.TypeKeyword;
-      const moduleSpecifier = this.addDeepCloneReparse((tag as JSDocImportTag).moduleSpecifier);
-      const tagAttributes = (tag as JSDocImportTag).attributes;
+      const moduleSpecifier = this.addDeepCloneReparse(tag.moduleSpecifier);
+      const tagAttributes = tag.attributes;
       let attributes: ImportAttributes | undefined;
       if (tagAttributes !== undefined) {
         const copy = tagAttributes.copy();
@@ -297,15 +285,7 @@ export class Reparser {
           parent.kind === SyntaxKind.Constructor) &&
         !p.inObjectLiteralMembers()
       )
-        p.reparseList.push(
-          this.reparseJSDocSignature(
-            (tag as JSDocOverloadTag).typeExpression,
-            parent,
-            jsDoc,
-            tag,
-            getModifiers(parent),
-          ),
-        );
+        p.reparseList.push(this.reparseJSDocSignature(tag.typeExpression, parent, jsDoc, tag, getModifiers(parent)));
       return true;
     }
     return false;
@@ -338,22 +318,21 @@ export class Reparser {
     let functionName: Identifier | undefined;
     let methodName: Node | undefined;
     if (fun instanceof FunctionDeclaration) {
-      const name = (fun as FunctionDeclaration).name;
+      const name = fun.name;
       if (name !== undefined) {
         this.checkNonIdentifierName(name);
         functionName = name.copy();
         this.finishClone(functionName);
       }
     } else if (fun instanceof MethodDeclaration) {
-      methodName = this.deepCloneReparse(this.checkNonIdentifierName((fun as MethodDeclaration).name));
+      methodName = this.deepCloneReparse(this.checkNonIdentifierName(fun.name));
     } else if (fun.kind !== SyntaxKind.Constructor && fun.kind !== SyntaxKind.JSDocCallbackTag) {
       throw new Error('Unexpected kind ' + fun.kind);
     }
     const typeParameters =
       tag.kind !== SyntaxKind.JSDocCallbackTag ? this.gatherTypeParameters(jsDoc, false) : undefined;
     const parameters: Node[] = [];
-    const signatureParameters =
-      jsSignature instanceof JSDocSignature ? (jsSignature as JSDocSignature).parameters : undefined;
+    const signatureParameters = jsSignature instanceof JSDocSignature ? jsSignature.parameters : undefined;
     if (signatureParameters !== undefined) {
       const params = signatureParameters.nodes;
       for (let pi = 0; pi < params.length; pi++) {
@@ -361,33 +340,33 @@ export class Reparser {
         let parameter: ParameterDeclaration;
         if (param instanceof JSDocThisTag) {
           const thisIdent = new Identifier('this');
-          thisIdent.pos = (param as JSDocThisTag).pos;
-          thisIdent.end = (param as JSDocThisTag).end;
+          thisIdent.pos = param.pos;
+          thisIdent.end = param.end;
           thisIdent.flags = p.contextFlags | NodeFlags.Reparsed;
-          const type = this.addDeepCloneReparse(getType((param as JSDocThisTag).typeExpression)!);
+          const type = this.addDeepCloneReparse(getType(param.typeExpression)!);
           parameter = new ParameterDeclaration(undefined, undefined, thisIdent, undefined, type, undefined);
         } else if (param instanceof JSDocParameterOrPropertyTag) {
           // Sub-properties like `@param x.y` describe a parameter's properties, not parameters.
-          if ((param as JSDocParameterOrPropertyTag).name instanceof QualifiedName) continue;
+          if (param.name instanceof QualifiedName) continue;
           let dotDotDotToken: Token | undefined;
           let paramType: TypeNode | undefined;
-          const typeExpression = (param as JSDocParameterOrPropertyTag).typeExpression;
+          const typeExpression = param.typeExpression;
           if (typeExpression !== undefined) {
             const type = getType(typeExpression)!;
             if (type instanceof JSDocVariadicType) {
               dotDotDotToken = new Token(SyntaxKind.DotDotDotToken);
-              dotDotDotToken.pos = (param as JSDocParameterOrPropertyTag).pos;
-              dotDotDotToken.end = (param as JSDocParameterOrPropertyTag).end;
+              dotDotDotToken.pos = param.pos;
+              dotDotDotToken.end = param.end;
               dotDotDotToken.flags = p.contextFlags | NodeFlags.Reparsed;
-              paramType = this.reparseJSDocTypeLiteral((type as JSDocVariadicType).type);
+              paramType = this.reparseJSDocTypeLiteral(type.type);
             } else {
               paramType = this.reparseJSDocTypeLiteral(type);
             }
           }
-          let name: Node = (param as JSDocParameterOrPropertyTag).name;
-          if (name instanceof Identifier && !isValidIdentifier((name as Identifier).text)) {
+          let name: Node = param.name;
+          if (name instanceof Identifier && !isValidIdentifier(name.text)) {
             // Replace invalid characters with `_`, or use `_N` for an empty name, for a valid parameter name.
-            name = this.addTransformedReparse(new Identifier(sanitizeIdentifier((name as Identifier).text, pi)), name);
+            name = this.addTransformedReparse(new Identifier(sanitizeIdentifier(name.text, pi)), name);
           } else {
             name = this.addDeepCloneReparse(name);
           }
@@ -457,7 +436,7 @@ export class Reparser {
         parameterList,
         returnType !== undefined ? returnType : new KeywordTypeNode(SyntaxKind.AnyKeyword),
       );
-    const location = tag instanceof JSDocOverloadTag ? (tag as JSDocOverloadTag).tagName : jsSignature;
+    const location = tag instanceof JSDocOverloadTag ? tag.tagName : jsSignature;
     this.finishReparsedNode(signature, location);
     return signature;
   }
@@ -465,16 +444,13 @@ export class Reparser {
   reparseJSDocTypeLiteral(type: Node): Node {
     if (type instanceof JSDocTypeLiteral) {
       const properties: Node[] = [];
-      const tags = (type as JSDocTypeLiteral).jsdocPropertyTags;
+      const tags = type.jsdocPropertyTags;
       if (tags !== undefined)
         for (const tag of tags) {
-          const prop = asParameterOrPropertyTag(tag);
-          if (prop !== undefined) properties.push(this.reparseJSDocProperty(prop));
+          if (tag instanceof JSDocParameterOrPropertyTag) properties.push(this.reparseJSDocProperty(tag));
         }
-      let result: Node = new TypeLiteralNode(
-        this.p.newNodeList((type as JSDocTypeLiteral).pos, (type as JSDocTypeLiteral).end, properties),
-      );
-      if ((type as JSDocTypeLiteral).isArrayType) {
+      let result: Node = new TypeLiteralNode(this.p.newNodeList(type.pos, type.end, properties));
+      if (type.isArrayType) {
         this.finishReparsedNode(result, type);
         result = new ArrayTypeNode(result);
       }
@@ -486,9 +462,9 @@ export class Reparser {
 
   reparseJSDocProperty(prop: JSDocParameterOrPropertyTag): Node {
     let name: Node = prop.name;
-    if (name instanceof QualifiedName) name = (name as QualifiedName).right;
-    if (name instanceof Identifier && !isValidIdentifier((name as Identifier).text))
-      name = this.addTransformedReparse(new StringLiteral((name as Identifier).text, TokenFlags.None), name);
+    if (name instanceof QualifiedName) name = name.right;
+    if (name instanceof Identifier && !isValidIdentifier(name.text))
+      name = this.addTransformedReparse(new StringLiteral(name.text, TokenFlags.None), name);
     else name = this.addDeepCloneReparse(name);
     const questionToken = this.makeQuestionIfOptional(prop);
     const propertyType =
@@ -530,20 +506,20 @@ export class Reparser {
         return undefined;
       if (!(tag instanceof JSDocTemplateTag)) continue;
       if (firstTemplate) {
-        pos = (tag as JSDocTemplateTag).pos;
+        pos = tag.pos;
         firstTemplate = false;
       }
-      endPos = (tag as JSDocTemplateTag).end;
-      const constraint = (tag as JSDocTemplateTag).constraint;
+      endPos = tag.end;
+      const constraint = tag.constraint;
       let firstTypeParameter = true;
-      for (const tp of (tag as JSDocTemplateTag).typeParameters.nodes) {
+      for (const tp of tag.typeParameters.nodes) {
         let reparse: Node;
         if (constraint !== undefined && firstTypeParameter && tp instanceof TypeParameterDeclaration) {
-          const modifiers = this.cloneModifiers((tp as TypeParameterDeclaration).modifiers);
-          this.checkNonIdentifierName((tp as TypeParameterDeclaration).name);
-          const name = this.addDeepCloneReparseIdentifier((tp as TypeParameterDeclaration).name);
+          const modifiers = this.cloneModifiers(tp.modifiers);
+          this.checkNonIdentifierName(tp.name);
+          const name = this.addDeepCloneReparseIdentifier(tp.name);
           const constraintType = this.addDeepCloneReparse(getType(constraint)!);
-          const tpDefault = (tp as TypeParameterDeclaration).defaultType;
+          const tpDefault = tp.defaultType;
           const defaultType = tpDefault !== undefined ? this.addDeepCloneReparse(tpDefault) : undefined;
           reparse = new TypeParameterDeclaration(modifiers, name, constraintType, undefined, defaultType);
           this.finishReparsedNode(reparse, tp);
@@ -584,7 +560,7 @@ export class Reparser {
         if (fun !== undefined && getFullSignature(fun) === undefined && tag instanceof JSDocParameterOrPropertyTag) {
           const param = findMatchingParameter(fun, tag, jsDoc);
           if (param !== undefined) {
-            const typeExpression = (tag as JSDocParameterOrPropertyTag).typeExpression;
+            const typeExpression = tag.typeExpression;
             if (param.type === undefined && typeExpression !== undefined)
               param.type = this.reparseJSDocTypeLiteral(getType(typeExpression)!);
             if (param.questionToken === undefined) {
@@ -606,7 +582,7 @@ export class Reparser {
             params.length === 0 ||
             (firstName !== undefined &&
               firstName.kind !== SyntaxKind.ThisKeyword &&
-              !(firstName instanceof Identifier && (firstName as Identifier).text === 'this'))
+              !(firstName instanceof Identifier && firstName.text === 'this'))
           ) {
             // tsgo gives the `this` name no location.
             const thisParam = new ParameterDeclaration(
@@ -617,8 +593,8 @@ export class Reparser {
               undefined,
               undefined,
             );
-            thisParam.type = this.addDeepCloneReparse(getType((tag as JSDocThisTag).typeExpression)!);
-            this.finishReparsedNode(thisParam, (tag as JSDocThisTag).tagName);
+            thisParam.type = this.addDeepCloneReparse(getType(tag.typeExpression)!);
+            this.finishReparsedNode(thisParam, tag.tagName);
             const newParams: Node[] = [thisParam];
             for (const param of params) newParams.push(param);
             setParameters(
@@ -666,13 +642,13 @@ export class Reparser {
     switch (parent.kind) {
       case SyntaxKind.VariableStatement:
         if (parent instanceof VariableStatement)
-          for (const declaration of (parent as VariableStatement).declarationList.declarations.nodes)
+          for (const declaration of parent.declarationList.declarations.nodes)
             if (
               declaration instanceof VariableDeclaration &&
-              (declaration as VariableDeclaration).type === undefined &&
+              declaration.type === undefined &&
               typeExpression !== undefined
             ) {
-              (declaration as VariableDeclaration).type = this.addDeepCloneReparse(getType(typeExpression)!);
+              declaration.type = this.addDeepCloneReparse(getType(typeExpression)!);
               this.finishMutatedNode(declaration);
               return true;
             }
@@ -698,9 +674,9 @@ export class Reparser {
         break;
       case SyntaxKind.ExpressionStatement:
         if (parent instanceof ExpressionStatement) {
-          const bin = (parent as ExpressionStatement).expression;
+          const bin = parent.expression;
           if (bin instanceof BinaryExpression && isAssignmentDeclaration(bin) && typeExpression !== undefined) {
-            (bin as BinaryExpression).type = this.addDeepCloneReparse(getType(typeExpression)!);
+            bin.type = this.addDeepCloneReparse(getType(typeExpression)!);
             this.finishMutatedNode(bin);
             return true;
           }
@@ -743,11 +719,11 @@ export class Reparser {
   reparseSatisfiesTag(tag: JSDocSatisfiesTag, parent: Node): boolean {
     const typeExpression = tag.typeExpression;
     if (parent instanceof VariableStatement) {
-      for (const declaration of (parent as VariableStatement).declarationList.declarations.nodes)
+      for (const declaration of parent.declarationList.declarations.nodes)
         if (declaration instanceof VariableDeclaration) {
-          const initializer = (declaration as VariableDeclaration).initializer;
+          const initializer = declaration.initializer;
           if (initializer === undefined) continue;
-          (declaration as VariableDeclaration).initializer = this.makeNewCast(
+          declaration.initializer = this.makeNewCast(
             this.addDeepCloneReparse(getType(typeExpression)!),
             initializer,
             false,
@@ -769,9 +745,9 @@ export class Reparser {
         this.finishMutatedNode(parent);
       }
     } else if (parent instanceof ShorthandPropertyAssignment) {
-      const initializer = (parent as ShorthandPropertyAssignment).objectAssignmentInitializer;
+      const initializer = parent.objectAssignmentInitializer;
       if (initializer !== undefined) {
-        (parent as ShorthandPropertyAssignment).objectAssignmentInitializer = this.makeNewCast(
+        parent.objectAssignmentInitializer = this.makeNewCast(
           this.addDeepCloneReparse(getType(typeExpression)!),
           initializer,
           false,
@@ -789,13 +765,9 @@ export class Reparser {
         this.finishMutatedNode(parent);
       }
     } else if (parent instanceof ExpressionStatement) {
-      const bin = (parent as ExpressionStatement).expression;
+      const bin = parent.expression;
       if (bin instanceof BinaryExpression && isAssignmentDeclaration(bin)) {
-        (bin as BinaryExpression).right = this.makeNewCast(
-          this.addDeepCloneReparse(getType(typeExpression)!),
-          (bin as BinaryExpression).right,
-          false,
-        );
+        bin.right = this.makeNewCast(this.addDeepCloneReparse(getType(typeExpression)!), bin.right, false);
         this.finishMutatedNode(bin);
       }
     }
@@ -803,7 +775,7 @@ export class Reparser {
   }
 
   reparseModifierTag(tag: Node, parent: Node): boolean {
-    if (parent instanceof ExpressionStatement) parent = (parent as ExpressionStatement).expression;
+    if (parent instanceof ExpressionStatement) parent = parent.expression;
     switch (parent.kind) {
       case SyntaxKind.MethodDeclaration:
       case SyntaxKind.GetAccessor:
@@ -859,8 +831,8 @@ export class Reparser {
     const heritageClauses = getHeritageClauses(parent);
     if (heritageClauses !== undefined) {
       for (const clause of heritageClauses.nodes)
-        if (clause instanceof HeritageClause && (clause as HeritageClause).token === SyntaxKind.ImplementsKeyword) {
-          (clause as HeritageClause).types.nodes.push(this.addDeepCloneReparse(className));
+        if (clause instanceof HeritageClause && clause.token === SyntaxKind.ImplementsKeyword) {
+          clause.types.nodes.push(this.addDeepCloneReparse(className));
           this.finishMutatedNode(clause);
           return true;
         }
@@ -879,24 +851,19 @@ export class Reparser {
     const heritageClauses = getHeritageClauses(parent);
     if (heritageClauses === undefined) return false;
     for (const clause of heritageClauses.nodes) {
-      if (!(clause instanceof HeritageClause) || (clause as HeritageClause).token !== SyntaxKind.ExtendsKeyword)
-        continue;
-      if ((clause as HeritageClause).types.nodes.length !== 1) return false;
-      const target = (clause as HeritageClause).types.nodes[0]!;
+      if (!(clause instanceof HeritageClause) || clause.token !== SyntaxKind.ExtendsKeyword) continue;
+      if (clause.types.nodes.length !== 1) return false;
+      const target = clause.types.nodes[0]!;
       const source = tag.className;
       if (
         target instanceof ExpressionWithTypeArguments &&
-        hasSamePropertyAccessName((target as ExpressionWithTypeArguments).expression, source.expression) &&
-        (target as ExpressionWithTypeArguments).typeArguments === undefined &&
+        hasSamePropertyAccessName(target.expression, source.expression) &&
+        target.typeArguments === undefined &&
         source.typeArguments !== undefined
       ) {
         const newArguments: Node[] = [];
         for (const arg of source.typeArguments.nodes) newArguments.push(this.addDeepCloneReparse(arg));
-        (target as ExpressionWithTypeArguments).typeArguments = this.p.newNodeList(
-          source.typeArguments.pos,
-          source.typeArguments.end,
-          newArguments,
-        );
+        target.typeArguments = this.p.newNodeList(source.typeArguments.pos, source.typeArguments.end, newArguments);
         this.finishMutatedNode(target);
       }
       return true;
@@ -937,8 +904,8 @@ export class Reparser {
   getInnermostNameOfJSDocNamespace(fullName: Node | undefined): Node | undefined {
     if (fullName === undefined) return undefined;
     while (fullName instanceof ModuleDeclaration) {
-      const body: Node | undefined = (fullName as ModuleDeclaration).body;
-      if (body === undefined) return (fullName as ModuleDeclaration).name;
+      const body: Node | undefined = fullName.body;
+      if (body === undefined) return fullName.name;
       fullName = body;
     }
     return fullName;
@@ -949,16 +916,14 @@ export class Reparser {
     if (!(fullName instanceof ModuleDeclaration)) return statement;
     // Inner namespaces are exported for dotted access; the binder treats the outermost one as
     // exported in module files.
-    const wrapped = this.wrapInJSDocNamespace((fullName as ModuleDeclaration).body, statement, true);
-    const block = new ModuleBlock(
-      this.p.newNodeList((fullName as ModuleDeclaration).pos, (fullName as ModuleDeclaration).end, [wrapped]),
-    );
+    const wrapped = this.wrapInJSDocNamespace(fullName.body, statement, true);
+    const block = new ModuleBlock(this.p.newNodeList(fullName.pos, fullName.end, [wrapped]));
     this.finishReparsedNode(block, fullName);
     const modifiers = nested ? this.createExportModifier(fullName) : undefined;
     const result = new ModuleDeclaration(
       modifiers,
       SyntaxKind.NamespaceKeyword,
-      this.addDeepCloneReparse((fullName as ModuleDeclaration).name),
+      this.addDeepCloneReparse(fullName.name),
       block,
     );
     this.finishReparsedNode(result, fullName);
@@ -990,39 +955,17 @@ function findMatchingParameter(
   const tagName = parameterTag.name;
   let parameterIndex = 0;
   for (const node of params) {
-    const parameter = asParameterDeclaration(node);
-    if (parameter !== undefined && parameterMatches(parameter, tagName, parameterIndex === tagIndex)) return parameter;
+    if (node instanceof ParameterDeclaration && parameterMatches(node, tagName, parameterIndex === tagIndex))
+      return node;
     parameterIndex++;
   }
-  return undefined;
-}
-
-// Narrowing helpers. scriptc types indexed array elements as possibly undefined and can't narrow
-// those to a class with `instanceof`; these take `for…of` elements.
-
-function asJSDoc(node: Node): JSDoc | undefined {
-  if (node instanceof JSDoc) return node;
-  return undefined;
-}
-
-function asParameterOrPropertyTag(node: Node): JSDocParameterOrPropertyTag | undefined {
-  if (node instanceof JSDocParameterOrPropertyTag) return node;
-  return undefined;
-}
-
-function asParameterDeclaration(node: Node): ParameterDeclaration | undefined {
-  if (node instanceof ParameterDeclaration) return node;
   return undefined;
 }
 
 function parameterMatches(parameter: ParameterDeclaration, tagName: Node, isTagIndex: boolean): boolean {
   const name = parameter.name;
   if (name instanceof Identifier)
-    return (
-      tagName instanceof Identifier &&
-      ((name as Identifier).text === (tagName as Identifier).text ||
-        (isTagIndex && (tagName as Identifier).text.length === 0))
-    );
+    return tagName instanceof Identifier && (name.text === tagName.text || (isTagIndex && tagName.text.length === 0));
   return isTagIndex;
 }
 
@@ -1030,53 +973,45 @@ function parameterMatches(parameter: ParameterDeclaration, tagName: Node, isTagI
 function getFunctionLikeHost(host: Node): Node | undefined {
   let fun: Node | undefined = host;
   if (host instanceof VariableStatement) {
-    const nodes = (host as VariableStatement).declarationList.declarations.nodes;
+    const nodes = host.declarationList.declarations.nodes;
     if (nodes.length !== 0) {
       const first = nodes[0]!;
-      fun = first instanceof VariableDeclaration ? (first as VariableDeclaration).initializer : undefined;
+      fun = first instanceof VariableDeclaration ? first.initializer : undefined;
     }
   } else if (host.kind === SyntaxKind.PropertyAssignment || host.kind === SyntaxKind.PropertyDeclaration) {
     fun = getInitializer(host);
   } else if (host instanceof ExportAssignment) {
-    fun = (host as ExportAssignment).expression;
+    fun = host.expression;
   } else if (host instanceof ReturnStatement) {
-    fun = (host as ReturnStatement).expression;
+    fun = host.expression;
   } else if (host instanceof ExpressionStatement) {
-    fun = getRightMostAssignedExpression((host as ExpressionStatement).expression);
+    fun = getRightMostAssignedExpression(host.expression);
   }
-  while (fun instanceof SatisfiesExpression) fun = (fun as SatisfiesExpression).expression;
+  while (fun instanceof SatisfiesExpression) fun = fun.expression;
   return isFunctionLike(fun) ? fun : undefined;
 }
 
 function getRightMostAssignedExpression(node: Node): Node {
   while (
     node instanceof BinaryExpression &&
-    ((node as BinaryExpression).operatorToken.kind === SyntaxKind.EqualsToken ||
-      isAssignmentOperator((node as BinaryExpression).operatorToken.kind)) &&
-    isLeftHandSideExpression((node as BinaryExpression).left)
+    (node.operatorToken.kind === SyntaxKind.EqualsToken || isAssignmentOperator(node.operatorToken.kind)) &&
+    isLeftHandSideExpression(node.left)
   )
-    node = (node as BinaryExpression).right;
+    node = node.right;
   return node;
 }
 
 function getExpressionOfReturnOrParenthesized(node: Node): Node | undefined {
-  if (node instanceof ReturnStatement) return (node as ReturnStatement).expression;
-  if (node instanceof ParenthesizedExpression) return (node as ParenthesizedExpression).expression;
-  if (node instanceof ExportAssignment) return (node as ExportAssignment).expression;
+  if (node instanceof ReturnStatement) return node.expression;
+  if (node instanceof ParenthesizedExpression) return node.expression;
+  if (node instanceof ExportAssignment) return node.expression;
   return undefined;
 }
 
 function hasSamePropertyAccessName(node1: Node, node2: Node): boolean {
-  if (node1 instanceof Identifier && node2 instanceof Identifier)
-    return (node1 as Identifier).text === (node2 as Identifier).text;
+  if (node1 instanceof Identifier && node2 instanceof Identifier) return node1.text === node2.text;
   if (node1 instanceof PropertyAccessExpression && node2 instanceof PropertyAccessExpression) {
-    return (
-      getText((node1 as PropertyAccessExpression).name) === getText((node2 as PropertyAccessExpression).name) &&
-      hasSamePropertyAccessName(
-        (node1 as PropertyAccessExpression).expression,
-        (node2 as PropertyAccessExpression).expression,
-      )
-    );
+    return getText(node1.name) === getText(node2.name) && hasSamePropertyAccessName(node1.expression, node2.expression);
   }
   return false;
 }
@@ -1084,11 +1019,11 @@ function hasSamePropertyAccessName(node1: Node, node2: Node): boolean {
 // Assignment declarations (tsgo's GetAssignmentDeclarationKind(node) != JSDeclarationKindNone).
 
 function isIdentifierNamed(node: Node, text: string): boolean {
-  return node instanceof Identifier && (node as Identifier).text === text;
+  return node instanceof Identifier && node.text === text;
 }
 
 function skipParentheses(node: Node): Node {
-  while (node instanceof ParenthesizedExpression) node = (node as ParenthesizedExpression).expression;
+  while (node instanceof ParenthesizedExpression) node = node.expression;
   return node;
 }
 
@@ -1097,19 +1032,16 @@ function isStringOrNumericLiteralLike(node: Node): boolean {
 }
 
 function getAccessExpression(node: Node): Node | undefined {
-  if (node instanceof PropertyAccessExpression) return (node as PropertyAccessExpression).expression;
-  if (node instanceof ElementAccessExpression) return (node as ElementAccessExpression).expression;
+  if (node instanceof PropertyAccessExpression) return node.expression;
+  if (node instanceof ElementAccessExpression) return node.expression;
   return undefined;
 }
 
 /** The name of a property access with an identifier name, or an element access with a literal argument. */
 function getElementOrPropertyAccessName(node: Node): Node | undefined {
-  if (node instanceof PropertyAccessExpression)
-    return (node as PropertyAccessExpression).name instanceof Identifier
-      ? (node as PropertyAccessExpression).name
-      : undefined;
+  if (node instanceof PropertyAccessExpression) return node.name instanceof Identifier ? node.name : undefined;
   if (node instanceof ElementAccessExpression) {
-    const argument = skipParentheses((node as ElementAccessExpression).argumentExpression);
+    const argument = skipParentheses(node.argumentExpression);
     return isStringOrNumericLiteralLike(argument) ? argument : undefined;
   }
   return undefined;
@@ -1127,25 +1059,21 @@ function isModuleExportsAccessExpression(node: Node): boolean {
 function isEntityNameExpression(node: Node, allowJS: boolean): boolean {
   if (node instanceof Identifier) return true;
   if (node instanceof PropertyAccessExpression)
-    return (
-      (node as PropertyAccessExpression).name instanceof Identifier &&
-      isEntityNameExpression((node as PropertyAccessExpression).expression, allowJS)
-    );
+    return node.name instanceof Identifier && isEntityNameExpression(node.expression, allowJS);
   if (!allowJS) return false;
   if (node.kind === SyntaxKind.ThisKeyword) return true;
   return (
     node instanceof ElementAccessExpression &&
-    isStringOrNumericLiteralLike((node as ElementAccessExpression).argumentExpression) &&
-    isEntityNameExpression((node as ElementAccessExpression).expression, allowJS)
+    isStringOrNumericLiteralLike(node.argumentExpression) &&
+    isEntityNameExpression(node.expression, allowJS)
   );
 }
 
 function isBindableStaticAccessExpression(node: Node, excludeThisKeyword: boolean): boolean {
   if (node instanceof PropertyAccessExpression)
     return (
-      (!excludeThisKeyword && (node as PropertyAccessExpression).expression.kind === SyntaxKind.ThisKeyword) ||
-      ((node as PropertyAccessExpression).name instanceof Identifier &&
-        isBindableStaticNameExpression((node as PropertyAccessExpression).expression, true))
+      (!excludeThisKeyword && node.expression.kind === SyntaxKind.ThisKeyword) ||
+      (node.name instanceof Identifier && isBindableStaticNameExpression(node.expression, true))
     );
   return isBindableStaticElementAccessExpression(node, excludeThisKeyword);
 }
@@ -1153,10 +1081,10 @@ function isBindableStaticAccessExpression(node: Node, excludeThisKeyword: boolea
 function isBindableStaticElementAccessExpression(node: Node, excludeThisKeyword: boolean): boolean {
   return (
     node instanceof ElementAccessExpression &&
-    isStringOrNumericLiteralLike((node as ElementAccessExpression).argumentExpression) &&
-    ((!excludeThisKeyword && (node as ElementAccessExpression).expression.kind === SyntaxKind.ThisKeyword) ||
-      isEntityNameExpression((node as ElementAccessExpression).expression, false) ||
-      isBindableStaticAccessExpression((node as ElementAccessExpression).expression, true))
+    isStringOrNumericLiteralLike(node.argumentExpression) &&
+    ((!excludeThisKeyword && node.expression.kind === SyntaxKind.ThisKeyword) ||
+      isEntityNameExpression(node.expression, false) ||
+      isBindableStaticAccessExpression(node.expression, true))
   );
 }
 
@@ -1180,58 +1108,52 @@ function isAssignmentDeclaration(bin: BinaryExpression): boolean {
     if (leftExpression.kind === SyntaxKind.ThisKeyword) return true;
   }
   if (left instanceof PropertyAccessExpression)
-    return (
-      isEntityNameExpression((left as PropertyAccessExpression).expression, inJS) &&
-      (left as PropertyAccessExpression).name instanceof Identifier
-    );
-  return (
-    left instanceof ElementAccessExpression &&
-    isEntityNameExpression((left as ElementAccessExpression).expression, inJS)
-  );
+    return isEntityNameExpression(left.expression, inJS) && left.name instanceof Identifier;
+  return left instanceof ElementAccessExpression && isEntityNameExpression(left.expression, inJS);
 }
 
 // Fields of function-like and other hosts. (One `instanceof` per statement: scriptc can't access
 // fields through a union of classes.)
 
 function getFullSignature(node: Node): Node | undefined {
-  if (node instanceof FunctionDeclaration) return (node as FunctionDeclaration).fullSignature;
-  if (node instanceof MethodDeclaration) return (node as MethodDeclaration).fullSignature;
-  if (node instanceof ConstructorDeclaration) return (node as ConstructorDeclaration).fullSignature;
-  if (node instanceof GetAccessorDeclaration) return (node as GetAccessorDeclaration).fullSignature;
-  if (node instanceof SetAccessorDeclaration) return (node as SetAccessorDeclaration).fullSignature;
-  if (node instanceof FunctionExpression) return (node as FunctionExpression).fullSignature;
-  if (node instanceof ArrowFunction) return (node as ArrowFunction).fullSignature;
+  if (node instanceof FunctionDeclaration) return node.fullSignature;
+  if (node instanceof MethodDeclaration) return node.fullSignature;
+  if (node instanceof ConstructorDeclaration) return node.fullSignature;
+  if (node instanceof GetAccessorDeclaration) return node.fullSignature;
+  if (node instanceof SetAccessorDeclaration) return node.fullSignature;
+  if (node instanceof FunctionExpression) return node.fullSignature;
+  if (node instanceof ArrowFunction) return node.fullSignature;
   return undefined;
 }
 
 /** tsgo stores a full signature on every function-like node, but only these visit it. */
 function setFullSignature(node: Node, value: Node): boolean {
   if (node instanceof FunctionDeclaration) {
-    (node as FunctionDeclaration).fullSignature = value;
+    node.fullSignature = value;
     return true;
   }
   if (node instanceof MethodDeclaration) {
-    (node as MethodDeclaration).fullSignature = value;
+    node.fullSignature = value;
     return true;
   }
   if (node instanceof ConstructorDeclaration) {
-    (node as ConstructorDeclaration).fullSignature = value;
+    node.fullSignature = value;
     return true;
   }
   if (node instanceof GetAccessorDeclaration) {
-    (node as GetAccessorDeclaration).fullSignature = value;
+    node.fullSignature = value;
     return true;
   }
   if (node instanceof SetAccessorDeclaration) {
-    (node as SetAccessorDeclaration).fullSignature = value;
+    node.fullSignature = value;
     return true;
   }
   if (node instanceof FunctionExpression) {
-    (node as FunctionExpression).fullSignature = value;
+    node.fullSignature = value;
     return true;
   }
   if (node instanceof ArrowFunction) {
-    (node as ArrowFunction).fullSignature = value;
+    node.fullSignature = value;
     return true;
   }
   return false;
@@ -1239,55 +1161,55 @@ function setFullSignature(node: Node, value: Node): boolean {
 
 function setTypeParameters(node: Node, value: NodeList | undefined): boolean {
   if (node instanceof FunctionDeclaration) {
-    (node as FunctionDeclaration).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof MethodDeclaration) {
-    (node as MethodDeclaration).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof ConstructorDeclaration) {
-    (node as ConstructorDeclaration).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof GetAccessorDeclaration) {
-    (node as GetAccessorDeclaration).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof SetAccessorDeclaration) {
-    (node as SetAccessorDeclaration).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof FunctionExpression) {
-    (node as FunctionExpression).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof ArrowFunction) {
-    (node as ArrowFunction).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof MethodSignatureDeclaration) {
-    (node as MethodSignatureDeclaration).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof CallSignatureDeclaration) {
-    (node as CallSignatureDeclaration).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof ConstructSignatureDeclaration) {
-    (node as ConstructSignatureDeclaration).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof FunctionTypeNode) {
-    (node as FunctionTypeNode).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof ConstructorTypeNode) {
-    (node as ConstructorTypeNode).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof JSDocSignature) {
-    (node as JSDocSignature).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   return false;
@@ -1295,59 +1217,59 @@ function setTypeParameters(node: Node, value: NodeList | undefined): boolean {
 
 function setParameters(node: Node, value: NodeList): boolean {
   if (node instanceof FunctionDeclaration) {
-    (node as FunctionDeclaration).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof MethodDeclaration) {
-    (node as MethodDeclaration).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof ConstructorDeclaration) {
-    (node as ConstructorDeclaration).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof GetAccessorDeclaration) {
-    (node as GetAccessorDeclaration).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof SetAccessorDeclaration) {
-    (node as SetAccessorDeclaration).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof FunctionExpression) {
-    (node as FunctionExpression).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof ArrowFunction) {
-    (node as ArrowFunction).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof MethodSignatureDeclaration) {
-    (node as MethodSignatureDeclaration).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof CallSignatureDeclaration) {
-    (node as CallSignatureDeclaration).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof ConstructSignatureDeclaration) {
-    (node as ConstructSignatureDeclaration).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof IndexSignatureDeclaration) {
-    (node as IndexSignatureDeclaration).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof FunctionTypeNode) {
-    (node as FunctionTypeNode).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof ConstructorTypeNode) {
-    (node as ConstructorTypeNode).parameters = value;
+    node.parameters = value;
     return true;
   }
   if (node instanceof JSDocSignature) {
-    (node as JSDocSignature).parameters = value;
+    node.parameters = value;
     return true;
   }
   return false;
@@ -1355,87 +1277,87 @@ function setParameters(node: Node, value: NodeList): boolean {
 
 function setType(node: Node, value: Node): boolean {
   if (node instanceof FunctionDeclaration) {
-    (node as FunctionDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof MethodDeclaration) {
-    (node as MethodDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof ConstructorDeclaration) {
-    (node as ConstructorDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof GetAccessorDeclaration) {
-    (node as GetAccessorDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof SetAccessorDeclaration) {
-    (node as SetAccessorDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof FunctionExpression) {
-    (node as FunctionExpression).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof ArrowFunction) {
-    (node as ArrowFunction).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof MethodSignatureDeclaration) {
-    (node as MethodSignatureDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof CallSignatureDeclaration) {
-    (node as CallSignatureDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof ConstructSignatureDeclaration) {
-    (node as ConstructSignatureDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof IndexSignatureDeclaration) {
-    (node as IndexSignatureDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof FunctionTypeNode) {
-    (node as FunctionTypeNode).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof ConstructorTypeNode) {
-    (node as ConstructorTypeNode).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof JSDocSignature) {
-    (node as JSDocSignature).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof VariableDeclaration) {
-    (node as VariableDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof ExportAssignment) {
-    (node as ExportAssignment).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof PropertyDeclaration) {
-    (node as PropertyDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof PropertyAssignment) {
-    (node as PropertyAssignment).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof ShorthandPropertyAssignment) {
-    (node as ShorthandPropertyAssignment).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof ParameterDeclaration) {
-    (node as ParameterDeclaration).type = value;
+    node.type = value;
     return true;
   }
   if (node instanceof BinaryExpression) {
-    (node as BinaryExpression).type = value;
+    node.type = value;
     return true;
   }
   return false;
@@ -1443,15 +1365,15 @@ function setType(node: Node, value: Node): boolean {
 
 function setExpression(node: Node, value: Node): boolean {
   if (node instanceof ReturnStatement) {
-    (node as ReturnStatement).expression = value;
+    node.expression = value;
     return true;
   }
   if (node instanceof ParenthesizedExpression) {
-    (node as ParenthesizedExpression).expression = value;
+    node.expression = value;
     return true;
   }
   if (node instanceof ExportAssignment) {
-    (node as ExportAssignment).expression = value;
+    node.expression = value;
     return true;
   }
   return false;
@@ -1459,86 +1381,86 @@ function setExpression(node: Node, value: Node): boolean {
 
 function setModifiers(node: Node, value: ModifierList): boolean {
   if (node instanceof MethodDeclaration) {
-    (node as MethodDeclaration).modifiers = value;
+    node.modifiers = value;
     return true;
   }
   if (node instanceof GetAccessorDeclaration) {
-    (node as GetAccessorDeclaration).modifiers = value;
+    node.modifiers = value;
     return true;
   }
   if (node instanceof SetAccessorDeclaration) {
-    (node as SetAccessorDeclaration).modifiers = value;
+    node.modifiers = value;
     return true;
   }
   if (node instanceof PropertyDeclaration) {
-    (node as PropertyDeclaration).modifiers = value;
+    node.modifiers = value;
     return true;
   }
   if (node instanceof ConstructorDeclaration) {
-    (node as ConstructorDeclaration).modifiers = value;
+    node.modifiers = value;
     return true;
   }
   if (node instanceof BinaryExpression) {
-    (node as BinaryExpression).modifiers = value;
+    node.modifiers = value;
     return true;
   }
   return false;
 }
 
 function getInitializer(node: Node): Node | undefined {
-  if (node instanceof VariableDeclaration) return (node as VariableDeclaration).initializer;
-  if (node instanceof PropertyDeclaration) return (node as PropertyDeclaration).initializer;
-  if (node instanceof PropertyAssignment) return (node as PropertyAssignment).initializer;
+  if (node instanceof VariableDeclaration) return node.initializer;
+  if (node instanceof PropertyDeclaration) return node.initializer;
+  if (node instanceof PropertyAssignment) return node.initializer;
   return undefined;
 }
 
 function setInitializer(node: Node, value: Node): boolean {
   if (node instanceof VariableDeclaration) {
-    (node as VariableDeclaration).initializer = value;
+    node.initializer = value;
     return true;
   }
   if (node instanceof PropertyDeclaration) {
-    (node as PropertyDeclaration).initializer = value;
+    node.initializer = value;
     return true;
   }
   if (node instanceof PropertyAssignment) {
-    (node as PropertyAssignment).initializer = value;
+    node.initializer = value;
     return true;
   }
   return false;
 }
 
 function getHeritageClauses(node: Node): NodeList | undefined {
-  if (node instanceof ClassDeclaration) return (node as ClassDeclaration).heritageClauses;
-  if (node instanceof ClassExpression) return (node as ClassExpression).heritageClauses;
+  if (node instanceof ClassDeclaration) return node.heritageClauses;
+  if (node instanceof ClassExpression) return node.heritageClauses;
   return undefined;
 }
 
 function setHeritageClauses(node: Node, value: NodeList): boolean {
   if (node instanceof ClassDeclaration) {
-    (node as ClassDeclaration).heritageClauses = value;
+    node.heritageClauses = value;
     return true;
   }
   if (node instanceof ClassExpression) {
-    (node as ClassExpression).heritageClauses = value;
+    node.heritageClauses = value;
     return true;
   }
   return false;
 }
 
 function getClassTypeParameters(node: Node): NodeList | undefined {
-  if (node instanceof ClassDeclaration) return (node as ClassDeclaration).typeParameters;
-  if (node instanceof ClassExpression) return (node as ClassExpression).typeParameters;
+  if (node instanceof ClassDeclaration) return node.typeParameters;
+  if (node instanceof ClassExpression) return node.typeParameters;
   return undefined;
 }
 
 function setClassTypeParameters(node: Node, value: NodeList | undefined): boolean {
   if (node instanceof ClassDeclaration) {
-    (node as ClassDeclaration).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   if (node instanceof ClassExpression) {
-    (node as ClassExpression).typeParameters = value;
+    node.typeParameters = value;
     return true;
   }
   return false;

@@ -445,8 +445,7 @@ export function findPropertyAssignment(
   for (const property of object.properties.nodes) {
     if (!(property instanceof PropertyAssignment)) continue;
     const name = propertyNameText(property.name);
-    // `as`: scriptc loses instanceof narrowing of loop variables.
-    if (name !== undefined && (name === key || (key2 !== '' && name === key2))) return property as PropertyAssignment;
+    if (name !== undefined && (name === key || (key2 !== '' && name === key2))) return property;
   }
   return undefined;
 }
@@ -791,7 +790,7 @@ class ConfigFileConverter {
       if (root instanceof ArrayLiteralExpression) {
         for (const element of root.elements.nodes) {
           if (element instanceof ObjectLiteralExpression) {
-            return this.convertObject(element as ObjectLiteralExpression, rootDeclaration);
+            return this.convertObject(element, rootDeclaration);
           }
         }
       }
@@ -880,7 +879,7 @@ class ConfigFileConverter {
       const value = this.convertValue(element.initializer, option);
       if (key !== '') {
         result.entries.set(key, value);
-        this.onPropertySet(key, value, element as PropertyAssignment, objectOption, option);
+        this.onPropertySet(key, value, element, objectOption, option);
       }
     }
     return result;

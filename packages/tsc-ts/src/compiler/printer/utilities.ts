@@ -69,9 +69,7 @@ export function getSourceFileOfNode(node: Node | undefined): SourceFile | undefi
 }
 
 export function isPrologueDirective(node: Node): boolean {
-  return (
-    node instanceof ExpressionStatement && (node as ExpressionStatement).expression.kind === SyntaxKind.StringLiteral
-  );
+  return node instanceof ExpressionStatement && node.expression.kind === SyntaxKind.StringLiteral;
 }
 
 export function isKeywordKind(kind: SyntaxKind): boolean {

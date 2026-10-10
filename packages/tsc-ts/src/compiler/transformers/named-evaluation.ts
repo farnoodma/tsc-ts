@@ -165,7 +165,7 @@ function getAssignedNameOfPropertyName(context: EmitContext, name: Node, text: s
   if (isPropertyNameLiteral(name) || name.kind === SyntaxKind.PrivateIdentifier)
     return new AssignedPropertyName(factory.createStringLiteralFromNode(name), name);
   if (!(name instanceof ComputedPropertyName)) throw new Error('Expected a computed property name');
-  const computed = name as ComputedPropertyName;
+  const computed = name;
   const expression = computed.expression;
   if (isPropertyNameLiteral(expression) && !(expression instanceof Identifier))
     return new AssignedPropertyName(factory.createStringLiteralFromNode(expression), name);
@@ -255,7 +255,7 @@ export function transformNamedEvaluation(
 ): Node {
   const factory = context.factory;
   if (node instanceof PropertyAssignment) {
-    const propertyAssignment = node as PropertyAssignment;
+    const propertyAssignment = node;
     const assigned = getAssignedNameOfPropertyName(context, propertyAssignment.name, assignedNameText);
     const initializer = finishTransformNamedEvaluation(
       context,
@@ -273,7 +273,7 @@ export function transformNamedEvaluation(
     );
   }
   if (node instanceof ShorthandPropertyAssignment) {
-    const shorthandPropertyAssignment = node as ShorthandPropertyAssignment;
+    const shorthandPropertyAssignment = node;
     const value = shorthandPropertyAssignment.objectAssignmentInitializer!;
     const assignedName = assignedNameOf(context, assignedNameText, shorthandPropertyAssignment.name, value);
     const initializer = finishTransformNamedEvaluation(context, value, assignedName, ignoreEmptyStringLiteral);
@@ -288,7 +288,7 @@ export function transformNamedEvaluation(
     );
   }
   if (node instanceof VariableDeclaration) {
-    const variableDeclaration = node as VariableDeclaration;
+    const variableDeclaration = node;
     const value = variableDeclaration.initializer!;
     const assignedName = assignedNameOf(context, assignedNameText, variableDeclaration.name, value);
     const initializer = finishTransformNamedEvaluation(context, value, assignedName, ignoreEmptyStringLiteral);
@@ -301,7 +301,7 @@ export function transformNamedEvaluation(
     );
   }
   if (node instanceof ParameterDeclaration) {
-    const parameterDeclaration = node as ParameterDeclaration;
+    const parameterDeclaration = node;
     const value = parameterDeclaration.initializer!;
     const assignedName = assignedNameOf(context, assignedNameText, parameterDeclaration.name, value);
     const initializer = finishTransformNamedEvaluation(context, value, assignedName, ignoreEmptyStringLiteral);
@@ -316,7 +316,7 @@ export function transformNamedEvaluation(
     );
   }
   if (node instanceof BindingElement) {
-    const bindingElement = node as BindingElement;
+    const bindingElement = node;
     const value = bindingElement.initializer!;
     const assignedName = assignedNameOf(context, assignedNameText, bindingElement.name!, value);
     const initializer = finishTransformNamedEvaluation(context, value, assignedName, ignoreEmptyStringLiteral);
@@ -329,7 +329,7 @@ export function transformNamedEvaluation(
     );
   }
   if (node instanceof PropertyDeclaration) {
-    const propertyDeclaration = node as PropertyDeclaration;
+    const propertyDeclaration = node;
     const assigned = getAssignedNameOfPropertyName(context, propertyDeclaration.name, assignedNameText);
     const initializer = finishTransformNamedEvaluation(
       context,
@@ -347,7 +347,7 @@ export function transformNamedEvaluation(
     );
   }
   if (node instanceof BinaryExpression) {
-    const binaryExpression = node as BinaryExpression;
+    const binaryExpression = node;
     const assignedName = assignedNameOf(context, assignedNameText, binaryExpression.left, binaryExpression.right);
     const right = finishTransformNamedEvaluation(
       context,
@@ -365,7 +365,7 @@ export function transformNamedEvaluation(
     );
   }
   if (node instanceof ExportAssignment) {
-    const exportAssignment = node as ExportAssignment;
+    const exportAssignment = node;
     // `export =` becomes `module.exports = ...`, which assigns the name `""`.
     const assignedName = factory.createStringLiteral(
       assignedNameText.length > 0 ? assignedNameText : exportAssignment.isExportEquals ? '' : 'default',

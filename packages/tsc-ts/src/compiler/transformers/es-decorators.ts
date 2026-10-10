@@ -466,7 +466,7 @@ export class ESDecorators extends Transformer {
   }
 
   visit(node: Node): Node | undefined {
-    if (node instanceof SourceFile) return this.visitSourceFile(node as SourceFile);
+    if (node instanceof SourceFile) return this.visitSourceFile(node);
     if (!this.shouldVisitNode(node)) return node;
     switch (node.kind) {
       case SyntaxKind.Decorator:
@@ -824,7 +824,7 @@ export class ESDecorators extends Transformer {
     let extendsElement: ExpressionWithTypeArguments | undefined = undefined;
     if (extendsClause !== undefined && extendsClause.types.nodes.length > 0) {
       const first = extendsClause.types.nodes[0];
-      if (first instanceof ExpressionWithTypeArguments) extendsElement = first as ExpressionWithTypeArguments;
+      if (first instanceof ExpressionWithTypeArguments) extendsElement = first;
     }
     const extendsExpression = extendsElement !== undefined ? this.visitNode(extendsElement.expression) : undefined;
     const heritageElement = extendsElement;
@@ -1226,7 +1226,7 @@ export class ESDecorators extends Transformer {
       pushVisited(statementsOut, this.visitNode(statementsIn[i]));
     const superStatement = statementsIn[superStatementIndex];
     if (superStatement instanceof TryStatement) {
-      const tryStatement = superStatement as TryStatement;
+      const tryStatement = superStatement;
       const tryBlock = tryStatement.tryBlock;
       const tryStatements = this.transformConstructorBody(
         [],
@@ -1577,7 +1577,7 @@ export class ESDecorators extends Transformer {
       result = this.visitEachChild(node);
       const declarations = context.endVariableEnvironment();
       if (declarations.length > 0 && result instanceof ClassStaticBlockDeclaration) {
-        const body = (result as ClassStaticBlockDeclaration).body;
+        const body = result.body;
         result = factory.created(
           new ClassStaticBlockDeclaration(
             undefined,
@@ -2034,7 +2034,7 @@ export class ESDecorators extends Transformer {
 
   private visitAssignmentElement(node: Node): Node {
     if (node instanceof BinaryExpression && isAssignmentExpression(node, true)) {
-      let assignment = node as BinaryExpression;
+      let assignment = node;
       if (isNamedEvaluation(this.context, assignment, anonymousDecoratedClass))
         assignment = transformNamedEvaluation(
           this.context,
@@ -2058,7 +2058,7 @@ export class ESDecorators extends Transformer {
 
   private visitArrayAssignmentElement(node: Node): Node | undefined {
     if (node instanceof SpreadElement) {
-      const spread = node as SpreadElement;
+      const spread = node;
       if (isLeftHandSideExpression(spread.expression))
         return this.factory.updateSpreadElement(spread, this.visitDestructuringAssignmentTarget(spread.expression));
       return this.visitEachChild(node);
@@ -2070,13 +2070,13 @@ export class ESDecorators extends Transformer {
   private visitObjectAssignmentElement(node: Node): Node | undefined {
     const factory = this.factory;
     if (node instanceof SpreadAssignment) {
-      const spread = node as SpreadAssignment;
+      const spread = node;
       if (isLeftHandSideExpression(spread.expression))
         return factory.updateSpreadAssignment(spread, this.visitDestructuringAssignmentTarget(spread.expression));
       return this.visitEachChild(node);
     }
     if (node instanceof ShorthandPropertyAssignment) {
-      const shorthand = node as ShorthandPropertyAssignment;
+      const shorthand = node;
       let property: Node = shorthand;
       if (isNamedEvaluation(this.context, shorthand, anonymousDecoratedClass))
         property = transformNamedEvaluation(
@@ -2088,7 +2088,7 @@ export class ESDecorators extends Transformer {
       return this.visitEachChild(property);
     }
     if (node instanceof PropertyAssignment) {
-      const property = node as PropertyAssignment;
+      const property = node;
       const name = this.visitNode(property.name)!;
       if (isAssignmentExpression(property.initializer, true))
         return factory.updatePropertyAssignment(
@@ -2114,7 +2114,7 @@ export class ESDecorators extends Transformer {
 
   private visitAssignmentPattern(node: Node): Node {
     if (node instanceof ArrayLiteralExpression) {
-      const array = node as ArrayLiteralExpression;
+      const array = node;
       return this.factory.updateArrayLiteralExpression(
         array,
         this.visitList(array.elements, ListVisit.ArrayAssignmentElements),
@@ -2122,7 +2122,7 @@ export class ESDecorators extends Transformer {
       );
     }
     if (node instanceof ObjectLiteralExpression) {
-      const object = node as ObjectLiteralExpression;
+      const object = node;
       return this.factory.updateObjectLiteralExpression(
         object,
         this.visitList(object.properties, ListVisit.ObjectAssignmentElements),
@@ -2184,7 +2184,7 @@ export class ESDecorators extends Transformer {
     const result: Node[] = [];
     for (let i = 0; i < decorators.length; i++) {
       const decorator = decorators[i];
-      if (decorator instanceof Decorator) result.push(this.transformDecorator(decorator as Decorator));
+      if (decorator instanceof Decorator) result.push(this.transformDecorator(decorator));
     }
     return result;
   }
@@ -2289,7 +2289,7 @@ export class ESDecorators extends Transformer {
       case DescriptorKind.Method: {
         const parameters = this.visitNodes(getParameters(member))!;
         const body = this.visitNode(getBody(member));
-        const asterisk = member instanceof MethodDeclaration ? (member as MethodDeclaration).asteriskToken : undefined;
+        const asterisk = member instanceof MethodDeclaration ? member.asteriskToken : undefined;
         methods.push(this.createDescriptorMethod(member, name, modifiers, asterisk, 'value', parameters, body));
         break;
       }

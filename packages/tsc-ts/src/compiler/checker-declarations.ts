@@ -62,15 +62,7 @@ import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { IntrinsicTypeKind, getLiteralTypeFromPropertyName, intrinsicTypeKind } from './checker-type-operators.js';
-import {
-  CheckMode,
-  ObjectFlags,
-  SimpleTypeMapper,
-  type Type,
-  TypeFlags,
-  type TypeParameter,
-  newTypeMapper,
-} from './checker-types.js';
+import { CheckMode, ObjectFlags, SimpleTypeMapper, type Type, TypeFlags, newTypeMapper } from './checker-types.js';
 import { getUnionType, isErrorType } from './checker-type-factory.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import {
@@ -581,7 +573,7 @@ export function checkTypeParameter(c: Checker, node: Node): void {
   const typeParameter = getDeclaredTypeOfTypeParameter(c, symbol);
   // Resolving the base constraint reveals circularities.
   getBaseConstraintOfType(c, typeParameter);
-  if (getResolvedTypeParameterDefault(c, typeParameter as TypeParameter) === c.circularConstraintType)
+  if (getResolvedTypeParameterDefault(c, typeParameter) === c.circularConstraintType)
     c.error(tp.defaultType, Diagnostics.Type_parameter_0_has_a_circular_default, typeToString(c, typeParameter));
   const constraintType = getConstraintOfTypeParameter(c, typeParameter);
   const defaultType = getDefaultFromTypeParameter(c, typeParameter);

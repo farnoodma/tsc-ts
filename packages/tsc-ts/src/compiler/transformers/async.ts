@@ -151,13 +151,13 @@ export class AsyncFunctions extends Transformer {
   }
 
   private visitFunctionOrClass(node: Node): Node {
-    if (node instanceof MethodDeclaration) return this.visitMethodDeclaration(node as MethodDeclaration);
-    if (node instanceof FunctionDeclaration) return this.visitFunctionDeclaration(node as FunctionDeclaration);
-    if (node instanceof FunctionExpression) return this.visitFunctionExpression(node as FunctionExpression);
-    if (node instanceof ArrowFunction) return this.visitArrowFunction(node as ArrowFunction);
-    if (node instanceof GetAccessorDeclaration) return this.visitGetAccessor(node as GetAccessorDeclaration);
-    if (node instanceof SetAccessorDeclaration) return this.visitSetAccessor(node as SetAccessorDeclaration);
-    if (node instanceof ConstructorDeclaration) return this.visitConstructor(node as ConstructorDeclaration);
+    if (node instanceof MethodDeclaration) return this.visitMethodDeclaration(node);
+    if (node instanceof FunctionDeclaration) return this.visitFunctionDeclaration(node);
+    if (node instanceof FunctionExpression) return this.visitFunctionExpression(node);
+    if (node instanceof ArrowFunction) return this.visitArrowFunction(node);
+    if (node instanceof GetAccessorDeclaration) return this.visitGetAccessor(node);
+    if (node instanceof SetAccessorDeclaration) return this.visitSetAccessor(node);
+    if (node instanceof ConstructorDeclaration) return this.visitConstructor(node);
     return this.visitEachChild(node);
   }
 
@@ -262,9 +262,8 @@ export class AsyncFunctions extends Transformer {
   private visitForInOrOfStatementInAsyncBody(node: ForInOrOfStatement): Node {
     const initializer = node.initializer;
     const visitedInitializer =
-      initializer instanceof VariableDeclarationList &&
-      this.isVariableDeclarationListWithCollidingName(initializer as VariableDeclarationList)
-        ? this.visitVariableDeclarationListWithCollidingNames(initializer as VariableDeclarationList, true)!
+      initializer instanceof VariableDeclarationList && this.isVariableDeclarationListWithCollidingName(initializer)
+        ? this.visitVariableDeclarationListWithCollidingNames(initializer, true)!
         : this.visitNode(initializer)!;
     return this.factory.updateForInOrOfStatement(
       node,
@@ -278,9 +277,8 @@ export class AsyncFunctions extends Transformer {
   private visitForStatementInAsyncBody(node: ForStatement): Node {
     const initializer = node.initializer;
     const visitedInitializer =
-      initializer instanceof VariableDeclarationList &&
-      this.isVariableDeclarationListWithCollidingName(initializer as VariableDeclarationList)
-        ? this.visitVariableDeclarationListWithCollidingNames(initializer as VariableDeclarationList, false)
+      initializer instanceof VariableDeclarationList && this.isVariableDeclarationListWithCollidingName(initializer)
+        ? this.visitVariableDeclarationListWithCollidingNames(initializer, false)
         : this.visitNode(initializer);
     return this.factory.updateForStatement(
       node,
@@ -535,7 +533,7 @@ export class AsyncFunctions extends Transformer {
 
   private hoistVariable(node: Node): boolean {
     const name = getName(node);
-    if (name instanceof Identifier) this.context.addVariableDeclaration(name as Identifier);
+    if (name instanceof Identifier) this.context.addVariableDeclaration(name);
     else if (name instanceof BindingPattern) {
       const elements = name.elements.nodes;
       for (let i = 0; i < elements.length; i++)
@@ -763,7 +761,7 @@ export class AsyncFunctions extends Transformer {
   }
 
   private convertToFunctionBlock(node: Node): Block {
-    if (node instanceof Block) return node as Block;
+    if (node instanceof Block) return node;
     const factory = this.factory;
     const statement = factory.created(new ReturnStatement(node));
     statement.pos = node.pos;

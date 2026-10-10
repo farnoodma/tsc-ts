@@ -1,8 +1,5 @@
 // The binder: declares a symbol for each declaration in its container's table, merges
 // declarations, reports binding errors, and builds the control flow graph.
-//
-// Fields of `instanceof`-narrowed nodes are read through `as` casts: scriptc reads them
-// statically, but reads fields of a narrowed value dynamically.
 import {
   BinaryExpression,
   BindingElement,
@@ -515,7 +512,7 @@ class Binder extends NodeVisitor {
     let multipleDefaultExports = false;
     if (symbol.declarations.length !== 0) {
       // A default export (by modifier, or `export default` assignment) after another one.
-      if (isDefaultExport || (node instanceof ExportAssignment && !(node as ExportAssignment).isExportEquals)) {
+      if (isDefaultExport || (node instanceof ExportAssignment && !node.isExportEquals)) {
         message = Diagnostics.A_module_cannot_have_multiple_default_exports;
         messageNeedsName = false;
         multipleDefaultExports = true;
@@ -529,15 +526,13 @@ class Binder extends NodeVisitor {
     );
     if (
       node instanceof TypeAliasDeclaration &&
-      nodeIsMissing((node as TypeAliasDeclaration).type) &&
+      nodeIsMissing(node.type) &&
       hasSyntacticModifier(node, ModifierFlags.Export) &&
       (symbol.flags & (SymbolFlags.Alias | SymbolFlags.Type | SymbolFlags.Namespace)) !== 0
     ) {
       // `export type T;` may have meant `export type { T }`.
       diagnostic.addRelatedInfo(
-        this.createDiagnosticForNode(node, Diagnostics.Did_you_mean_0, [
-          'export type { ' + (node as TypeAliasDeclaration).name.text + ' }',
-        ]),
+        this.createDiagnosticForNode(node, Diagnostics.Did_you_mean_0, ['export type { ' + node.name.text + ' }']),
       );
     }
     const declarations = symbol.declarations;
@@ -573,7 +568,7 @@ class Binder extends NodeVisitor {
   /** The symbol name of a declaration. Computed names must be literals or well-known symbols. */
   getDeclarationName(node: Node): string {
     if (node instanceof ExportAssignment)
-      return (node as ExportAssignment).isExportEquals ? InternalSymbolName.ExportEquals : InternalSymbolName.Default;
+      return node.isExportEquals ? InternalSymbolName.ExportEquals : InternalSymbolName.Default;
     const name = getNameOfDeclaration(node);
     if (name !== undefined) {
       if (isAmbientModule(node)) {
@@ -592,7 +587,7 @@ class Binder extends NodeVisitor {
         // A literal computed name is just the literal.
         if (isStringOrNumericLiteralLike(expression)) return getText(expression);
         if (expression instanceof PrefixUnaryExpression && isSignedNumericLiteral(expression)) {
-          const unary = expression as PrefixUnaryExpression;
+          const unary = expression;
           return tokenToString(unary.operator) + getText(unary.operand);
         }
         throw new Error('Only computed properties with literal names have declaration names');
@@ -807,7 +802,7 @@ class Binder extends NodeVisitor {
       case SyntaxKind.ThisKeyword:
       case SyntaxKind.SuperKeyword:
         if (node.kind === SyntaxKind.ThisKeyword) this.seenThisKeyword = true;
-        if (node instanceof KeywordExpression) (node as KeywordExpression).flowNode = this.currentFlowValue();
+        if (node instanceof KeywordExpression) node.flowNode = this.currentFlowValue();
         break;
       case SyntaxKind.QualifiedName:
         if (isPartOfTypeQuery(node)) (node as QualifiedName).flowNode = this.currentFlowValue();
@@ -1473,8 +1468,8 @@ class Binder extends NodeVisitor {
   }
 
   bindDestructuringTargetFlow(node: Node): void {
-    if (node instanceof BinaryExpression && (node as BinaryExpression).operatorToken.kind === SyntaxKind.EqualsToken)
-      this.bindAssignmentTargetFlow((node as BinaryExpression).left);
+    if (node instanceof BinaryExpression && node.operatorToken.kind === SyntaxKind.EqualsToken)
+      this.bindAssignmentTargetFlow(node.left);
     else this.bindAssignmentTargetFlow(node);
   }
 
@@ -1777,7 +1772,7 @@ class Binder extends NodeVisitor {
       if (
         operator === SyntaxKind.EqualsToken &&
         left instanceof ElementAccessExpression &&
-        isNarrowableOperand((left as ElementAccessExpression).expression)
+        isNarrowableOperand(left.expression)
       )
         this.currentFlow = this.createFlowMutation(FlowFlags.ArrayMutation, this.currentFlow, node);
     }
@@ -1871,15 +1866,15 @@ class Binder extends NodeVisitor {
 
   bindOptionalChainRest(node: Node): void {
     if (node instanceof PropertyAccessExpression) {
-      this.bindOptional((node as PropertyAccessExpression).questionDotToken);
-      this.bind((node as PropertyAccessExpression).name);
+      this.bindOptional(node.questionDotToken);
+      this.bind(node.name);
     } else if (node instanceof ElementAccessExpression) {
-      this.bindOptional((node as ElementAccessExpression).questionDotToken);
-      this.bind((node as ElementAccessExpression).argumentExpression);
+      this.bindOptional(node.questionDotToken);
+      this.bind(node.argumentExpression);
     } else if (node instanceof CallExpression) {
-      this.bindOptional((node as CallExpression).questionDotToken);
-      this.bindNodes((node as CallExpression).typeArguments);
-      this.bindNodes((node as CallExpression).arguments);
+      this.bindOptional(node.questionDotToken);
+      this.bindNodes(node.typeArguments);
+      this.bindNodes(node.arguments);
     }
   }
 
@@ -1899,13 +1894,11 @@ class Binder extends NodeVisitor {
       }
     }
     const callee = node.expression;
-    if (!(callee instanceof PropertyAccessExpression)) return;
-    // Typed locals keep scriptc's field reads static after `instanceof`.
-    const access: PropertyAccessExpression = callee;
     if (
-      access.name.kind === SyntaxKind.Identifier &&
-      isNarrowableOperand(access.expression) &&
-      isPushOrUnshiftIdentifier(access.name)
+      callee instanceof PropertyAccessExpression &&
+      callee.name.kind === SyntaxKind.Identifier &&
+      isNarrowableOperand(callee.expression) &&
+      isPushOrUnshiftIdentifier(callee.name)
     )
       this.currentFlow = this.createFlowMutation(FlowFlags.ArrayMutation, this.currentFlow, node);
   }
@@ -2065,7 +2058,7 @@ class Binder extends NodeVisitor {
     setFlowNode(node, this.currentFlowValue());
     let bindingName: string = InternalSymbolName.Function;
     if (node instanceof FunctionExpression) {
-      const name = (node as FunctionExpression).name;
+      const name = node.name;
       if (name !== undefined) {
         this.checkStrictModeFunctionName(node);
         bindingName = name.text;
@@ -2205,7 +2198,7 @@ class Binder extends NodeVisitor {
     if (!this.setCommonJSModuleIndicator(node)) return;
     const fileSymbol = this.file.symbol!;
     const flags =
-      node instanceof BinaryExpression && expressionIsAlias((node as BinaryExpression).right)
+      node instanceof BinaryExpression && expressionIsAlias(node.right)
         ? SymbolFlags.Alias
         : SymbolFlags.FunctionScopedVariable;
     this.declareSymbol(getExports(fileSymbol), fileSymbol, node, flags, SymbolFlags.FunctionScopedVariableExcludes);
@@ -2224,10 +2217,7 @@ class Binder extends NodeVisitor {
   }
 
   bindDeferredExpandoAssignment(node: Node): void {
-    const target =
-      node instanceof BinaryExpression
-        ? getExpression((node as BinaryExpression).left)!
-        : getArguments(node)!.nodes[0]!;
+    const target = node instanceof BinaryExpression ? getExpression(node.left)! : getArguments(node)!.nodes[0]!;
     const symbol = getInitializerSymbol(
       this.lookupEntity(target, this.blockScopeContainer) ?? this.lookupEntity(target, this.container),
     );
@@ -2286,8 +2276,7 @@ class Binder extends NodeVisitor {
     const left = node.left;
     const thisContainer = this.thisContainer;
     if (
-      (left instanceof PropertyAccessExpression &&
-        (left as PropertyAccessExpression).name.kind === SyntaxKind.PrivateIdentifier) ||
+      (left instanceof PropertyAccessExpression && left.name.kind === SyntaxKind.PrivateIdentifier) ||
       thisContainer === undefined
     )
       return;
@@ -2445,11 +2434,11 @@ function optionalSymbolFlag(node: Node): SymbolFlags {
 }
 
 function getExtendsType(node: Node): Node | undefined {
-  return node instanceof ConditionalTypeNode ? (node as ConditionalTypeNode).extendsType : undefined;
+  return node instanceof ConditionalTypeNode ? node.extendsType : undefined;
 }
 
 function isGeneratorFunctionExpression(node: Node): boolean {
-  return node instanceof FunctionExpression && (node as FunctionExpression).asteriskToken !== undefined;
+  return node instanceof FunctionExpression && node.asteriskToken !== undefined;
 }
 
 function isForInOrOfStatementKind(kind: SyntaxKind): boolean {
@@ -2460,7 +2449,7 @@ function hasExportDeclarations(node: Node): boolean {
   let statements: NodeList | undefined;
   if (node.kind === SyntaxKind.SourceFile) statements = (node as SourceFile).statements;
   else if (node instanceof ModuleDeclaration) {
-    const body = (node as ModuleDeclaration).body;
+    const body = node.body;
     if (body !== undefined && body.kind === SyntaxKind.ModuleBlock) statements = getStatements(body);
   }
   if (statements === undefined) return false;
@@ -2497,14 +2486,14 @@ function getInitializerSymbol(symbol: Symbol | undefined): Symbol | undefined {
   )
     return symbol;
   if (declaration instanceof VariableDeclaration) {
-    if (((declaration as VariableDeclaration).parent!.flags & NodeFlags.Const) !== 0 || isInJSFile(declaration)) {
-      const initializer = (declaration as VariableDeclaration).initializer;
+    if ((declaration.parent!.flags & NodeFlags.Const) !== 0 || isInJSFile(declaration)) {
+      const initializer = declaration.initializer;
       if (isExpandoInitializer(declaration, initializer)) return getSymbol(initializer!);
     }
     return undefined;
   }
   if (declaration instanceof BinaryExpression && isInJSFile(declaration)) {
-    const initializer = (declaration as BinaryExpression).right;
+    const initializer = declaration.right;
     if (isExpandoInitializer(declaration, initializer)) return getSymbol(initializer);
   }
   return undefined;
@@ -2541,8 +2530,7 @@ function isTopLevelLogicalExpression(node: Node): boolean {
     const parent = current.parent!;
     if (
       parent.kind === SyntaxKind.ParenthesizedExpression ||
-      (parent instanceof PrefixUnaryExpression &&
-        (parent as PrefixUnaryExpression).operator === SyntaxKind.ExclamationToken)
+      (parent instanceof PrefixUnaryExpression && parent.operator === SyntaxKind.ExclamationToken)
     )
       current = parent;
     else break;
@@ -2631,10 +2619,7 @@ export function isNarrowableReference(node: Node): boolean {
 function hasNarrowableArgument(call: CallExpression): boolean {
   for (const argument of call.arguments.nodes) if (containsNarrowableReference(argument)) return true;
   const callee = call.expression;
-  return (
-    callee instanceof PropertyAccessExpression &&
-    containsNarrowableReference((callee as PropertyAccessExpression).expression)
-  );
+  return callee instanceof PropertyAccessExpression && containsNarrowableReference(callee.expression);
 }
 
 function isNarrowingBinaryExpression(expression: BinaryExpression): boolean {
@@ -2671,7 +2656,7 @@ function isNarrowingBinaryExpression(expression: BinaryExpression): boolean {
 function isNarrowableOperand(expression: Node): boolean {
   if (expression.kind === SyntaxKind.ParenthesizedExpression) return isNarrowableOperand(getExpression(expression)!);
   if (expression instanceof BinaryExpression) {
-    const binary = expression as BinaryExpression;
+    const binary = expression;
     const operator = binary.operatorToken.kind;
     if (operator === SyntaxKind.EqualsToken) return isNarrowableOperand(binary.left);
     if (operator === SyntaxKind.CommaToken) return isNarrowableOperand(binary.right);

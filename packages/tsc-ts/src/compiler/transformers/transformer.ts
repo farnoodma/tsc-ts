@@ -23,7 +23,7 @@ export abstract class Transformer extends VisitorBase {
 
   transformSourceFile(file: SourceFile): SourceFile {
     const visited = this.visitNode(file);
-    if (visited instanceof SourceFile) return visited as SourceFile;
+    if (visited instanceof SourceFile) return visited;
     throw new Error('A transform must return a source file');
   }
 

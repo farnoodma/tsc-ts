@@ -87,7 +87,7 @@ export function isLateBindableName(c: Checker, name: Node): boolean {
 
 /** The name of a member, or the `F[name]` target of a JavaScript element access assignment. */
 export function getLateBindableNameOfDeclaration(node: Node): Node | undefined {
-  return node instanceof BinaryExpression ? (node as BinaryExpression).left : getName(node);
+  return node instanceof BinaryExpression ? node.left : getName(node);
 }
 
 export function hasLateBindableIndexSignature(c: Checker, node: Node): boolean {

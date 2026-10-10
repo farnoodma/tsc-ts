@@ -154,13 +154,13 @@ export class AsyncIteration extends Transformer {
   }
 
   private visitScope(node: Node): Node {
-    if (node instanceof ConstructorDeclaration) return this.visitConstructor(node as ConstructorDeclaration);
-    if (node instanceof MethodDeclaration) return this.visitMethodDeclaration(node as MethodDeclaration);
-    if (node instanceof GetAccessorDeclaration) return this.visitGetAccessor(node as GetAccessorDeclaration);
-    if (node instanceof SetAccessorDeclaration) return this.visitSetAccessor(node as SetAccessorDeclaration);
-    if (node instanceof FunctionDeclaration) return this.visitFunctionDeclaration(node as FunctionDeclaration);
-    if (node instanceof FunctionExpression) return this.visitFunctionExpression(node as FunctionExpression);
-    if (node instanceof ArrowFunction) return this.visitArrowFunction(node as ArrowFunction);
+    if (node instanceof ConstructorDeclaration) return this.visitConstructor(node);
+    if (node instanceof MethodDeclaration) return this.visitMethodDeclaration(node);
+    if (node instanceof GetAccessorDeclaration) return this.visitGetAccessor(node);
+    if (node instanceof SetAccessorDeclaration) return this.visitSetAccessor(node);
+    if (node instanceof FunctionDeclaration) return this.visitFunctionDeclaration(node);
+    if (node instanceof FunctionExpression) return this.visitFunctionExpression(node);
+    if (node instanceof ArrowFunction) return this.visitArrowFunction(node);
     return this.visitEachChild(node);
   }
 

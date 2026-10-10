@@ -37,8 +37,8 @@ export class TaggedTemplateTransformer extends Transformer {
 
   visit(node: Node): Node | undefined {
     if (!this.facts.has(node, SubtreeFacts.ContainsInvalidTemplateEscape)) return node;
-    if (node instanceof SourceFile) return this.visitSourceFile(node as SourceFile);
-    if (node instanceof TaggedTemplateExpression) return this.visitTaggedTemplate(node as TaggedTemplateExpression);
+    if (node instanceof SourceFile) return this.visitSourceFile(node);
+    if (node instanceof TaggedTemplateExpression) return this.visitTaggedTemplate(node);
     return this.visitEachChild(node);
   }
 

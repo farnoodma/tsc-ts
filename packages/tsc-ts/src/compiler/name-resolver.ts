@@ -204,7 +204,7 @@ export class NameResolver {
             }
           } else if (current instanceof ConditionalTypeNode) {
             // `infer T` is only in scope in the true branch.
-            useResult = lastLocation === (current as ConditionalTypeNode).trueType;
+            useResult = lastLocation === current.trueType;
           }
           if (useResult) break loop;
           result = undefined;
@@ -329,9 +329,9 @@ export class NameResolver {
           if (
             lastLocation === (current as ExpressionWithTypeArguments).expression &&
             heritage instanceof HeritageClause &&
-            (heritage as HeritageClause).token === SyntaxKind.ExtendsKeyword
+            heritage.token === SyntaxKind.ExtendsKeyword
           ) {
-            const container = (heritage as HeritageClause).parent!;
+            const container = heritage.parent!;
             if (isClassLike(container)) {
               const classSymbol = this.getSymbolOfDeclaration(container);
               result =
@@ -555,8 +555,8 @@ class ScopeChangeFinder extends NodeVisitor {
       return getEmitScriptTarget(this.options) < ScriptTarget.ES2020;
     if (
       node instanceof BindingElement &&
-      (node as BindingElement).dotDotDotToken !== undefined &&
-      (node as BindingElement).parent!.kind === SyntaxKind.ObjectBindingPattern
+      node.dotDotDotToken !== undefined &&
+      node.parent!.kind === SyntaxKind.ObjectBindingPattern
     )
       return getEmitScriptTarget(this.options) < ScriptTarget.ES2017;
     if (isTypeNodeKind(node.kind)) return false;
@@ -585,7 +585,7 @@ function isBindingPattern(node: Node): boolean {
 }
 
 function isGlobalScopeAugmentationNode(node: Node): boolean {
-  return node instanceof ModuleDeclaration && (node as ModuleDeclaration).keyword === SyntaxKind.GlobalKeyword;
+  return node instanceof ModuleDeclaration && node.keyword === SyntaxKind.GlobalKeyword;
 }
 
 function isInParameter(declaration: Node | undefined): boolean {

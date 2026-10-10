@@ -105,7 +105,7 @@ class ExternalModuleInfoCollector {
       if (node instanceof ImportDeclaration) output.externalImports.push(node);
       else if (node instanceof ImportEqualsDeclaration) {
         if (node.moduleReference.kind === SyntaxKind.ExternalModuleReference) output.externalImports.push(node);
-      } else if (node instanceof ExportDeclaration) this.collectExportDeclaration(node as ExportDeclaration);
+      } else if (node instanceof ExportDeclaration) this.collectExportDeclaration(node);
       else if (node instanceof ExportAssignment) {
         if (node.isExportEquals && output.exportEquals === undefined) output.exportEquals = node;
       } else if (node instanceof VariableStatement) {
@@ -115,13 +115,9 @@ class ExternalModuleInfoCollector {
         }
       } else if (node instanceof FunctionDeclaration) {
         if (hasSyntacticModifier(node, ModifierFlags.Export))
-          this.addExportedFunctionDeclaration(
-            node as FunctionDeclaration,
-            undefined,
-            hasSyntacticModifier(node, ModifierFlags.Default),
-          );
+          this.addExportedFunctionDeclaration(node, undefined, hasSyntacticModifier(node, ModifierFlags.Default));
       } else if (node instanceof ClassDeclaration) {
-        if (hasSyntacticModifier(node, ModifierFlags.Export)) this.collectExportedClass(node as ClassDeclaration);
+        if (hasSyntacticModifier(node, ModifierFlags.Export)) this.collectExportedClass(node);
       }
     }
     return output;
@@ -186,15 +182,14 @@ class ExternalModuleInfoCollector {
       if (local instanceof Identifier) {
         if (node.moduleSpecifier === undefined) {
           const existing = this.output.exportSpecifiers.get(local.text);
-          if (existing === undefined) this.output.exportSpecifiers.set(local.text, [specifier as ExportSpecifier]);
-          else existing.push(specifier as ExportSpecifier);
+          if (existing === undefined) this.output.exportSpecifiers.set(local.text, [specifier]);
+          else existing.push(specifier);
         }
         const original = this.context.mostOriginal(local);
         let declaration: Node | undefined = undefined;
         if (original instanceof Identifier) {
-          declaration = this.resolver.getReferencedImportDeclaration(original as Identifier);
-          if (declaration === undefined)
-            declaration = this.resolver.getReferencedValueDeclaration(original as Identifier);
+          declaration = this.resolver.getReferencedImportDeclaration(original);
+          if (declaration === undefined) declaration = this.resolver.getReferencedValueDeclaration(original);
         }
         if (declaration instanceof FunctionDeclaration) {
           this.uniqueExports.delete(exportName);
@@ -212,7 +207,7 @@ class ExternalModuleInfoCollector {
     const key = this.context.mostOriginal(node);
     if (!this.exportedFunctionSet.has(key)) {
       this.exportedFunctionSet.add(key);
-      if (key instanceof FunctionDeclaration) this.output.exportedFunctions.push(key as FunctionDeclaration);
+      if (key instanceof FunctionDeclaration) this.output.exportedFunctions.push(key);
     }
     if (isDefault) {
       if (!this.hasExportDefault) {

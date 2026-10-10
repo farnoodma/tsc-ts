@@ -413,7 +413,7 @@ export class ClassFieldsTransformer extends Transformer {
 
   /** Substitutes class aliases in subtrees with nothing else to transform, leaving property names alone. */
   private visitForSubstitution(node: Node): Node | undefined {
-    if (node instanceof Identifier) return this.visitIdentifier(node as Identifier);
+    if (node instanceof Identifier) return this.visitIdentifier(node);
     if (node instanceof PropertyAccessExpression && node.name instanceof Identifier)
       return this.visitPropertyAccessExpressionForSubstitution(node);
     return this.substitutionMode.visitEachChild(node);
@@ -559,8 +559,7 @@ export class ClassFieldsTransformer extends Transformer {
 
   private visitHeritageClause(node: Node): Node | undefined {
     if (node instanceof HeritageClause) return this.heritageMode.visitEachChild(node);
-    if (node instanceof ExpressionWithTypeArguments)
-      return this.visitExpressionWithTypeArgumentsInHeritageClause(node as ExpressionWithTypeArguments);
+    if (node instanceof ExpressionWithTypeArguments) return this.visitExpressionWithTypeArgumentsInHeritageClause(node);
     return this.visit(node);
   }
 
@@ -616,7 +615,7 @@ export class ClassFieldsTransformer extends Transformer {
 
   /** Visits the field and accessors an auto-accessor became. */
   private visitAccessorFieldResult(node: Node): Node | undefined {
-    if (node instanceof PropertyDeclaration) return this.transformFieldInitializer(node as PropertyDeclaration);
+    if (node instanceof PropertyDeclaration) return this.transformFieldInitializer(node);
     if (node instanceof GetAccessorDeclaration || node instanceof SetAccessorDeclaration)
       return this.visitClassElement(node);
     throw new Error('Expected a property declaration or accessor');
@@ -636,7 +635,7 @@ export class ClassFieldsTransformer extends Transformer {
 
   private mostOriginalIdentifier(node: Identifier): Identifier {
     const original = this.context.mostOriginal(node);
-    return original instanceof Identifier ? (original as Identifier) : node;
+    return original instanceof Identifier ? original : node;
   }
 
   /** An undeclared private name becomes an empty identifier, except as a statement such as `#;`. */
@@ -713,7 +712,7 @@ export class ClassFieldsTransformer extends Transformer {
     if (expression instanceof ParenthesizedExpression) {
       this.pendingExpressions.push(expression.expression);
       result = factory.updateParenthesizedExpression(
-        expression as ParenthesizedExpression,
+        expression,
         factory.inlineExpressions(this.pendingExpressions)!,
       ) as Node;
     } else {
@@ -866,9 +865,7 @@ export class ClassFieldsTransformer extends Transformer {
     context.setOriginal(setter, node);
     context.addEmitFlags(setter, EmitFlags.NoComments);
     context.setSourceMapRange(setter, sourceMapPos, sourceMapEnd);
-    return factory.createSyntaxList(
-      this.accessorResultMode.visitArray([backingField as PropertyDeclaration, getter, setter]),
-    );
+    return factory.createSyntaxList(this.accessorResultMode.visitArray([backingField, getter, setter]));
   }
 
   private transformPrivateFieldInitializer(node: PropertyDeclaration): Node | undefined {
@@ -1070,8 +1067,8 @@ export class ClassFieldsTransformer extends Transformer {
     const factory = this.factory;
     const context = this.context;
     const prefix = node instanceof PrefixUnaryExpression;
-    const operator = prefix ? (node as PrefixUnaryExpression).operator : (node as PostfixUnaryExpression).operator;
-    const operand = prefix ? (node as PrefixUnaryExpression).operand : (node as PostfixUnaryExpression).operand;
+    const operator = prefix ? node.operator : (node as PostfixUnaryExpression).operator;
+    const operand = prefix ? node.operand : (node as PostfixUnaryExpression).operand;
     if (operator !== SyntaxKind.PlusPlusToken && operator !== SyntaxKind.MinusMinusToken)
       return this.visitEachChild(node);
     const target = skipParentheses(operand);
@@ -1099,7 +1096,7 @@ export class ClassFieldsTransformer extends Transformer {
     if (data === undefined) return this.visitEachChild(node);
     if ((data.facts & ClassFacts.ClassWasDecorated) !== 0) {
       const visited = this.visitInvalidSuperProperty(target);
-      if (prefix) return factory.updatePrefixUnaryExpression(node as PrefixUnaryExpression, operator, visited);
+      if (prefix) return factory.updatePrefixUnaryExpression(node, operator, visited);
       return factory.updatePostfixUnaryExpression(node as PostfixUnaryExpression, visited, operator);
     }
     if (data.classConstructor === undefined || data.superClassReference === undefined) return this.visitEachChild(node);
@@ -1248,7 +1245,7 @@ export class ClassFieldsTransformer extends Transformer {
         this.visitNodes(node.arguments)!.nodes,
       );
       this.context.setOriginal(invocation, node);
-      return this.withRange(invocation, node as CallExpression);
+      return this.withRange(invocation, node);
     }
     return this.visitEachChild(node);
   }
@@ -1281,7 +1278,7 @@ export class ClassFieldsTransformer extends Transformer {
       // `` super.f`x` `` becomes `` Reflect.get(_baseTemp, "f", _classTemp).bind(_classTemp)`x` ``.
       const invocation = factory.createFunctionBindCall(this.visitNode(tag)!, data.classConstructor, []);
       this.context.setOriginal(invocation, node);
-      this.withRange(invocation, node as TaggedTemplateExpression);
+      this.withRange(invocation, node);
       return factory.updateTaggedTemplateExpression(
         node,
         invocation,
@@ -1347,7 +1344,7 @@ export class ClassFieldsTransformer extends Transformer {
       const pending = this.pendingExpressions;
       this.pendingExpressions = saved;
       if (pending.length === 0) return updated;
-      pending.push(updated as BinaryExpression);
+      pending.push(updated);
       return factory.inlineExpressions(pending)!;
     }
     let current = node;
@@ -1425,19 +1422,18 @@ export class ClassFieldsTransformer extends Transformer {
       this.withRange(get, left);
       expression = this.withRange(
         factory.createBinaryExpression(get, nonAssignmentOperatorForCompoundAssignment(operator), expression),
-        node as BinaryExpression,
+        node,
       );
     }
     let temp: Identifier | undefined = undefined;
     if (!discarded) {
       temp = context.addVariableDeclaration(factory.createTempVariable(0));
-      expression = this.withRange(factory.createAssignment(temp, expression), node as BinaryExpression);
+      expression = this.withRange(factory.createAssignment(temp, expression), node);
     }
     expression = factory.createReflectSetCall(superClass, setterName, expression, classConstructor);
     context.setOriginal(expression, node);
-    this.withRange(expression, node as BinaryExpression);
-    if (temp !== undefined)
-      expression = this.withRange(factory.createCommaExpression(expression, temp), node as BinaryExpression);
+    this.withRange(expression, node);
+    if (temp !== undefined) expression = this.withRange(factory.createCommaExpression(expression, temp), node);
     return expression;
   }
 
@@ -1602,12 +1598,12 @@ export class ClassFieldsTransformer extends Transformer {
     this.enclosingClassDeclarations.add(original);
     if (this.shouldTransformPrivateElementsOrClassStaticBlocks || this.hasTransformPrivateStaticElementsFlag(node)) {
       const name = getNameOfDeclaration(node);
-      if (name instanceof Identifier) this.getPrivateEnvironment().className = name as Identifier;
+      if (name instanceof Identifier) this.getPrivateEnvironment().className = name;
       else {
         const assignedName = context.getAssignedName(node);
         if (assignedName instanceof StringLiteral) {
           const textSource = context.getTextSource(assignedName);
-          if (textSource instanceof Identifier) this.getPrivateEnvironment().className = textSource as Identifier;
+          if (textSource instanceof Identifier) this.getPrivateEnvironment().className = textSource;
           else if (isIdentifierText(assignedName.text))
             this.getPrivateEnvironment().className = this.factory.createIdentifier(assignedName.text);
         }
@@ -1626,7 +1622,7 @@ export class ClassFieldsTransformer extends Transformer {
     if (facts !== ClassFacts.None) this.getClassData().facts = facts;
     const result =
       node instanceof ClassDeclaration
-        ? this.visitClassDeclarationInEnvironment(node as ClassDeclaration, facts)
+        ? this.visitClassDeclarationInEnvironment(node, facts)
         : this.visitClassExpressionInEnvironment(node as ClassExpression, facts);
     this.enclosingClassDeclarations.delete(original);
     this.currentClassContainer = savedContainer;
@@ -1702,7 +1698,7 @@ export class ClassFieldsTransformer extends Transformer {
     );
     const result: Node[] = [];
     if (transformed.prologue !== undefined) result.push(factory.createExpressionStatement(transformed.prologue));
-    result.push(updated as ClassDeclaration);
+    result.push(updated);
     for (let i = 0; i < statements.length; i++) result.push(statements[i]);
     return factory.createSyntaxList(result);
   }
@@ -2001,10 +1997,10 @@ export class ClassFieldsTransformer extends Transformer {
       const finallyBlock = this.visitNode(superStatement.finallyBlock);
       statementsOut.push(
         this.factory.updateTryStatement(
-          superStatement as TryStatement,
+          superStatement,
           this.factory.updateBlock(tryBlock, list, tryBlock.multiLine),
-          catchClause instanceof CatchClause ? (catchClause as CatchClause) : undefined,
-          finallyBlock instanceof Block ? (finallyBlock as Block) : undefined,
+          catchClause instanceof CatchClause ? catchClause : undefined,
+          finallyBlock instanceof Block ? finallyBlock : undefined,
         )!,
       );
     } else {
@@ -2064,7 +2060,7 @@ export class ClassFieldsTransformer extends Transformer {
       this.addPropertyOrClassStaticBlockStatements(initializerStatements, others, receiver);
     } else this.addPropertyOrClassStaticBlockStatements(initializerStatements, properties, receiver);
     const constructorBody =
-      constructor !== undefined && constructor.body instanceof Block ? (constructor.body as Block) : undefined;
+      constructor !== undefined && constructor.body instanceof Block ? constructor.body : undefined;
     if (constructorBody !== undefined) {
       const nodes = constructorBody.statements.nodes;
       let offset = 0;
@@ -2136,7 +2132,7 @@ export class ClassFieldsTransformer extends Transformer {
     const context = this.context;
     const expression =
       property instanceof ClassStaticBlockDeclaration
-        ? this.transformStaticBlockInElement(property as ClassStaticBlockDeclaration)
+        ? this.transformStaticBlockInElement(property)
         : this.transformProperty(property as PropertyDeclaration, receiver);
     if (expression === undefined) return undefined;
     const statement = this.factory.createExpressionStatement(expression);
@@ -2162,7 +2158,7 @@ export class ClassFieldsTransformer extends Transformer {
       const property = properties[i];
       const expression =
         property instanceof ClassStaticBlockDeclaration
-          ? this.transformStaticBlockInElement(property as ClassStaticBlockDeclaration)
+          ? this.transformStaticBlockInElement(property)
           : this.transformProperty(property as PropertyDeclaration, receiver);
       if (expression === undefined) continue;
       this.context.setOriginalEx(expression, property, true);
@@ -2301,13 +2297,7 @@ export class ClassFieldsTransformer extends Transformer {
   private visitInvalidSuperProperty(node: Node): Node {
     const factory = this.factory;
     if (node instanceof PropertyAccessExpression)
-      return factory.updatePropertyAccessExpression(
-        node as PropertyAccessExpression,
-        factory.createVoidZero(),
-        undefined,
-        node.name,
-        node.flags,
-      );
+      return factory.updatePropertyAccessExpression(node, factory.createVoidZero(), undefined, node.name, node.flags);
     const access = node as ElementAccessExpression;
     return factory.updateElementAccessExpression(
       access,
@@ -2543,14 +2533,7 @@ export class ClassFieldsTransformer extends Transformer {
     if (node instanceof BinaryExpression && isAssignmentExpression(node, true)) {
       const left = this.visitDestructuringAssignmentTarget(node.left);
       const right = this.visitNode(node.right)!;
-      return this.factory.updateBinaryExpression(
-        node as BinaryExpression,
-        undefined,
-        left,
-        undefined,
-        node.operatorToken,
-        right,
-      );
+      return this.factory.updateBinaryExpression(node, undefined, left, undefined, node.operatorToken, right);
     }
     return this.visitDestructuringAssignmentTarget(node);
   }
@@ -2559,10 +2542,7 @@ export class ClassFieldsTransformer extends Transformer {
     if (isArrayBindingOrAssignmentElement(node)) {
       if (node instanceof SpreadElement) {
         if (isLeftHandSideExpression(node.expression))
-          return this.factory.updateSpreadElement(
-            node as SpreadElement,
-            this.visitDestructuringAssignmentTarget(node.expression),
-          );
+          return this.factory.updateSpreadElement(node, this.visitDestructuringAssignmentTarget(node.expression));
         return this.visitEachChild(node);
       }
       if (node.kind !== SyntaxKind.OmittedExpression) return this.visitAssignmentElement(node);
@@ -2574,10 +2554,7 @@ export class ClassFieldsTransformer extends Transformer {
     const factory = this.factory;
     if (node instanceof SpreadAssignment) {
       if (isLeftHandSideExpression(node.expression))
-        return factory.updateSpreadAssignment(
-          node as SpreadAssignment,
-          this.visitDestructuringAssignmentTarget(node.expression),
-        );
+        return factory.updateSpreadAssignment(node, this.visitDestructuringAssignmentTarget(node.expression));
       return this.visitEachChild(node);
     }
     if (node instanceof ShorthandPropertyAssignment)
@@ -2587,7 +2564,7 @@ export class ClassFieldsTransformer extends Transformer {
       const initializer = node.initializer;
       if (initializer instanceof BinaryExpression && isAssignmentExpression(initializer, true))
         return factory.updatePropertyAssignment(
-          node as PropertyAssignment,
+          node,
           undefined,
           name,
           undefined,
@@ -2596,7 +2573,7 @@ export class ClassFieldsTransformer extends Transformer {
         );
       if (isLeftHandSideExpression(initializer))
         return factory.updatePropertyAssignment(
-          node as PropertyAssignment,
+          node,
           undefined,
           name,
           undefined,
@@ -2612,7 +2589,7 @@ export class ClassFieldsTransformer extends Transformer {
   private visitAssignmentPattern(node: Node): Node {
     if (node instanceof ArrayLiteralExpression)
       return this.factory.updateArrayLiteralExpression(
-        node as ArrayLiteralExpression,
+        node,
         this.arrayElementMode.visitNodes(node.elements)!,
         node.multiLine,
       );
@@ -2691,7 +2668,7 @@ class ConstructorReferenceFinder extends NodeVisitor {
 
   check(node: Node): boolean {
     if (node instanceof Identifier && !isSameNode(node, this.className)) {
-      const declaration = this.resolver.getReferencedValueDeclaration(node as Identifier);
+      const declaration = this.resolver.getReferencedValueDeclaration(node);
       if (declaration !== undefined && declaration === this.classOriginal) return true;
     }
     if (node instanceof PropertyAccessExpression) return this.check(node.expression);
@@ -2720,7 +2697,7 @@ function appendAll(target: Node[], source: readonly Node[]): boolean {
 
 function classThisOf(context: EmitContext, node: Node): Identifier | undefined {
   const classThis = context.getClassThis(node);
-  return classThis instanceof Identifier ? (classThis as Identifier) : undefined;
+  return classThis instanceof Identifier ? classThis : undefined;
 }
 
 function privateNameText(node: Node): string {
@@ -2876,7 +2853,7 @@ function getClassExtendsHeritageElement(node: Node): ExpressionWithTypeArguments
     const clause = clauses.nodes[i];
     if (clause instanceof HeritageClause && clause.token === SyntaxKind.ExtendsKeyword) {
       const first = clause.types.nodes[0];
-      return first instanceof ExpressionWithTypeArguments ? (first as ExpressionWithTypeArguments) : undefined;
+      return first instanceof ExpressionWithTypeArguments ? first : undefined;
     }
   }
   return undefined;

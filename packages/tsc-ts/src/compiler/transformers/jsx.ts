@@ -429,7 +429,7 @@ export class JsxTransformer extends Transformer {
       for (let i = 0; i < attributes.length; i++) {
         const attribute = attributes[i];
         if (attribute instanceof JsxSpreadAttribute) {
-          const spread = this.spreadAttributeToProperties(attribute as JsxSpreadAttribute);
+          const spread = this.spreadAttributeToProperties(attribute);
           for (let j = 0; j < spread.length; j++) props.push(spread[j]);
         } else props.push(this.attributeToProperty(attribute as JsxAttribute));
       }

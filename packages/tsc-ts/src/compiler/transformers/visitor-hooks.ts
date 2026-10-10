@@ -170,7 +170,7 @@ export abstract class VisitorHooks {
     for (let i = 0; i < list.nodes.length; i++) {
       const parameter = list.nodes[i]!;
       if (!(parameter instanceof ParameterDeclaration)) continue;
-      const updated = this.addDefaultValueAssignment(parameter as ParameterDeclaration);
+      const updated = this.addDefaultValueAssignment(parameter);
       if (updated !== parameter) {
         if (result === undefined) result = list.nodes.slice();
         result[i] = updated;

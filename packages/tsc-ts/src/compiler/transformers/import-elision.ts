@@ -37,7 +37,7 @@ export class ImportElision extends Transformer {
       case SyntaxKind.SourceFile:
         if (node instanceof SourceFile) {
           const original = this.context.mostOriginal(node);
-          if (original instanceof SourceFile) this.resolver.markLinkedReferences(original as SourceFile);
+          if (original instanceof SourceFile) this.resolver.markLinkedReferences(original);
           const saved = this.currentSourceFile;
           this.currentSourceFile = node;
           const result = this.visitEachChild(node);
@@ -62,7 +62,7 @@ export class ImportElision extends Transformer {
           if (node.importClause === undefined) return this.visitEachChild(node);
           const clause = this.visitNode(node.importClause);
           if (!(clause instanceof ImportClause)) return undefined;
-          const importClause = clause as ImportClause;
+          const importClause = clause;
           return factory.updateImportDeclaration(
             node,
             node.modifiers,
@@ -130,7 +130,7 @@ export class ImportElision extends Transformer {
   private importAttributes(node: ImportAttributes | undefined): ImportAttributes | undefined {
     const visited = this.visitNode(node);
     if (visited === undefined) return undefined;
-    if (visited instanceof ImportAttributes) return visited as ImportAttributes;
+    if (visited instanceof ImportAttributes) return visited;
     throw new Error('Expected import attributes');
   }
 

@@ -417,7 +417,7 @@ function checkGrammarNode(g: GrammarChecker, node: Node): boolean {
       if (
         !checkGrammarStatementInAmbientContext(g, node) &&
         expression instanceof Identifier &&
-        (expression as Identifier).text.length === 0
+        expression.text.length === 0
       )
         grammarErrorAtPos(g, expression.pos, 0, Diagnostics.Line_break_not_permitted_here);
       return true;

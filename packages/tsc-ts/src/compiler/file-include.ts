@@ -573,9 +573,7 @@ export class IncludeProcessor {
         'compilerOptions',
       );
       const initializer = property?.initializer;
-      // `as`: scriptc loses instanceof narrowing here.
-      if (initializer instanceof ObjectLiteralExpression)
-        this.compilerOptionsObject = initializer as ObjectLiteralExpression;
+      if (initializer instanceof ObjectLiteralExpression) this.compilerOptionsObject = initializer;
     }
     return this.compilerOptionsObject;
   }

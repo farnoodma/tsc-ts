@@ -114,14 +114,14 @@ export class AliasReferences extends NodeVisitor {
           parent instanceof ShorthandPropertyAssignment ||
           (parent instanceof ImportEqualsDeclaration && parent.moduleReference === node)
         ) ||
-        !shouldMarkIdentifier(node as Identifier)
+        !shouldMarkIdentifier(node)
       )
         return false;
       // Only the left of a property access or qualified name; the right is a property lookup.
       if (parent instanceof PropertyAccessExpression && parent.expression !== node) return false;
       if (parent instanceof QualifiedName && parent.left !== node) return false;
       if (isInsideMetaProperty(node)) return false;
-      return this.markIdentifier(node as Identifier);
+      return this.markIdentifier(node);
     }
     if (node.kind === SyntaxKind.PropertyAccessExpression || node.kind === SyntaxKind.QualifiedName) {
       for (
@@ -322,7 +322,7 @@ export class AliasReferences extends NodeVisitor {
     if (isPartOfImportEqualsModuleReference(node)) return false;
     const left = leftOf(node);
     if (!(left instanceof Identifier)) return false;
-    const parentSymbol = this.resolver.getResolvedSymbol(left as Identifier);
+    const parentSymbol = this.resolver.getResolvedSymbol(left);
     if (parentSymbol === undefined) return false;
     if (
       getIsolatedModules(this.options) ||

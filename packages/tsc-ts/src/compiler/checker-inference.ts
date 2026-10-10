@@ -1919,7 +1919,7 @@ export function instantiateReverseMappedType(c: Checker, t: ReverseMappedType, m
     innerMappedType as MappedType,
     innerIndexType as IndexType,
   );
-  return inferred === undefined ? t : (inferred as Type);
+  return inferred === undefined ? t : inferred;
 }
 
 // ---- Inferred types

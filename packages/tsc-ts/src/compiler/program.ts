@@ -544,8 +544,7 @@ export class Program implements OutputPathsHost {
 
   private compilerOptionsObject(): ObjectLiteralExpression | undefined {
     const initializer = this.compilerOptionsProperty()?.initializer;
-    // `as`: scriptc loses instanceof narrowing in conversions to optional types.
-    return initializer instanceof ObjectLiteralExpression ? (initializer as ObjectLiteralExpression) : undefined;
+    return initializer instanceof ObjectLiteralExpression ? initializer : undefined;
   }
 
   private addProgramDiagnostic(diagnostic: Diagnostic): Diagnostic {
@@ -626,7 +625,7 @@ export class Program implements OutputPathsHost {
     const object = paths?.initializer;
     const diagnostic =
       object instanceof ObjectLiteralExpression
-        ? this.optionDiagnosticInObject(object as ObjectLiteralExpression, onKey, key, '', message, args)
+        ? this.optionDiagnosticInObject(object, onKey, key, '', message, args)
         : undefined;
     if (diagnostic === undefined) this.compilerOptionsDiagnostic(message, args);
   }
@@ -635,7 +634,7 @@ export class Program implements OutputPathsHost {
     const paths = findPropertyAssignment(this.compilerOptionsObject(), 'paths');
     const object = paths?.initializer;
     if (object instanceof ObjectLiteralExpression) {
-      const array = findPropertyAssignment(object as ObjectLiteralExpression, key)?.initializer;
+      const array = findPropertyAssignment(object, key)?.initializer;
       if (array instanceof ArrayLiteralExpression && array.elements.nodes.length > index) {
         this.addProgramDiagnostic(
           diagnosticAtNode(this.configSourceFile(), array.elements.nodes[index], message, ...args),

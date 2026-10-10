@@ -385,13 +385,7 @@ export class TypeEraser extends Transformer {
           if (node.importClause === undefined) return node;
           const clause = this.visitNode(node.importClause);
           if (!(clause instanceof ImportClause)) return undefined;
-          return factory.updateImportDeclaration(
-            node,
-            node.modifiers,
-            clause as ImportClause,
-            node.moduleSpecifier,
-            node.attributes,
-          );
+          return factory.updateImportDeclaration(node, node.modifiers, clause, node.moduleSpecifier, node.attributes);
         }
         break;
       case SyntaxKind.ImportClause:
@@ -456,20 +450,20 @@ export class TypeEraser extends Transformer {
   private optionalIdentifier(node: Identifier | undefined): Identifier | undefined {
     const visited = this.visitNode(node);
     if (visited === undefined) return undefined;
-    if (visited instanceof Identifier) return visited as Identifier;
+    if (visited instanceof Identifier) return visited;
     throw new Error('Expected an identifier');
   }
 
   private jsxAttributes(node: JsxAttributes): JsxAttributes {
     const visited = this.visitNode(node);
-    if (visited instanceof JsxAttributes) return visited as JsxAttributes;
+    if (visited instanceof JsxAttributes) return visited;
     throw new Error('Expected JSX attributes');
   }
 
   private importAttributes(node: ImportAttributes): ImportAttributes | undefined {
     const visited = this.visitNode(node);
     if (visited === undefined) return undefined;
-    if (visited instanceof ImportAttributes) return visited as ImportAttributes;
+    if (visited instanceof ImportAttributes) return visited;
     throw new Error('Expected import attributes');
   }
 

@@ -217,7 +217,7 @@ export class UsingTransformer extends Transformer {
     if (body instanceof Block) {
       const statements: Node[] = [usingStatement];
       for (let i = 0; i < body.statements.nodes.length; i++) statements.push(body.statements.nodes[i]);
-      statement = factory.updateBlock(body as Block, factory.createNodeList(statements), body.multiLine) as Node;
+      statement = factory.updateBlock(body, factory.createNodeList(statements), body.multiLine) as Node;
     } else statement = factory.createBlock([usingStatement, body], true);
     return this.visitNode(
       factory.updateForInOrOfStatement(
@@ -443,8 +443,7 @@ export class UsingTransformer extends Transformer {
       const elements = name.elements.nodes;
       for (let i = 0; i < elements.length; i++)
         if (getBindingName(elements[i]) !== undefined) this.hoistBindingElement(elements[i], isExported, original);
-    } else if (name instanceof Identifier)
-      this.hoistBindingIdentifier(name as Identifier, isExported, undefined, original);
+    } else if (name instanceof Identifier) this.hoistBindingIdentifier(name, isExported, undefined, original);
     return true;
   }
 
@@ -585,10 +584,7 @@ function getUsingKindOfVariableDeclarationList(node: VariableDeclarationList): U
 }
 
 function isUsingVariableDeclarationList(node: Node): boolean {
-  return (
-    node instanceof VariableDeclarationList &&
-    getUsingKindOfVariableDeclarationList(node as VariableDeclarationList) !== UsingKind.None
-  );
+  return node instanceof VariableDeclarationList && getUsingKindOfVariableDeclarationList(node) !== UsingKind.None;
 }
 
 function getUsingKind(statement: Node): UsingKind {

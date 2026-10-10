@@ -188,7 +188,7 @@ export class ESModuleTransformer extends Transformer {
     this.requireStatements = undefined;
     this.requireHelperName = undefined;
     const visited = this.visitEachChild(node);
-    let result = visited instanceof SourceFile ? (visited as SourceFile) : node;
+    let result = visited instanceof SourceFile ? visited : node;
     const helpers = context.readEmitHelpers();
     for (let i = 0; i < helpers.length; i++) context.addEmitHelper(result, helpers[i]);
     const helpersImport = createExternalHelpersImportDeclarationIfNeeded(
@@ -262,7 +262,7 @@ export class ESModuleTransformer extends Transformer {
     return this.factory.updateImportDeclaration(
       node,
       undefined,
-      clause instanceof ImportClause ? (clause as ImportClause) : undefined,
+      clause instanceof ImportClause ? clause : undefined,
       rewriteModuleSpecifier(this.context, node.moduleSpecifier, this.options),
       this.importAttributes(node.attributes),
     );
@@ -401,7 +401,7 @@ export class ESModuleTransformer extends Transformer {
 
   private importAttributes(node: ImportAttributes | undefined): ImportAttributes | undefined {
     const visited = this.visitNode(node);
-    return visited instanceof ImportAttributes ? (visited as ImportAttributes) : undefined;
+    return visited instanceof ImportAttributes ? visited : undefined;
   }
 
   private createRequireCall(node: Node): Node {

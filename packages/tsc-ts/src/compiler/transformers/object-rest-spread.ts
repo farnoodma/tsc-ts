@@ -164,7 +164,7 @@ export class ObjectRestSpreadTransformer extends Transformer {
     if (node instanceof ConstructorDeclaration) {
       const parameters = this.visitNodes(node.parameters)!;
       return factory.updateConstructorDeclaration(
-        node as ConstructorDeclaration,
+        node,
         node.modifiers,
         undefined,
         parameters,
@@ -177,7 +177,7 @@ export class ObjectRestSpreadTransformer extends Transformer {
       const name = this.visitNode(node.name)!;
       const parameters = this.visitNodes(node.parameters)!;
       return factory.updateGetAccessorDeclaration(
-        node as GetAccessorDeclaration,
+        node,
         node.modifiers,
         name,
         undefined,
@@ -191,7 +191,7 @@ export class ObjectRestSpreadTransformer extends Transformer {
       const name = this.visitNode(node.name)!;
       const parameters = this.visitNodes(node.parameters)!;
       return factory.updateSetAccessorDeclaration(
-        node as SetAccessorDeclaration,
+        node,
         node.modifiers,
         name,
         undefined,
@@ -205,7 +205,7 @@ export class ObjectRestSpreadTransformer extends Transformer {
       const name = this.visitNode(node.name)!;
       const parameters = this.visitNodes(node.parameters)!;
       return factory.updateMethodDeclaration(
-        node as MethodDeclaration,
+        node,
         node.modifiers,
         node.asteriskToken,
         name,
@@ -221,7 +221,7 @@ export class ObjectRestSpreadTransformer extends Transformer {
       const name = node.name === undefined ? undefined : (this.visitNode(node.name) as Identifier);
       const parameters = this.visitNodes(node.parameters)!;
       return factory.updateFunctionDeclaration(
-        node as FunctionDeclaration,
+        node,
         node.modifiers,
         node.asteriskToken,
         name,
@@ -235,7 +235,7 @@ export class ObjectRestSpreadTransformer extends Transformer {
     if (node instanceof ArrowFunction) {
       const parameters = this.visitNodes(node.parameters)!;
       return factory.updateArrowFunction(
-        node as ArrowFunction,
+        node,
         node.modifiers,
         undefined,
         parameters,
@@ -249,7 +249,7 @@ export class ObjectRestSpreadTransformer extends Transformer {
       const name = node.name === undefined ? undefined : (this.visitNode(node.name) as Identifier);
       const parameters = this.visitNodes(node.parameters)!;
       return factory.updateFunctionExpression(
-        node as FunctionExpression,
+        node,
         node.modifiers,
         node.asteriskToken,
         name,
@@ -280,7 +280,7 @@ export class ObjectRestSpreadTransformer extends Transformer {
     let suffix: Node[] = [];
     let block: Block;
     if (body instanceof Block) {
-      block = body as Block;
+      block = body;
       const statements = body.statements.nodes;
       let custom = false;
       for (let i = 0; i < statements.length; i++) {

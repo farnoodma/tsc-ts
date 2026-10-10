@@ -1,7 +1,4 @@
 // Predicates and helpers over syntax kinds and nodes, as in tsgo's ast/utilities.go.
-//
-// Fields of `instanceof`-narrowed nodes are read through `as` casts: scriptc reads them
-// statically, but reads fields of a narrowed value dynamically.
 import {
   CallExpression,
   ExternalModuleReference,
@@ -378,19 +375,12 @@ export function isStringLiteralLike(node: Node): boolean {
 /** Whether two JSX tag names (identifiers, `this`, namespaced names or property accesses) are the same. */
 export function tagNamesAreEquivalent(lhs: Node, rhs: Node): boolean {
   if (lhs.kind !== rhs.kind) return false;
-  if (lhs instanceof Identifier && rhs instanceof Identifier)
-    return (lhs as Identifier).text === (rhs as Identifier).text;
+  if (lhs instanceof Identifier && rhs instanceof Identifier) return lhs.text === rhs.text;
   if (lhs.kind === SyntaxKind.ThisKeyword) return true;
   if (lhs instanceof JsxNamespacedName && rhs instanceof JsxNamespacedName)
-    return (
-      (lhs as JsxNamespacedName).namespace.text === (rhs as JsxNamespacedName).namespace.text &&
-      (lhs as JsxNamespacedName).name.text === (rhs as JsxNamespacedName).name.text
-    );
+    return lhs.namespace.text === rhs.namespace.text && lhs.name.text === rhs.name.text;
   if (lhs instanceof PropertyAccessExpression && rhs instanceof PropertyAccessExpression)
-    return (
-      getText((lhs as PropertyAccessExpression).name) === getText((rhs as PropertyAccessExpression).name) &&
-      tagNamesAreEquivalent((lhs as PropertyAccessExpression).expression, (rhs as PropertyAccessExpression).expression)
-    );
+    return getText(lhs.name) === getText(rhs.name) && tagNamesAreEquivalent(lhs.expression, rhs.expression);
   throw new Error('Unhandled case in tagNamesAreEquivalent');
 }
 
@@ -400,37 +390,33 @@ export function getTextOfNodeFromSourceText(sourceText: string, node: Node): str
   const text = sourceText.substring(skipTrivia(sourceText, node.pos), node.end);
   if ((node.flags & NodeFlags.ReparserTransformedLiteral) !== 0) {
     if (node instanceof StringLiteral)
-      return ((node as StringLiteral).tokenFlags & TokenFlags.SingleQuote) !== 0 ? "'" + text + "'" : '"' + text + '"';
-    if (node instanceof Identifier) return (node as Identifier).text;
+      return (node.tokenFlags & TokenFlags.SingleQuote) !== 0 ? "'" + text + "'" : '"' + text + '"';
+    if (node instanceof Identifier) return node.text;
     throw new Error('Unexpected reparser-transformed node kind');
   }
   return text;
 }
 
 export function isImportMeta(node: Node): boolean {
-  return (
-    node instanceof MetaProperty &&
-    (node as MetaProperty).keywordToken === SyntaxKind.ImportKeyword &&
-    (node as MetaProperty).name.text === 'meta'
-  );
+  return node instanceof MetaProperty && node.keywordToken === SyntaxKind.ImportKeyword && node.name.text === 'meta';
 }
 
 /** `import(…)` or `import.defer(…)`. */
 export function isImportCall(node: Node): boolean {
   if (!(node instanceof CallExpression)) return false;
-  const e = (node as CallExpression).expression;
+  const e = node.expression;
   if (e.kind === SyntaxKind.ImportKeyword) return true;
   if (!(e instanceof MetaProperty)) return false;
-  const meta = e as MetaProperty;
+  const meta = e;
   return meta.keywordToken === SyntaxKind.ImportKeyword && meta.name.text === 'defer';
 }
 
 /** `require(x)` with one argument, a string literal if `requireStringLiteralLikeArgument`. */
 export function isRequireCall(node: Node, requireStringLiteralLikeArgument: boolean): boolean {
   if (!(node instanceof CallExpression)) return false;
-  const call = node as CallExpression;
+  const call = node;
   const callee = call.expression;
-  if (!(callee instanceof Identifier) || (callee as Identifier).text !== 'require') return false;
+  if (!(callee instanceof Identifier) || callee.text !== 'require') return false;
   const args = call.arguments.nodes;
   if (args.length !== 1) return false;
   return !requireStringLiteralLikeArgument || isStringLiteralLike(args[0]!);
@@ -439,9 +425,9 @@ export function isRequireCall(node: Node, requireStringLiteralLikeArgument: bool
 /** The string literal of `import("x")` types. */
 export function getImportTypeNodeLiteral(node: Node): Node | undefined {
   if (node instanceof ImportTypeNode) {
-    const argument = (node as ImportTypeNode).argument;
-    if (argument instanceof LiteralTypeNode && (argument as LiteralTypeNode).literal.kind === SyntaxKind.StringLiteral)
-      return (argument as LiteralTypeNode).literal;
+    const argument = node.argument;
+    if (argument instanceof LiteralTypeNode && argument.literal.kind === SyntaxKind.StringLiteral)
+      return argument.literal;
   }
   return undefined;
 }
@@ -469,21 +455,21 @@ export function getExternalModuleName(node: Node): Node | undefined {
       return getModuleSpecifier(node);
     case SyntaxKind.ImportEqualsDeclaration:
       if (node instanceof ImportEqualsDeclaration) {
-        const reference = (node as ImportEqualsDeclaration).moduleReference;
-        if (reference instanceof ExternalModuleReference) return (reference as ExternalModuleReference).expression;
+        const reference = node.moduleReference;
+        if (reference instanceof ExternalModuleReference) return reference.expression;
       }
       return undefined;
     case SyntaxKind.ImportType:
       return getImportTypeNodeLiteral(node);
     case SyntaxKind.CallExpression:
       if (node instanceof CallExpression) {
-        const args = (node as CallExpression).arguments.nodes;
+        const args = node.arguments.nodes;
         return args.length > 0 ? args[0]! : undefined;
       }
       return undefined;
     case SyntaxKind.ModuleDeclaration:
       if (node instanceof ModuleDeclaration) {
-        const name = (node as ModuleDeclaration).name;
+        const name = node.name;
         if (name.kind === SyntaxKind.StringLiteral) return name;
       }
       return undefined;
@@ -492,7 +478,7 @@ export function getExternalModuleName(node: Node): Node | undefined {
 }
 
 export function isGlobalScopeAugmentation(node: Node): boolean {
-  return node instanceof ModuleDeclaration && (node as ModuleDeclaration).keyword === SyntaxKind.GlobalKeyword;
+  return node instanceof ModuleDeclaration && node.keyword === SyntaxKind.GlobalKeyword;
 }
 
 /** Whether a node is written type-only: an `import type` clause, or a `type` specifier, import or export. */
@@ -522,7 +508,7 @@ export function isTypeDeclaration(node: Node): boolean {
 
 export function isAmbientModule(node: Node): boolean {
   if (!(node instanceof ModuleDeclaration)) return false;
-  const declaration = node as ModuleDeclaration;
+  const declaration = node;
   return declaration.name.kind === SyntaxKind.StringLiteral || declaration.keyword === SyntaxKind.GlobalKeyword;
 }
 

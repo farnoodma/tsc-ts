@@ -378,13 +378,12 @@ export class RuntimeSyntax extends Transformer {
     this.currentEnum = node;
     // References to other members become `E.A`.
     const visited = this.visitEachChild(node);
-    const enumDeclaration = visited instanceof EnumDeclaration ? (visited as EnumDeclaration) : node;
+    const enumDeclaration = visited instanceof EnumDeclaration ? visited : node;
     const statements: Node[] = [];
     const members = enumDeclaration.members.nodes;
     for (let i = 0; i < members.length; i++) {
       const member = members[i];
-      if (member instanceof EnumMember)
-        statements.push(this.transformEnumMember(enumDeclaration, member as EnumMember));
+      if (member instanceof EnumMember) statements.push(this.transformEnumMember(enumDeclaration, member));
     }
     this.currentEnum = saved;
     return this.factory.created(
@@ -431,7 +430,7 @@ export class RuntimeSyntax extends Transformer {
     const parseNode = this.context.parseNode(node);
     if (
       parseNode instanceof ModuleDeclaration &&
-      !isInstantiatedModule(parseNode as ModuleDeclaration, shouldPreserveConstEnums(this.options))
+      !isInstantiatedModule(parseNode, shouldPreserveConstEnums(this.options))
     )
       return this.notEmitted(node);
     const statements: Node[] = [];
@@ -558,7 +557,7 @@ export class RuntimeSyntax extends Transformer {
       node,
       this.visitModifiers(this.extractModifiers(node.modifiers, ~ModifierFlags.Export)),
       node.asteriskToken,
-      name instanceof Identifier ? (name as Identifier) : undefined,
+      name instanceof Identifier ? name : undefined,
       undefined,
       this.visitNodes(node.parameters)!,
       undefined,
@@ -574,7 +573,7 @@ export class RuntimeSyntax extends Transformer {
       ? this.visitModifiers(this.extractModifiers(node.modifiers, ~exportDefault))
       : this.visitModifiers(node.modifiers);
     const visitedName = this.visitNode(node.name);
-    let name = visitedName instanceof Identifier ? (visitedName as Identifier) : undefined;
+    let name = visitedName instanceof Identifier ? visitedName : undefined;
     if (
       name === undefined &&
       (exported || childIsDecorated(this.options.experimentalDecorators === true, node.members))
@@ -675,7 +674,7 @@ export class RuntimeSyntax extends Transformer {
     if (context.hasAutoGenerateInfo(node) || (context.getEmitFlags(node) & EmitFlags.LocalName) !== 0) return node;
     const location = context.mostOriginal(node);
     if (!(location instanceof Identifier) || (location.flags & NodeFlags.Synthesized) !== 0) return node;
-    const container = this.resolver.getReferencedExportContainer(location as Identifier, false);
+    const container = this.resolver.getReferencedExportContainer(location, false);
     if (!(container instanceof EnumDeclaration || container instanceof ModuleDeclaration)) return node;
     const member = this.factory.cloneIdentifier(node);
     context.setEmitFlags(member, EmitFlags.NoComments | EmitFlags.NoSourceMap);
@@ -715,7 +714,7 @@ export class RuntimeSyntax extends Transformer {
     const body = node.body;
     const visitedBody =
       body instanceof Block && parameterPropertiesOf(node).length > 0
-        ? this.visitConstructorBody(body as Block, node)
+        ? this.visitConstructorBody(body, node)
         : this.visitFunctionBody(body);
     return this.factory.updateConstructorDeclaration(
       node,
@@ -802,8 +801,8 @@ export class RuntimeSyntax extends Transformer {
           new NodeList(tryBlock.statements.pos, tryBlock.statements.end, inner),
           tryBlock.multiLine,
         ),
-        visitedCatch instanceof CatchClause ? (visitedCatch as CatchClause) : undefined,
-        visitedFinally instanceof Block ? (visitedFinally as Block) : undefined,
+        visitedCatch instanceof CatchClause ? visitedCatch : undefined,
+        visitedFinally instanceof Block ? visitedFinally : undefined,
       );
       if (updated !== undefined) result.push(updated);
     } else {
@@ -824,7 +823,7 @@ function parameterProperties(members: NodeList): ParameterDeclaration[] {
   const nodes = members.nodes;
   for (let i = 0; i < nodes.length; i++) {
     const member = nodes[i];
-    if (member instanceof ConstructorDeclaration) return parameterPropertiesOf(member as ConstructorDeclaration);
+    if (member instanceof ConstructorDeclaration) return parameterPropertiesOf(member);
   }
   return [];
 }
@@ -835,7 +834,7 @@ function parameterPropertiesOf(constructor: ConstructorDeclaration): ParameterDe
   for (let i = 0; i < parameters.length; i++) {
     const parameter = parameters[i];
     if (parameter instanceof ParameterDeclaration && isParameterPropertyDeclaration(parameter, constructor))
-      result.push(parameter as ParameterDeclaration);
+      result.push(parameter);
   }
   return result;
 }

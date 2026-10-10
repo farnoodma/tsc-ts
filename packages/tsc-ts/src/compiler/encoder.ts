@@ -422,817 +422,743 @@ function hasElements(nodes: readonly Node[] | undefined): boolean {
 function childrenPropertyMask(node: Node): number {
   switch (node.kind) {
     case SyntaxKind.QualifiedName:
-      return node instanceof QualifiedName
-        ? ((node as QualifiedName).left !== undefined ? 1 : 0) | ((node as QualifiedName).right !== undefined ? 2 : 0)
-        : 0;
+      return node instanceof QualifiedName ? (node.left !== undefined ? 1 : 0) | (node.right !== undefined ? 2 : 0) : 0;
     case SyntaxKind.ComputedPropertyName:
-      return node instanceof ComputedPropertyName
-        ? (node as ComputedPropertyName).expression !== undefined
-          ? 1
-          : 0
-        : 0;
+      return node instanceof ComputedPropertyName ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.Decorator:
-      return node instanceof Decorator ? ((node as Decorator).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof Decorator ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.IfStatement:
       return node instanceof IfStatement
-        ? ((node as IfStatement).expression !== undefined ? 1 : 0) |
-            ((node as IfStatement).thenStatement !== undefined ? 2 : 0) |
-            ((node as IfStatement).elseStatement !== undefined ? 4 : 0)
+        ? (node.expression !== undefined ? 1 : 0) |
+            (node.thenStatement !== undefined ? 2 : 0) |
+            (node.elseStatement !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.DoStatement:
       return node instanceof DoStatement
-        ? ((node as DoStatement).statement !== undefined ? 1 : 0) |
-            ((node as DoStatement).expression !== undefined ? 2 : 0)
+        ? (node.statement !== undefined ? 1 : 0) | (node.expression !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.WhileStatement:
       return node instanceof WhileStatement
-        ? ((node as WhileStatement).expression !== undefined ? 1 : 0) |
-            ((node as WhileStatement).statement !== undefined ? 2 : 0)
+        ? (node.expression !== undefined ? 1 : 0) | (node.statement !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.ForStatement:
       return node instanceof ForStatement
-        ? ((node as ForStatement).initializer !== undefined ? 1 : 0) |
-            ((node as ForStatement).condition !== undefined ? 2 : 0) |
-            ((node as ForStatement).incrementor !== undefined ? 4 : 0) |
-            ((node as ForStatement).statement !== undefined ? 8 : 0)
+        ? (node.initializer !== undefined ? 1 : 0) |
+            (node.condition !== undefined ? 2 : 0) |
+            (node.incrementor !== undefined ? 4 : 0) |
+            (node.statement !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
       return node instanceof ForInOrOfStatement
-        ? ((node as ForInOrOfStatement).awaitModifier !== undefined ? 1 : 0) |
-            ((node as ForInOrOfStatement).initializer !== undefined ? 2 : 0) |
-            ((node as ForInOrOfStatement).expression !== undefined ? 4 : 0) |
-            ((node as ForInOrOfStatement).statement !== undefined ? 8 : 0)
+        ? (node.awaitModifier !== undefined ? 1 : 0) |
+            (node.initializer !== undefined ? 2 : 0) |
+            (node.expression !== undefined ? 4 : 0) |
+            (node.statement !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.BreakStatement:
-      return node instanceof BreakStatement ? ((node as BreakStatement).label !== undefined ? 1 : 0) : 0;
+      return node instanceof BreakStatement ? (node.label !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ContinueStatement:
-      return node instanceof ContinueStatement ? ((node as ContinueStatement).label !== undefined ? 1 : 0) : 0;
+      return node instanceof ContinueStatement ? (node.label !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ReturnStatement:
-      return node instanceof ReturnStatement ? ((node as ReturnStatement).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof ReturnStatement ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.WithStatement:
       return node instanceof WithStatement
-        ? ((node as WithStatement).expression !== undefined ? 1 : 0) |
-            ((node as WithStatement).statement !== undefined ? 2 : 0)
+        ? (node.expression !== undefined ? 1 : 0) | (node.statement !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.SwitchStatement:
       return node instanceof SwitchStatement
-        ? ((node as SwitchStatement).expression !== undefined ? 1 : 0) |
-            ((node as SwitchStatement).caseBlock !== undefined ? 2 : 0)
+        ? (node.expression !== undefined ? 1 : 0) | (node.caseBlock !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.CaseBlock:
-      return node instanceof CaseBlock ? ((node as CaseBlock).clauses !== undefined ? 1 : 0) : 0;
+      return node instanceof CaseBlock ? (node.clauses !== undefined ? 1 : 0) : 0;
     case SyntaxKind.CaseClause:
     case SyntaxKind.DefaultClause:
       return node instanceof CaseOrDefaultClause
-        ? ((node as CaseOrDefaultClause).expression !== undefined ? 1 : 0) |
-            ((node as CaseOrDefaultClause).statements !== undefined ? 2 : 0)
+        ? (node.expression !== undefined ? 1 : 0) | (node.statements !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.ThrowStatement:
-      return node instanceof ThrowStatement ? ((node as ThrowStatement).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof ThrowStatement ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.TryStatement:
       return node instanceof TryStatement
-        ? ((node as TryStatement).tryBlock !== undefined ? 1 : 0) |
-            ((node as TryStatement).catchClause !== undefined ? 2 : 0) |
-            ((node as TryStatement).finallyBlock !== undefined ? 4 : 0)
+        ? (node.tryBlock !== undefined ? 1 : 0) |
+            (node.catchClause !== undefined ? 2 : 0) |
+            (node.finallyBlock !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.CatchClause:
       return node instanceof CatchClause
-        ? ((node as CatchClause).variableDeclaration !== undefined ? 1 : 0) |
-            ((node as CatchClause).block !== undefined ? 2 : 0)
+        ? (node.variableDeclaration !== undefined ? 1 : 0) | (node.block !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.LabeledStatement:
       return node instanceof LabeledStatement
-        ? ((node as LabeledStatement).label !== undefined ? 1 : 0) |
-            ((node as LabeledStatement).statement !== undefined ? 2 : 0)
+        ? (node.label !== undefined ? 1 : 0) | (node.statement !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.ExpressionStatement:
-      return node instanceof ExpressionStatement ? ((node as ExpressionStatement).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof ExpressionStatement ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.Block:
-      return node instanceof Block ? ((node as Block).statements !== undefined ? 1 : 0) : 0;
+      return node instanceof Block ? (node.statements !== undefined ? 1 : 0) : 0;
     case SyntaxKind.VariableStatement:
       return node instanceof VariableStatement
-        ? (hasModifiers((node as VariableStatement).modifiers) ? 1 : 0) |
-            ((node as VariableStatement).declarationList !== undefined ? 2 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) | (node.declarationList !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.VariableDeclaration:
       return node instanceof VariableDeclaration
-        ? ((node as VariableDeclaration).name !== undefined ? 1 : 0) |
-            ((node as VariableDeclaration).exclamationToken !== undefined ? 2 : 0) |
-            ((node as VariableDeclaration).type !== undefined ? 4 : 0) |
-            ((node as VariableDeclaration).initializer !== undefined ? 8 : 0)
+        ? (node.name !== undefined ? 1 : 0) |
+            (node.exclamationToken !== undefined ? 2 : 0) |
+            (node.type !== undefined ? 4 : 0) |
+            (node.initializer !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.VariableDeclarationList:
-      return node instanceof VariableDeclarationList
-        ? (node as VariableDeclarationList).declarations !== undefined
-          ? 1
-          : 0
-        : 0;
+      return node instanceof VariableDeclarationList ? (node.declarations !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ObjectBindingPattern:
     case SyntaxKind.ArrayBindingPattern:
-      return node instanceof BindingPattern ? ((node as BindingPattern).elements !== undefined ? 1 : 0) : 0;
+      return node instanceof BindingPattern ? (node.elements !== undefined ? 1 : 0) : 0;
     case SyntaxKind.Parameter:
       return node instanceof ParameterDeclaration
-        ? (hasModifiers((node as ParameterDeclaration).modifiers) ? 1 : 0) |
-            ((node as ParameterDeclaration).dotDotDotToken !== undefined ? 2 : 0) |
-            ((node as ParameterDeclaration).name !== undefined ? 4 : 0) |
-            ((node as ParameterDeclaration).questionToken !== undefined ? 8 : 0) |
-            ((node as ParameterDeclaration).type !== undefined ? 16 : 0) |
-            ((node as ParameterDeclaration).initializer !== undefined ? 32 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.dotDotDotToken !== undefined ? 2 : 0) |
+            (node.name !== undefined ? 4 : 0) |
+            (node.questionToken !== undefined ? 8 : 0) |
+            (node.type !== undefined ? 16 : 0) |
+            (node.initializer !== undefined ? 32 : 0)
         : 0;
     case SyntaxKind.BindingElement:
       return node instanceof BindingElement
-        ? ((node as BindingElement).dotDotDotToken !== undefined ? 1 : 0) |
-            ((node as BindingElement).propertyName !== undefined ? 2 : 0) |
-            ((node as BindingElement).name !== undefined ? 4 : 0) |
-            ((node as BindingElement).initializer !== undefined ? 8 : 0)
+        ? (node.dotDotDotToken !== undefined ? 1 : 0) |
+            (node.propertyName !== undefined ? 2 : 0) |
+            (node.name !== undefined ? 4 : 0) |
+            (node.initializer !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.MissingDeclaration:
-      return node instanceof MissingDeclaration ? (hasModifiers((node as MissingDeclaration).modifiers) ? 1 : 0) : 0;
+      return node instanceof MissingDeclaration ? (hasModifiers(node.modifiers) ? 1 : 0) : 0;
     case SyntaxKind.FunctionDeclaration:
       return node instanceof FunctionDeclaration
-        ? (hasModifiers((node as FunctionDeclaration).modifiers) ? 1 : 0) |
-            ((node as FunctionDeclaration).asteriskToken !== undefined ? 2 : 0) |
-            ((node as FunctionDeclaration).name !== undefined ? 4 : 0) |
-            ((node as FunctionDeclaration).typeParameters !== undefined ? 8 : 0) |
-            ((node as FunctionDeclaration).parameters !== undefined ? 16 : 0) |
-            ((node as FunctionDeclaration).type !== undefined ? 32 : 0) |
-            ((node as FunctionDeclaration).body !== undefined ? 64 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.asteriskToken !== undefined ? 2 : 0) |
+            (node.name !== undefined ? 4 : 0) |
+            (node.typeParameters !== undefined ? 8 : 0) |
+            (node.parameters !== undefined ? 16 : 0) |
+            (node.type !== undefined ? 32 : 0) |
+            (node.body !== undefined ? 64 : 0)
         : 0;
     case SyntaxKind.ClassDeclaration:
       return node instanceof ClassDeclaration
-        ? (hasModifiers((node as ClassDeclaration).modifiers) ? 1 : 0) |
-            ((node as ClassDeclaration).name !== undefined ? 2 : 0) |
-            ((node as ClassDeclaration).typeParameters !== undefined ? 4 : 0) |
-            ((node as ClassDeclaration).heritageClauses !== undefined ? 8 : 0) |
-            ((node as ClassDeclaration).members !== undefined ? 16 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.typeParameters !== undefined ? 4 : 0) |
+            (node.heritageClauses !== undefined ? 8 : 0) |
+            (node.members !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.ClassExpression:
       return node instanceof ClassExpression
-        ? (hasModifiers((node as ClassExpression).modifiers) ? 1 : 0) |
-            ((node as ClassExpression).name !== undefined ? 2 : 0) |
-            ((node as ClassExpression).typeParameters !== undefined ? 4 : 0) |
-            ((node as ClassExpression).heritageClauses !== undefined ? 8 : 0) |
-            ((node as ClassExpression).members !== undefined ? 16 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.typeParameters !== undefined ? 4 : 0) |
+            (node.heritageClauses !== undefined ? 8 : 0) |
+            (node.members !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.HeritageClause:
-      return node instanceof HeritageClause ? ((node as HeritageClause).types !== undefined ? 1 : 0) : 0;
+      return node instanceof HeritageClause ? (node.types !== undefined ? 1 : 0) : 0;
     case SyntaxKind.InterfaceDeclaration:
       return node instanceof InterfaceDeclaration
-        ? (hasModifiers((node as InterfaceDeclaration).modifiers) ? 1 : 0) |
-            ((node as InterfaceDeclaration).name !== undefined ? 2 : 0) |
-            ((node as InterfaceDeclaration).typeParameters !== undefined ? 4 : 0) |
-            ((node as InterfaceDeclaration).heritageClauses !== undefined ? 8 : 0) |
-            ((node as InterfaceDeclaration).members !== undefined ? 16 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.typeParameters !== undefined ? 4 : 0) |
+            (node.heritageClauses !== undefined ? 8 : 0) |
+            (node.members !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
       return node instanceof TypeAliasDeclaration
-        ? (hasModifiers((node as TypeAliasDeclaration).modifiers) ? 1 : 0) |
-            ((node as TypeAliasDeclaration).name !== undefined ? 2 : 0) |
-            ((node as TypeAliasDeclaration).typeParameters !== undefined ? 4 : 0) |
-            ((node as TypeAliasDeclaration).type !== undefined ? 8 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.typeParameters !== undefined ? 4 : 0) |
+            (node.type !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.EnumMember:
       return node instanceof EnumMember
-        ? ((node as EnumMember).name !== undefined ? 1 : 0) | ((node as EnumMember).initializer !== undefined ? 2 : 0)
+        ? (node.name !== undefined ? 1 : 0) | (node.initializer !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.EnumDeclaration:
       return node instanceof EnumDeclaration
-        ? (hasModifiers((node as EnumDeclaration).modifiers) ? 1 : 0) |
-            ((node as EnumDeclaration).name !== undefined ? 2 : 0) |
-            ((node as EnumDeclaration).members !== undefined ? 4 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.members !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.ModuleBlock:
-      return node instanceof ModuleBlock ? ((node as ModuleBlock).statements !== undefined ? 1 : 0) : 0;
+      return node instanceof ModuleBlock ? (node.statements !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ImportDeclaration:
     case SyntaxKind.JSImportDeclaration:
       return node instanceof ImportDeclaration
-        ? (hasModifiers((node as ImportDeclaration).modifiers) ? 1 : 0) |
-            ((node as ImportDeclaration).importClause !== undefined ? 2 : 0) |
-            ((node as ImportDeclaration).moduleSpecifier !== undefined ? 4 : 0) |
-            ((node as ImportDeclaration).attributes !== undefined ? 8 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.importClause !== undefined ? 2 : 0) |
+            (node.moduleSpecifier !== undefined ? 4 : 0) |
+            (node.attributes !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.ExternalModuleReference:
-      return node instanceof ExternalModuleReference
-        ? (node as ExternalModuleReference).expression !== undefined
-          ? 1
-          : 0
-        : 0;
+      return node instanceof ExternalModuleReference ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.NamespaceImport:
-      return node instanceof NamespaceImport ? ((node as NamespaceImport).name !== undefined ? 1 : 0) : 0;
+      return node instanceof NamespaceImport ? (node.name !== undefined ? 1 : 0) : 0;
     case SyntaxKind.NamedImports:
-      return node instanceof NamedImports ? ((node as NamedImports).elements !== undefined ? 1 : 0) : 0;
+      return node instanceof NamedImports ? (node.elements !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ExportAssignment:
       return node instanceof ExportAssignment
-        ? (hasModifiers((node as ExportAssignment).modifiers) ? 1 : 0) |
-            ((node as ExportAssignment).type !== undefined ? 2 : 0) |
-            ((node as ExportAssignment).expression !== undefined ? 4 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.type !== undefined ? 2 : 0) |
+            (node.expression !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.NamespaceExportDeclaration:
       return node instanceof NamespaceExportDeclaration
-        ? (hasModifiers((node as NamespaceExportDeclaration).modifiers) ? 1 : 0) |
-            ((node as NamespaceExportDeclaration).name !== undefined ? 2 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) | (node.name !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.NamespaceExport:
-      return node instanceof NamespaceExport ? ((node as NamespaceExport).name !== undefined ? 1 : 0) : 0;
+      return node instanceof NamespaceExport ? (node.name !== undefined ? 1 : 0) : 0;
     case SyntaxKind.NamedExports:
-      return node instanceof NamedExports ? ((node as NamedExports).elements !== undefined ? 1 : 0) : 0;
+      return node instanceof NamedExports ? (node.elements !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ExportSpecifier:
       return node instanceof ExportSpecifier
-        ? ((node as ExportSpecifier).propertyName !== undefined ? 1 : 0) |
-            ((node as ExportSpecifier).name !== undefined ? 2 : 0)
+        ? (node.propertyName !== undefined ? 1 : 0) | (node.name !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.CallSignature:
       return node instanceof CallSignatureDeclaration
-        ? ((node as CallSignatureDeclaration).typeParameters !== undefined ? 1 : 0) |
-            ((node as CallSignatureDeclaration).parameters !== undefined ? 2 : 0) |
-            ((node as CallSignatureDeclaration).type !== undefined ? 4 : 0)
+        ? (node.typeParameters !== undefined ? 1 : 0) |
+            (node.parameters !== undefined ? 2 : 0) |
+            (node.type !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.ConstructSignature:
       return node instanceof ConstructSignatureDeclaration
-        ? ((node as ConstructSignatureDeclaration).typeParameters !== undefined ? 1 : 0) |
-            ((node as ConstructSignatureDeclaration).parameters !== undefined ? 2 : 0) |
-            ((node as ConstructSignatureDeclaration).type !== undefined ? 4 : 0)
+        ? (node.typeParameters !== undefined ? 1 : 0) |
+            (node.parameters !== undefined ? 2 : 0) |
+            (node.type !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.Constructor:
       return node instanceof ConstructorDeclaration
-        ? (hasModifiers((node as ConstructorDeclaration).modifiers) ? 1 : 0) |
-            ((node as ConstructorDeclaration).typeParameters !== undefined ? 2 : 0) |
-            ((node as ConstructorDeclaration).parameters !== undefined ? 4 : 0) |
-            ((node as ConstructorDeclaration).type !== undefined ? 8 : 0) |
-            ((node as ConstructorDeclaration).body !== undefined ? 16 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.typeParameters !== undefined ? 2 : 0) |
+            (node.parameters !== undefined ? 4 : 0) |
+            (node.type !== undefined ? 8 : 0) |
+            (node.body !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.GetAccessor:
       return node instanceof GetAccessorDeclaration
-        ? (hasModifiers((node as GetAccessorDeclaration).modifiers) ? 1 : 0) |
-            ((node as GetAccessorDeclaration).name !== undefined ? 2 : 0) |
-            ((node as GetAccessorDeclaration).typeParameters !== undefined ? 4 : 0) |
-            ((node as GetAccessorDeclaration).parameters !== undefined ? 8 : 0) |
-            ((node as GetAccessorDeclaration).type !== undefined ? 16 : 0) |
-            ((node as GetAccessorDeclaration).body !== undefined ? 32 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.typeParameters !== undefined ? 4 : 0) |
+            (node.parameters !== undefined ? 8 : 0) |
+            (node.type !== undefined ? 16 : 0) |
+            (node.body !== undefined ? 32 : 0)
         : 0;
     case SyntaxKind.SetAccessor:
       return node instanceof SetAccessorDeclaration
-        ? (hasModifiers((node as SetAccessorDeclaration).modifiers) ? 1 : 0) |
-            ((node as SetAccessorDeclaration).name !== undefined ? 2 : 0) |
-            ((node as SetAccessorDeclaration).typeParameters !== undefined ? 4 : 0) |
-            ((node as SetAccessorDeclaration).parameters !== undefined ? 8 : 0) |
-            ((node as SetAccessorDeclaration).type !== undefined ? 16 : 0) |
-            ((node as SetAccessorDeclaration).body !== undefined ? 32 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.typeParameters !== undefined ? 4 : 0) |
+            (node.parameters !== undefined ? 8 : 0) |
+            (node.type !== undefined ? 16 : 0) |
+            (node.body !== undefined ? 32 : 0)
         : 0;
     case SyntaxKind.IndexSignature:
       return node instanceof IndexSignatureDeclaration
-        ? (hasModifiers((node as IndexSignatureDeclaration).modifiers) ? 1 : 0) |
-            ((node as IndexSignatureDeclaration).parameters !== undefined ? 2 : 0) |
-            ((node as IndexSignatureDeclaration).type !== undefined ? 4 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.parameters !== undefined ? 2 : 0) |
+            (node.type !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.MethodSignature:
       return node instanceof MethodSignatureDeclaration
-        ? (hasModifiers((node as MethodSignatureDeclaration).modifiers) ? 1 : 0) |
-            ((node as MethodSignatureDeclaration).name !== undefined ? 2 : 0) |
-            ((node as MethodSignatureDeclaration).postfixToken !== undefined ? 4 : 0) |
-            ((node as MethodSignatureDeclaration).typeParameters !== undefined ? 8 : 0) |
-            ((node as MethodSignatureDeclaration).parameters !== undefined ? 16 : 0) |
-            ((node as MethodSignatureDeclaration).type !== undefined ? 32 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.postfixToken !== undefined ? 4 : 0) |
+            (node.typeParameters !== undefined ? 8 : 0) |
+            (node.parameters !== undefined ? 16 : 0) |
+            (node.type !== undefined ? 32 : 0)
         : 0;
     case SyntaxKind.MethodDeclaration:
       return node instanceof MethodDeclaration
-        ? (hasModifiers((node as MethodDeclaration).modifiers) ? 1 : 0) |
-            ((node as MethodDeclaration).asteriskToken !== undefined ? 2 : 0) |
-            ((node as MethodDeclaration).name !== undefined ? 4 : 0) |
-            ((node as MethodDeclaration).postfixToken !== undefined ? 8 : 0) |
-            ((node as MethodDeclaration).typeParameters !== undefined ? 16 : 0) |
-            ((node as MethodDeclaration).parameters !== undefined ? 32 : 0) |
-            ((node as MethodDeclaration).type !== undefined ? 64 : 0) |
-            ((node as MethodDeclaration).body !== undefined ? 128 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.asteriskToken !== undefined ? 2 : 0) |
+            (node.name !== undefined ? 4 : 0) |
+            (node.postfixToken !== undefined ? 8 : 0) |
+            (node.typeParameters !== undefined ? 16 : 0) |
+            (node.parameters !== undefined ? 32 : 0) |
+            (node.type !== undefined ? 64 : 0) |
+            (node.body !== undefined ? 128 : 0)
         : 0;
     case SyntaxKind.PropertySignature:
       return node instanceof PropertySignatureDeclaration
-        ? (hasModifiers((node as PropertySignatureDeclaration).modifiers) ? 1 : 0) |
-            ((node as PropertySignatureDeclaration).name !== undefined ? 2 : 0) |
-            ((node as PropertySignatureDeclaration).postfixToken !== undefined ? 4 : 0) |
-            ((node as PropertySignatureDeclaration).type !== undefined ? 8 : 0) |
-            ((node as PropertySignatureDeclaration).initializer !== undefined ? 16 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.postfixToken !== undefined ? 4 : 0) |
+            (node.type !== undefined ? 8 : 0) |
+            (node.initializer !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.PropertyDeclaration:
       return node instanceof PropertyDeclaration
-        ? (hasModifiers((node as PropertyDeclaration).modifiers) ? 1 : 0) |
-            ((node as PropertyDeclaration).name !== undefined ? 2 : 0) |
-            ((node as PropertyDeclaration).postfixToken !== undefined ? 4 : 0) |
-            ((node as PropertyDeclaration).type !== undefined ? 8 : 0) |
-            ((node as PropertyDeclaration).initializer !== undefined ? 16 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.postfixToken !== undefined ? 4 : 0) |
+            (node.type !== undefined ? 8 : 0) |
+            (node.initializer !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.ClassStaticBlockDeclaration:
       return node instanceof ClassStaticBlockDeclaration
-        ? (hasModifiers((node as ClassStaticBlockDeclaration).modifiers) ? 1 : 0) |
-            ((node as ClassStaticBlockDeclaration).body !== undefined ? 2 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) | (node.body !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.BinaryExpression:
       return node instanceof BinaryExpression
-        ? (hasModifiers((node as BinaryExpression).modifiers) ? 1 : 0) |
-            ((node as BinaryExpression).left !== undefined ? 2 : 0) |
-            ((node as BinaryExpression).type !== undefined ? 4 : 0) |
-            ((node as BinaryExpression).operatorToken !== undefined ? 8 : 0) |
-            ((node as BinaryExpression).right !== undefined ? 16 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.left !== undefined ? 2 : 0) |
+            (node.type !== undefined ? 4 : 0) |
+            (node.operatorToken !== undefined ? 8 : 0) |
+            (node.right !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.PrefixUnaryExpression:
-      return node instanceof PrefixUnaryExpression
-        ? (node as PrefixUnaryExpression).operand !== undefined
-          ? 1
-          : 0
-        : 0;
+      return node instanceof PrefixUnaryExpression ? (node.operand !== undefined ? 1 : 0) : 0;
     case SyntaxKind.PostfixUnaryExpression:
-      return node instanceof PostfixUnaryExpression
-        ? (node as PostfixUnaryExpression).operand !== undefined
-          ? 1
-          : 0
-        : 0;
+      return node instanceof PostfixUnaryExpression ? (node.operand !== undefined ? 1 : 0) : 0;
     case SyntaxKind.YieldExpression:
       return node instanceof YieldExpression
-        ? ((node as YieldExpression).asteriskToken !== undefined ? 1 : 0) |
-            ((node as YieldExpression).expression !== undefined ? 2 : 0)
+        ? (node.asteriskToken !== undefined ? 1 : 0) | (node.expression !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.ArrowFunction:
       return node instanceof ArrowFunction
-        ? (hasModifiers((node as ArrowFunction).modifiers) ? 1 : 0) |
-            ((node as ArrowFunction).typeParameters !== undefined ? 2 : 0) |
-            ((node as ArrowFunction).parameters !== undefined ? 4 : 0) |
-            ((node as ArrowFunction).type !== undefined ? 8 : 0) |
-            ((node as ArrowFunction).equalsGreaterThanToken !== undefined ? 16 : 0) |
-            ((node as ArrowFunction).body !== undefined ? 32 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.typeParameters !== undefined ? 2 : 0) |
+            (node.parameters !== undefined ? 4 : 0) |
+            (node.type !== undefined ? 8 : 0) |
+            (node.equalsGreaterThanToken !== undefined ? 16 : 0) |
+            (node.body !== undefined ? 32 : 0)
         : 0;
     case SyntaxKind.FunctionExpression:
       return node instanceof FunctionExpression
-        ? (hasModifiers((node as FunctionExpression).modifiers) ? 1 : 0) |
-            ((node as FunctionExpression).asteriskToken !== undefined ? 2 : 0) |
-            ((node as FunctionExpression).name !== undefined ? 4 : 0) |
-            ((node as FunctionExpression).typeParameters !== undefined ? 8 : 0) |
-            ((node as FunctionExpression).parameters !== undefined ? 16 : 0) |
-            ((node as FunctionExpression).type !== undefined ? 32 : 0) |
-            ((node as FunctionExpression).body !== undefined ? 64 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.asteriskToken !== undefined ? 2 : 0) |
+            (node.name !== undefined ? 4 : 0) |
+            (node.typeParameters !== undefined ? 8 : 0) |
+            (node.parameters !== undefined ? 16 : 0) |
+            (node.type !== undefined ? 32 : 0) |
+            (node.body !== undefined ? 64 : 0)
         : 0;
     case SyntaxKind.AsExpression:
       return node instanceof AsExpression
-        ? ((node as AsExpression).expression !== undefined ? 1 : 0) |
-            ((node as AsExpression).type !== undefined ? 2 : 0)
+        ? (node.expression !== undefined ? 1 : 0) | (node.type !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.SatisfiesExpression:
       return node instanceof SatisfiesExpression
-        ? ((node as SatisfiesExpression).expression !== undefined ? 1 : 0) |
-            ((node as SatisfiesExpression).type !== undefined ? 2 : 0)
+        ? (node.expression !== undefined ? 1 : 0) | (node.type !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.ConditionalExpression:
       return node instanceof ConditionalExpression
-        ? ((node as ConditionalExpression).condition !== undefined ? 1 : 0) |
-            ((node as ConditionalExpression).questionToken !== undefined ? 2 : 0) |
-            ((node as ConditionalExpression).whenTrue !== undefined ? 4 : 0) |
-            ((node as ConditionalExpression).colonToken !== undefined ? 8 : 0) |
-            ((node as ConditionalExpression).whenFalse !== undefined ? 16 : 0)
+        ? (node.condition !== undefined ? 1 : 0) |
+            (node.questionToken !== undefined ? 2 : 0) |
+            (node.whenTrue !== undefined ? 4 : 0) |
+            (node.colonToken !== undefined ? 8 : 0) |
+            (node.whenFalse !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.PropertyAccessExpression:
       return node instanceof PropertyAccessExpression
-        ? ((node as PropertyAccessExpression).expression !== undefined ? 1 : 0) |
-            ((node as PropertyAccessExpression).questionDotToken !== undefined ? 2 : 0) |
-            ((node as PropertyAccessExpression).name !== undefined ? 4 : 0)
+        ? (node.expression !== undefined ? 1 : 0) |
+            (node.questionDotToken !== undefined ? 2 : 0) |
+            (node.name !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.ElementAccessExpression:
       return node instanceof ElementAccessExpression
-        ? ((node as ElementAccessExpression).expression !== undefined ? 1 : 0) |
-            ((node as ElementAccessExpression).questionDotToken !== undefined ? 2 : 0) |
-            ((node as ElementAccessExpression).argumentExpression !== undefined ? 4 : 0)
+        ? (node.expression !== undefined ? 1 : 0) |
+            (node.questionDotToken !== undefined ? 2 : 0) |
+            (node.argumentExpression !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.CallExpression:
       return node instanceof CallExpression
-        ? ((node as CallExpression).expression !== undefined ? 1 : 0) |
-            ((node as CallExpression).questionDotToken !== undefined ? 2 : 0) |
-            ((node as CallExpression).typeArguments !== undefined ? 4 : 0) |
-            ((node as CallExpression).arguments !== undefined ? 8 : 0)
+        ? (node.expression !== undefined ? 1 : 0) |
+            (node.questionDotToken !== undefined ? 2 : 0) |
+            (node.typeArguments !== undefined ? 4 : 0) |
+            (node.arguments !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.NewExpression:
       return node instanceof NewExpression
-        ? ((node as NewExpression).expression !== undefined ? 1 : 0) |
-            ((node as NewExpression).typeArguments !== undefined ? 2 : 0) |
-            ((node as NewExpression).arguments !== undefined ? 4 : 0)
+        ? (node.expression !== undefined ? 1 : 0) |
+            (node.typeArguments !== undefined ? 2 : 0) |
+            (node.arguments !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.MetaProperty:
-      return node instanceof MetaProperty ? ((node as MetaProperty).name !== undefined ? 1 : 0) : 0;
+      return node instanceof MetaProperty ? (node.name !== undefined ? 1 : 0) : 0;
     case SyntaxKind.NonNullExpression:
-      return node instanceof NonNullExpression ? ((node as NonNullExpression).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof NonNullExpression ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.SpreadElement:
-      return node instanceof SpreadElement ? ((node as SpreadElement).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof SpreadElement ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.TemplateExpression:
       return node instanceof TemplateExpression
-        ? ((node as TemplateExpression).head !== undefined ? 1 : 0) |
-            ((node as TemplateExpression).templateSpans !== undefined ? 2 : 0)
+        ? (node.head !== undefined ? 1 : 0) | (node.templateSpans !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.TemplateSpan:
       return node instanceof TemplateSpan
-        ? ((node as TemplateSpan).expression !== undefined ? 1 : 0) |
-            ((node as TemplateSpan).literal !== undefined ? 2 : 0)
+        ? (node.expression !== undefined ? 1 : 0) | (node.literal !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.TaggedTemplateExpression:
       return node instanceof TaggedTemplateExpression
-        ? ((node as TaggedTemplateExpression).tag !== undefined ? 1 : 0) |
-            ((node as TaggedTemplateExpression).questionDotToken !== undefined ? 2 : 0) |
-            ((node as TaggedTemplateExpression).typeArguments !== undefined ? 4 : 0) |
-            ((node as TaggedTemplateExpression).template !== undefined ? 8 : 0)
+        ? (node.tag !== undefined ? 1 : 0) |
+            (node.questionDotToken !== undefined ? 2 : 0) |
+            (node.typeArguments !== undefined ? 4 : 0) |
+            (node.template !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.ParenthesizedExpression:
-      return node instanceof ParenthesizedExpression
-        ? (node as ParenthesizedExpression).expression !== undefined
-          ? 1
-          : 0
-        : 0;
+      return node instanceof ParenthesizedExpression ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ArrayLiteralExpression:
-      return node instanceof ArrayLiteralExpression
-        ? (node as ArrayLiteralExpression).elements !== undefined
-          ? 1
-          : 0
-        : 0;
+      return node instanceof ArrayLiteralExpression ? (node.elements !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ObjectLiteralExpression:
-      return node instanceof ObjectLiteralExpression
-        ? (node as ObjectLiteralExpression).properties !== undefined
-          ? 1
-          : 0
-        : 0;
+      return node instanceof ObjectLiteralExpression ? (node.properties !== undefined ? 1 : 0) : 0;
     case SyntaxKind.SpreadAssignment:
-      return node instanceof SpreadAssignment ? ((node as SpreadAssignment).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof SpreadAssignment ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.PropertyAssignment:
       return node instanceof PropertyAssignment
-        ? (hasModifiers((node as PropertyAssignment).modifiers) ? 1 : 0) |
-            ((node as PropertyAssignment).name !== undefined ? 2 : 0) |
-            ((node as PropertyAssignment).postfixToken !== undefined ? 4 : 0) |
-            ((node as PropertyAssignment).type !== undefined ? 8 : 0) |
-            ((node as PropertyAssignment).initializer !== undefined ? 16 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.postfixToken !== undefined ? 4 : 0) |
+            (node.type !== undefined ? 8 : 0) |
+            (node.initializer !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.ShorthandPropertyAssignment:
       return node instanceof ShorthandPropertyAssignment
-        ? (hasModifiers((node as ShorthandPropertyAssignment).modifiers) ? 1 : 0) |
-            ((node as ShorthandPropertyAssignment).name !== undefined ? 2 : 0) |
-            ((node as ShorthandPropertyAssignment).postfixToken !== undefined ? 4 : 0) |
-            ((node as ShorthandPropertyAssignment).type !== undefined ? 8 : 0) |
-            ((node as ShorthandPropertyAssignment).equalsToken !== undefined ? 16 : 0) |
-            ((node as ShorthandPropertyAssignment).objectAssignmentInitializer !== undefined ? 32 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.postfixToken !== undefined ? 4 : 0) |
+            (node.type !== undefined ? 8 : 0) |
+            (node.equalsToken !== undefined ? 16 : 0) |
+            (node.objectAssignmentInitializer !== undefined ? 32 : 0)
         : 0;
     case SyntaxKind.DeleteExpression:
-      return node instanceof DeleteExpression ? ((node as DeleteExpression).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof DeleteExpression ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.TypeOfExpression:
-      return node instanceof TypeOfExpression ? ((node as TypeOfExpression).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof TypeOfExpression ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.VoidExpression:
-      return node instanceof VoidExpression ? ((node as VoidExpression).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof VoidExpression ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.AwaitExpression:
-      return node instanceof AwaitExpression ? ((node as AwaitExpression).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof AwaitExpression ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.TypeAssertionExpression:
       return node instanceof TypeAssertion
-        ? ((node as TypeAssertion).type !== undefined ? 1 : 0) |
-            ((node as TypeAssertion).expression !== undefined ? 2 : 0)
+        ? (node.type !== undefined ? 1 : 0) | (node.expression !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.UnionType:
-      return node instanceof UnionTypeNode ? ((node as UnionTypeNode).types !== undefined ? 1 : 0) : 0;
+      return node instanceof UnionTypeNode ? (node.types !== undefined ? 1 : 0) : 0;
     case SyntaxKind.IntersectionType:
-      return node instanceof IntersectionTypeNode ? ((node as IntersectionTypeNode).types !== undefined ? 1 : 0) : 0;
+      return node instanceof IntersectionTypeNode ? (node.types !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ConditionalType:
       return node instanceof ConditionalTypeNode
-        ? ((node as ConditionalTypeNode).checkType !== undefined ? 1 : 0) |
-            ((node as ConditionalTypeNode).extendsType !== undefined ? 2 : 0) |
-            ((node as ConditionalTypeNode).trueType !== undefined ? 4 : 0) |
-            ((node as ConditionalTypeNode).falseType !== undefined ? 8 : 0)
+        ? (node.checkType !== undefined ? 1 : 0) |
+            (node.extendsType !== undefined ? 2 : 0) |
+            (node.trueType !== undefined ? 4 : 0) |
+            (node.falseType !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.TypeOperator:
-      return node instanceof TypeOperatorNode ? ((node as TypeOperatorNode).type !== undefined ? 1 : 0) : 0;
+      return node instanceof TypeOperatorNode ? (node.type !== undefined ? 1 : 0) : 0;
     case SyntaxKind.InferType:
-      return node instanceof InferTypeNode ? ((node as InferTypeNode).typeParameter !== undefined ? 1 : 0) : 0;
+      return node instanceof InferTypeNode ? (node.typeParameter !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ArrayType:
-      return node instanceof ArrayTypeNode ? ((node as ArrayTypeNode).elementType !== undefined ? 1 : 0) : 0;
+      return node instanceof ArrayTypeNode ? (node.elementType !== undefined ? 1 : 0) : 0;
     case SyntaxKind.IndexedAccessType:
       return node instanceof IndexedAccessTypeNode
-        ? ((node as IndexedAccessTypeNode).objectType !== undefined ? 1 : 0) |
-            ((node as IndexedAccessTypeNode).indexType !== undefined ? 2 : 0)
+        ? (node.objectType !== undefined ? 1 : 0) | (node.indexType !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.TypeReference:
       return node instanceof TypeReferenceNode
-        ? ((node as TypeReferenceNode).typeName !== undefined ? 1 : 0) |
-            ((node as TypeReferenceNode).typeArguments !== undefined ? 2 : 0)
+        ? (node.typeName !== undefined ? 1 : 0) | (node.typeArguments !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.ExpressionWithTypeArguments:
       return node instanceof ExpressionWithTypeArguments
-        ? ((node as ExpressionWithTypeArguments).expression !== undefined ? 1 : 0) |
-            ((node as ExpressionWithTypeArguments).typeArguments !== undefined ? 2 : 0)
+        ? (node.expression !== undefined ? 1 : 0) | (node.typeArguments !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.LiteralType:
-      return node instanceof LiteralTypeNode ? ((node as LiteralTypeNode).literal !== undefined ? 1 : 0) : 0;
+      return node instanceof LiteralTypeNode ? (node.literal !== undefined ? 1 : 0) : 0;
     case SyntaxKind.TypePredicate:
       return node instanceof TypePredicateNode
-        ? ((node as TypePredicateNode).assertsModifier !== undefined ? 1 : 0) |
-            ((node as TypePredicateNode).parameterName !== undefined ? 2 : 0) |
-            ((node as TypePredicateNode).type !== undefined ? 4 : 0)
+        ? (node.assertsModifier !== undefined ? 1 : 0) |
+            (node.parameterName !== undefined ? 2 : 0) |
+            (node.type !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.ImportAttribute:
       return node instanceof ImportAttribute
-        ? ((node as ImportAttribute).name !== undefined ? 1 : 0) |
-            ((node as ImportAttribute).value !== undefined ? 2 : 0)
+        ? (node.name !== undefined ? 1 : 0) | (node.value !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.ImportAttributes:
-      return node instanceof ImportAttributes ? ((node as ImportAttributes).attributes !== undefined ? 1 : 0) : 0;
+      return node instanceof ImportAttributes ? (node.attributes !== undefined ? 1 : 0) : 0;
     case SyntaxKind.TypeQuery:
       return node instanceof TypeQueryNode
-        ? ((node as TypeQueryNode).exprName !== undefined ? 1 : 0) |
-            ((node as TypeQueryNode).typeArguments !== undefined ? 2 : 0)
+        ? (node.exprName !== undefined ? 1 : 0) | (node.typeArguments !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.MappedType:
       return node instanceof MappedTypeNode
-        ? ((node as MappedTypeNode).readonlyToken !== undefined ? 1 : 0) |
-            ((node as MappedTypeNode).typeParameter !== undefined ? 2 : 0) |
-            ((node as MappedTypeNode).nameType !== undefined ? 4 : 0) |
-            ((node as MappedTypeNode).questionToken !== undefined ? 8 : 0) |
-            ((node as MappedTypeNode).type !== undefined ? 16 : 0) |
-            ((node as MappedTypeNode).members !== undefined ? 32 : 0)
+        ? (node.readonlyToken !== undefined ? 1 : 0) |
+            (node.typeParameter !== undefined ? 2 : 0) |
+            (node.nameType !== undefined ? 4 : 0) |
+            (node.questionToken !== undefined ? 8 : 0) |
+            (node.type !== undefined ? 16 : 0) |
+            (node.members !== undefined ? 32 : 0)
         : 0;
     case SyntaxKind.TypeLiteral:
-      return node instanceof TypeLiteralNode ? ((node as TypeLiteralNode).members !== undefined ? 1 : 0) : 0;
+      return node instanceof TypeLiteralNode ? (node.members !== undefined ? 1 : 0) : 0;
     case SyntaxKind.TupleType:
-      return node instanceof TupleTypeNode ? ((node as TupleTypeNode).elements !== undefined ? 1 : 0) : 0;
+      return node instanceof TupleTypeNode ? (node.elements !== undefined ? 1 : 0) : 0;
     case SyntaxKind.NamedTupleMember:
       return node instanceof NamedTupleMember
-        ? ((node as NamedTupleMember).dotDotDotToken !== undefined ? 1 : 0) |
-            ((node as NamedTupleMember).name !== undefined ? 2 : 0) |
-            ((node as NamedTupleMember).questionToken !== undefined ? 4 : 0) |
-            ((node as NamedTupleMember).type !== undefined ? 8 : 0)
+        ? (node.dotDotDotToken !== undefined ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.questionToken !== undefined ? 4 : 0) |
+            (node.type !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.OptionalType:
-      return node instanceof OptionalTypeNode ? ((node as OptionalTypeNode).type !== undefined ? 1 : 0) : 0;
+      return node instanceof OptionalTypeNode ? (node.type !== undefined ? 1 : 0) : 0;
     case SyntaxKind.RestType:
-      return node instanceof RestTypeNode ? ((node as RestTypeNode).type !== undefined ? 1 : 0) : 0;
+      return node instanceof RestTypeNode ? (node.type !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ParenthesizedType:
-      return node instanceof ParenthesizedTypeNode ? ((node as ParenthesizedTypeNode).type !== undefined ? 1 : 0) : 0;
+      return node instanceof ParenthesizedTypeNode ? (node.type !== undefined ? 1 : 0) : 0;
     case SyntaxKind.FunctionType:
       return node instanceof FunctionTypeNode
-        ? ((node as FunctionTypeNode).typeParameters !== undefined ? 1 : 0) |
-            ((node as FunctionTypeNode).parameters !== undefined ? 2 : 0) |
-            ((node as FunctionTypeNode).type !== undefined ? 4 : 0)
+        ? (node.typeParameters !== undefined ? 1 : 0) |
+            (node.parameters !== undefined ? 2 : 0) |
+            (node.type !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.ConstructorType:
       return node instanceof ConstructorTypeNode
-        ? (hasModifiers((node as ConstructorTypeNode).modifiers) ? 1 : 0) |
-            ((node as ConstructorTypeNode).typeParameters !== undefined ? 2 : 0) |
-            ((node as ConstructorTypeNode).parameters !== undefined ? 4 : 0) |
-            ((node as ConstructorTypeNode).type !== undefined ? 8 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.typeParameters !== undefined ? 2 : 0) |
+            (node.parameters !== undefined ? 4 : 0) |
+            (node.type !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.TemplateLiteralType:
       return node instanceof TemplateLiteralTypeNode
-        ? ((node as TemplateLiteralTypeNode).head !== undefined ? 1 : 0) |
-            ((node as TemplateLiteralTypeNode).templateSpans !== undefined ? 2 : 0)
+        ? (node.head !== undefined ? 1 : 0) | (node.templateSpans !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.TemplateLiteralTypeSpan:
       return node instanceof TemplateLiteralTypeSpan
-        ? ((node as TemplateLiteralTypeSpan).type !== undefined ? 1 : 0) |
-            ((node as TemplateLiteralTypeSpan).literal !== undefined ? 2 : 0)
+        ? (node.type !== undefined ? 1 : 0) | (node.literal !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JsxElement:
       return node instanceof JsxElement
-        ? ((node as JsxElement).openingElement !== undefined ? 1 : 0) |
-            ((node as JsxElement).children !== undefined ? 2 : 0) |
-            ((node as JsxElement).closingElement !== undefined ? 4 : 0)
+        ? (node.openingElement !== undefined ? 1 : 0) |
+            (node.children !== undefined ? 2 : 0) |
+            (node.closingElement !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JsxAttributes:
-      return node instanceof JsxAttributes ? ((node as JsxAttributes).properties !== undefined ? 1 : 0) : 0;
+      return node instanceof JsxAttributes ? (node.properties !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JsxNamespacedName:
       return node instanceof JsxNamespacedName
-        ? ((node as JsxNamespacedName).namespace !== undefined ? 1 : 0) |
-            ((node as JsxNamespacedName).name !== undefined ? 2 : 0)
+        ? (node.namespace !== undefined ? 1 : 0) | (node.name !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JsxOpeningElement:
       return node instanceof JsxOpeningElement
-        ? ((node as JsxOpeningElement).tagName !== undefined ? 1 : 0) |
-            ((node as JsxOpeningElement).typeArguments !== undefined ? 2 : 0) |
-            ((node as JsxOpeningElement).attributes !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeArguments !== undefined ? 2 : 0) |
+            (node.attributes !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JsxSelfClosingElement:
       return node instanceof JsxSelfClosingElement
-        ? ((node as JsxSelfClosingElement).tagName !== undefined ? 1 : 0) |
-            ((node as JsxSelfClosingElement).typeArguments !== undefined ? 2 : 0) |
-            ((node as JsxSelfClosingElement).attributes !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeArguments !== undefined ? 2 : 0) |
+            (node.attributes !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JsxFragment:
       return node instanceof JsxFragment
-        ? ((node as JsxFragment).openingFragment !== undefined ? 1 : 0) |
-            ((node as JsxFragment).children !== undefined ? 2 : 0) |
-            ((node as JsxFragment).closingFragment !== undefined ? 4 : 0)
+        ? (node.openingFragment !== undefined ? 1 : 0) |
+            (node.children !== undefined ? 2 : 0) |
+            (node.closingFragment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JsxAttribute:
       return node instanceof JsxAttribute
-        ? ((node as JsxAttribute).name !== undefined ? 1 : 0) |
-            ((node as JsxAttribute).initializer !== undefined ? 2 : 0)
+        ? (node.name !== undefined ? 1 : 0) | (node.initializer !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JsxSpreadAttribute:
-      return node instanceof JsxSpreadAttribute ? ((node as JsxSpreadAttribute).expression !== undefined ? 1 : 0) : 0;
+      return node instanceof JsxSpreadAttribute ? (node.expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JsxClosingElement:
-      return node instanceof JsxClosingElement ? ((node as JsxClosingElement).tagName !== undefined ? 1 : 0) : 0;
+      return node instanceof JsxClosingElement ? (node.tagName !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JsxExpression:
       return node instanceof JsxExpression
-        ? ((node as JsxExpression).dotDotDotToken !== undefined ? 1 : 0) |
-            ((node as JsxExpression).expression !== undefined ? 2 : 0)
+        ? (node.dotDotDotToken !== undefined ? 1 : 0) | (node.expression !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JSDoc:
-      return node instanceof JSDoc
-        ? ((node as JSDoc).comment !== undefined ? 1 : 0) | ((node as JSDoc).tags !== undefined ? 2 : 0)
-        : 0;
+      return node instanceof JSDoc ? (node.comment !== undefined ? 1 : 0) | (node.tags !== undefined ? 2 : 0) : 0;
     case SyntaxKind.JSDocTypeExpression:
-      return node instanceof JSDocTypeExpression ? ((node as JSDocTypeExpression).type !== undefined ? 1 : 0) : 0;
+      return node instanceof JSDocTypeExpression ? (node.type !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JSDocNonNullableType:
-      return node instanceof JSDocNonNullableType ? ((node as JSDocNonNullableType).type !== undefined ? 1 : 0) : 0;
+      return node instanceof JSDocNonNullableType ? (node.type !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JSDocNullableType:
-      return node instanceof JSDocNullableType ? ((node as JSDocNullableType).type !== undefined ? 1 : 0) : 0;
+      return node instanceof JSDocNullableType ? (node.type !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JSDocVariadicType:
-      return node instanceof JSDocVariadicType ? ((node as JSDocVariadicType).type !== undefined ? 1 : 0) : 0;
+      return node instanceof JSDocVariadicType ? (node.type !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JSDocOptionalType:
-      return node instanceof JSDocOptionalType ? ((node as JSDocOptionalType).type !== undefined ? 1 : 0) : 0;
+      return node instanceof JSDocOptionalType ? (node.type !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JSDocTypeTag:
       return node instanceof JSDocTypeTag
-        ? ((node as JSDocTypeTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocTypeTag).typeExpression !== undefined ? 2 : 0) |
-            ((node as JSDocTypeTag).comment !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeExpression !== undefined ? 2 : 0) |
+            (node.comment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocUnknownTag:
       return node instanceof JSDocUnknownTag
-        ? ((node as JSDocUnknownTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocUnknownTag).comment !== undefined ? 2 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) | (node.comment !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JSDocTemplateTag:
       return node instanceof JSDocTemplateTag
-        ? ((node as JSDocTemplateTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocTemplateTag).constraint !== undefined ? 2 : 0) |
-            ((node as JSDocTemplateTag).typeParameters !== undefined ? 4 : 0) |
-            ((node as JSDocTemplateTag).comment !== undefined ? 8 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.constraint !== undefined ? 2 : 0) |
+            (node.typeParameters !== undefined ? 4 : 0) |
+            (node.comment !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.JSDocReturnTag:
       return node instanceof JSDocReturnTag
-        ? ((node as JSDocReturnTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocReturnTag).typeExpression !== undefined ? 2 : 0) |
-            ((node as JSDocReturnTag).comment !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeExpression !== undefined ? 2 : 0) |
+            (node.comment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocPublicTag:
       return node instanceof JSDocPublicTag
-        ? ((node as JSDocPublicTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocPublicTag).comment !== undefined ? 2 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) | (node.comment !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JSDocPrivateTag:
       return node instanceof JSDocPrivateTag
-        ? ((node as JSDocPrivateTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocPrivateTag).comment !== undefined ? 2 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) | (node.comment !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JSDocProtectedTag:
       return node instanceof JSDocProtectedTag
-        ? ((node as JSDocProtectedTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocProtectedTag).comment !== undefined ? 2 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) | (node.comment !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JSDocReadonlyTag:
       return node instanceof JSDocReadonlyTag
-        ? ((node as JSDocReadonlyTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocReadonlyTag).comment !== undefined ? 2 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) | (node.comment !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JSDocOverrideTag:
       return node instanceof JSDocOverrideTag
-        ? ((node as JSDocOverrideTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocOverrideTag).comment !== undefined ? 2 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) | (node.comment !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JSDocDeprecatedTag:
       return node instanceof JSDocDeprecatedTag
-        ? ((node as JSDocDeprecatedTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocDeprecatedTag).comment !== undefined ? 2 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) | (node.comment !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JSDocSeeTag:
       return node instanceof JSDocSeeTag
-        ? ((node as JSDocSeeTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocSeeTag).nameExpression !== undefined ? 2 : 0) |
-            ((node as JSDocSeeTag).comment !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.nameExpression !== undefined ? 2 : 0) |
+            (node.comment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocImplementsTag:
       return node instanceof JSDocImplementsTag
-        ? ((node as JSDocImplementsTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocImplementsTag).className !== undefined ? 2 : 0) |
-            ((node as JSDocImplementsTag).comment !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.className !== undefined ? 2 : 0) |
+            (node.comment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocAugmentsTag:
       return node instanceof JSDocAugmentsTag
-        ? ((node as JSDocAugmentsTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocAugmentsTag).className !== undefined ? 2 : 0) |
-            ((node as JSDocAugmentsTag).comment !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.className !== undefined ? 2 : 0) |
+            (node.comment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocSatisfiesTag:
       return node instanceof JSDocSatisfiesTag
-        ? ((node as JSDocSatisfiesTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocSatisfiesTag).typeExpression !== undefined ? 2 : 0) |
-            ((node as JSDocSatisfiesTag).comment !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeExpression !== undefined ? 2 : 0) |
+            (node.comment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocThrowsTag:
       return node instanceof JSDocThrowsTag
-        ? ((node as JSDocThrowsTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocThrowsTag).typeExpression !== undefined ? 2 : 0) |
-            ((node as JSDocThrowsTag).comment !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeExpression !== undefined ? 2 : 0) |
+            (node.comment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocThisTag:
       return node instanceof JSDocThisTag
-        ? ((node as JSDocThisTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocThisTag).typeExpression !== undefined ? 2 : 0) |
-            ((node as JSDocThisTag).comment !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeExpression !== undefined ? 2 : 0) |
+            (node.comment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocImportTag:
       return node instanceof JSDocImportTag
-        ? ((node as JSDocImportTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocImportTag).importClause !== undefined ? 2 : 0) |
-            ((node as JSDocImportTag).moduleSpecifier !== undefined ? 4 : 0) |
-            ((node as JSDocImportTag).attributes !== undefined ? 8 : 0) |
-            ((node as JSDocImportTag).comment !== undefined ? 16 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.importClause !== undefined ? 2 : 0) |
+            (node.moduleSpecifier !== undefined ? 4 : 0) |
+            (node.attributes !== undefined ? 8 : 0) |
+            (node.comment !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.JSDocCallbackTag:
       return node instanceof JSDocCallbackTag
-        ? ((node as JSDocCallbackTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocCallbackTag).typeExpression !== undefined ? 2 : 0) |
-            ((node as JSDocCallbackTag).name !== undefined ? 4 : 0) |
-            ((node as JSDocCallbackTag).comment !== undefined ? 8 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeExpression !== undefined ? 2 : 0) |
+            (node.name !== undefined ? 4 : 0) |
+            (node.comment !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.JSDocOverloadTag:
       return node instanceof JSDocOverloadTag
-        ? ((node as JSDocOverloadTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocOverloadTag).typeExpression !== undefined ? 2 : 0) |
-            ((node as JSDocOverloadTag).comment !== undefined ? 4 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeExpression !== undefined ? 2 : 0) |
+            (node.comment !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocTypedefTag:
       return node instanceof JSDocTypedefTag
-        ? ((node as JSDocTypedefTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocTypedefTag).typeExpression !== undefined ? 2 : 0) |
-            ((node as JSDocTypedefTag).name !== undefined ? 4 : 0) |
-            ((node as JSDocTypedefTag).comment !== undefined ? 8 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.typeExpression !== undefined ? 2 : 0) |
+            (node.name !== undefined ? 4 : 0) |
+            (node.comment !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.JSDocSignature:
       return node instanceof JSDocSignature
-        ? ((node as JSDocSignature).typeParameters !== undefined ? 1 : 0) |
-            ((node as JSDocSignature).parameters !== undefined ? 2 : 0) |
-            ((node as JSDocSignature).type !== undefined ? 4 : 0)
+        ? (node.typeParameters !== undefined ? 1 : 0) |
+            (node.parameters !== undefined ? 2 : 0) |
+            (node.type !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.JSDocNameReference:
-      return node instanceof JSDocNameReference ? ((node as JSDocNameReference).name !== undefined ? 1 : 0) : 0;
+      return node instanceof JSDocNameReference ? (node.name !== undefined ? 1 : 0) : 0;
     case SyntaxKind.ModuleDeclaration:
       return node instanceof ModuleDeclaration
-        ? (hasModifiers((node as ModuleDeclaration).modifiers) ? 1 : 0) |
-            ((node as ModuleDeclaration).name !== undefined ? 2 : 0) |
-            ((node as ModuleDeclaration).body !== undefined ? 4 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) | (node.name !== undefined ? 2 : 0) | (node.body !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.ImportEqualsDeclaration:
       return node instanceof ImportEqualsDeclaration
-        ? (hasModifiers((node as ImportEqualsDeclaration).modifiers) ? 1 : 0) |
-            ((node as ImportEqualsDeclaration).name !== undefined ? 2 : 0) |
-            ((node as ImportEqualsDeclaration).moduleReference !== undefined ? 4 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.moduleReference !== undefined ? 4 : 0)
         : 0;
     case SyntaxKind.ExportDeclaration:
       return node instanceof ExportDeclaration
-        ? (hasModifiers((node as ExportDeclaration).modifiers) ? 1 : 0) |
-            ((node as ExportDeclaration).exportClause !== undefined ? 2 : 0) |
-            ((node as ExportDeclaration).moduleSpecifier !== undefined ? 4 : 0) |
-            ((node as ExportDeclaration).attributes !== undefined ? 8 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.exportClause !== undefined ? 2 : 0) |
+            (node.moduleSpecifier !== undefined ? 4 : 0) |
+            (node.attributes !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.ImportType:
       return node instanceof ImportTypeNode
-        ? ((node as ImportTypeNode).argument !== undefined ? 1 : 0) |
-            ((node as ImportTypeNode).attributes !== undefined ? 2 : 0) |
-            ((node as ImportTypeNode).qualifier !== undefined ? 4 : 0) |
-            ((node as ImportTypeNode).typeArguments !== undefined ? 8 : 0)
+        ? (node.argument !== undefined ? 1 : 0) |
+            (node.attributes !== undefined ? 2 : 0) |
+            (node.qualifier !== undefined ? 4 : 0) |
+            (node.typeArguments !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.ImportClause:
       return node instanceof ImportClause
-        ? ((node as ImportClause).name !== undefined ? 1 : 0) |
-            ((node as ImportClause).namedBindings !== undefined ? 2 : 0)
+        ? (node.name !== undefined ? 1 : 0) | (node.namedBindings !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.ImportSpecifier:
       return node instanceof ImportSpecifier
-        ? ((node as ImportSpecifier).propertyName !== undefined ? 1 : 0) |
-            ((node as ImportSpecifier).name !== undefined ? 2 : 0)
+        ? (node.propertyName !== undefined ? 1 : 0) | (node.name !== undefined ? 2 : 0)
         : 0;
     case SyntaxKind.JSDocLink:
-      return node instanceof JSDocLink ? ((node as JSDocLink).name !== undefined ? 1 : 0) : 0;
+      return node instanceof JSDocLink ? (node.name !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JSDocLinkPlain:
-      return node instanceof JSDocLinkPlain ? ((node as JSDocLinkPlain).name !== undefined ? 1 : 0) : 0;
+      return node instanceof JSDocLinkPlain ? (node.name !== undefined ? 1 : 0) : 0;
     case SyntaxKind.JSDocLinkCode:
-      return node instanceof JSDocLinkCode ? ((node as JSDocLinkCode).name !== undefined ? 1 : 0) : 0;
+      return node instanceof JSDocLinkCode ? (node.name !== undefined ? 1 : 0) : 0;
     case SyntaxKind.TypeParameter:
       return node instanceof TypeParameterDeclaration
-        ? (hasModifiers((node as TypeParameterDeclaration).modifiers) ? 1 : 0) |
-            ((node as TypeParameterDeclaration).name !== undefined ? 2 : 0) |
-            ((node as TypeParameterDeclaration).constraint !== undefined ? 4 : 0) |
-            ((node as TypeParameterDeclaration).expression !== undefined ? 8 : 0) |
-            ((node as TypeParameterDeclaration).defaultType !== undefined ? 16 : 0)
+        ? (hasModifiers(node.modifiers) ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.constraint !== undefined ? 4 : 0) |
+            (node.expression !== undefined ? 8 : 0) |
+            (node.defaultType !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.JSDocTypeLiteral:
-      return node instanceof JSDocTypeLiteral ? (hasElements((node as JSDocTypeLiteral).jsdocPropertyTags) ? 1 : 0) : 0;
+      return node instanceof JSDocTypeLiteral ? (hasElements(node.jsdocPropertyTags) ? 1 : 0) : 0;
     case SyntaxKind.JSDocParameterTag:
     case SyntaxKind.JSDocPropertyTag:
       return node instanceof JSDocParameterOrPropertyTag
-        ? ((node as JSDocParameterOrPropertyTag).tagName !== undefined ? 1 : 0) |
-            ((node as JSDocParameterOrPropertyTag).name !== undefined ? 2 : 0) |
-            ((node as JSDocParameterOrPropertyTag).typeExpression !== undefined ? 4 : 0) |
-            ((node as JSDocParameterOrPropertyTag).comment !== undefined ? 8 : 0)
+        ? (node.tagName !== undefined ? 1 : 0) |
+            (node.name !== undefined ? 2 : 0) |
+            (node.typeExpression !== undefined ? 4 : 0) |
+            (node.comment !== undefined ? 8 : 0)
         : 0;
     default:
       return 0;
@@ -1247,67 +1173,55 @@ function bit(value: boolean): number {
 function commonData(node: Node): number {
   switch (node.kind) {
     case SyntaxKind.Block:
-      return node instanceof Block ? bit((node as Block).multiLine) << 24 : 0;
+      return node instanceof Block ? bit(node.multiLine) << 24 : 0;
     case SyntaxKind.HeritageClause:
-      return node instanceof HeritageClause
-        ? bit((node as HeritageClause).token === SyntaxKind.ImplementsKeyword) << 24
-        : 0;
+      return node instanceof HeritageClause ? bit(node.token === SyntaxKind.ImplementsKeyword) << 24 : 0;
     case SyntaxKind.ExportAssignment:
-      return node instanceof ExportAssignment ? bit((node as ExportAssignment).isExportEquals) << 24 : 0;
+      return node instanceof ExportAssignment ? bit(node.isExportEquals) << 24 : 0;
     case SyntaxKind.ExportSpecifier:
-      return node instanceof ExportSpecifier ? bit((node as ExportSpecifier).isTypeOnly) << 24 : 0;
+      return node instanceof ExportSpecifier ? bit(node.isTypeOnly) << 24 : 0;
     case SyntaxKind.PrefixUnaryExpression:
-      return node instanceof PrefixUnaryExpression
-        ? prefixOperatorIndex((node as PrefixUnaryExpression).operator) << 24
-        : 0;
+      return node instanceof PrefixUnaryExpression ? prefixOperatorIndex(node.operator) << 24 : 0;
     case SyntaxKind.PostfixUnaryExpression:
-      return node instanceof PostfixUnaryExpression
-        ? bit((node as PostfixUnaryExpression).operator === SyntaxKind.MinusMinusToken) << 24
-        : 0;
+      return node instanceof PostfixUnaryExpression ? bit(node.operator === SyntaxKind.MinusMinusToken) << 24 : 0;
     case SyntaxKind.MetaProperty:
-      return node instanceof MetaProperty
-        ? bit((node as MetaProperty).keywordToken === SyntaxKind.NewKeyword) << 24
-        : 0;
+      return node instanceof MetaProperty ? bit(node.keywordToken === SyntaxKind.NewKeyword) << 24 : 0;
     case SyntaxKind.ArrayLiteralExpression:
-      return node instanceof ArrayLiteralExpression ? bit((node as ArrayLiteralExpression).multiLine) << 24 : 0;
+      return node instanceof ArrayLiteralExpression ? bit(node.multiLine) << 24 : 0;
     case SyntaxKind.ObjectLiteralExpression:
-      return node instanceof ObjectLiteralExpression ? bit((node as ObjectLiteralExpression).multiLine) << 24 : 0;
+      return node instanceof ObjectLiteralExpression ? bit(node.multiLine) << 24 : 0;
     case SyntaxKind.TypeOperator:
       if (!(node instanceof TypeOperatorNode)) return 0;
-      if ((node as TypeOperatorNode).operator === SyntaxKind.ReadonlyKeyword) return 1 << 24;
-      if ((node as TypeOperatorNode).operator === SyntaxKind.UniqueKeyword) return 2 << 24;
+      if (node.operator === SyntaxKind.ReadonlyKeyword) return 1 << 24;
+      if (node.operator === SyntaxKind.UniqueKeyword) return 2 << 24;
       return 0;
     case SyntaxKind.ImportAttributes:
       return node instanceof ImportAttributes
-        ? (bit((node as ImportAttributes).multiLine) << 24) |
-            (bit((node as ImportAttributes).token === SyntaxKind.AssertKeyword) << 25)
+        ? (bit(node.multiLine) << 24) | (bit(node.token === SyntaxKind.AssertKeyword) << 25)
         : 0;
     case SyntaxKind.JsxText:
-      return node instanceof JsxText ? bit((node as JsxText).containsOnlyTriviaWhiteSpaces) << 24 : 0;
+      return node instanceof JsxText ? bit(node.containsOnlyTriviaWhiteSpaces) << 24 : 0;
     case SyntaxKind.ModuleDeclaration:
-      return node instanceof ModuleDeclaration
-        ? bit((node as ModuleDeclaration).keyword === SyntaxKind.NamespaceKeyword) << 24
-        : 0;
+      return node instanceof ModuleDeclaration ? bit(node.keyword === SyntaxKind.NamespaceKeyword) << 24 : 0;
     case SyntaxKind.ImportEqualsDeclaration:
-      return node instanceof ImportEqualsDeclaration ? bit((node as ImportEqualsDeclaration).isTypeOnly) << 24 : 0;
+      return node instanceof ImportEqualsDeclaration ? bit(node.isTypeOnly) << 24 : 0;
     case SyntaxKind.ExportDeclaration:
-      return node instanceof ExportDeclaration ? bit((node as ExportDeclaration).isTypeOnly) << 24 : 0;
+      return node instanceof ExportDeclaration ? bit(node.isTypeOnly) << 24 : 0;
     case SyntaxKind.ImportType:
-      return node instanceof ImportTypeNode ? bit((node as ImportTypeNode).isTypeOf) << 24 : 0;
+      return node instanceof ImportTypeNode ? bit(node.isTypeOf) << 24 : 0;
     case SyntaxKind.ImportClause:
       if (!(node instanceof ImportClause)) return 0;
-      if ((node as ImportClause).phaseModifier === SyntaxKind.TypeKeyword) return 1 << 24;
-      if ((node as ImportClause).phaseModifier === SyntaxKind.DeferKeyword) return 2 << 24;
+      if (node.phaseModifier === SyntaxKind.TypeKeyword) return 1 << 24;
+      if (node.phaseModifier === SyntaxKind.DeferKeyword) return 2 << 24;
       return 0;
     case SyntaxKind.ImportSpecifier:
-      return node instanceof ImportSpecifier ? bit((node as ImportSpecifier).isTypeOnly) << 24 : 0;
+      return node instanceof ImportSpecifier ? bit(node.isTypeOnly) << 24 : 0;
     case SyntaxKind.JSDocTypeLiteral:
-      return node instanceof JSDocTypeLiteral ? bit((node as JSDocTypeLiteral).isArrayType) << 24 : 0;
+      return node instanceof JSDocTypeLiteral ? bit(node.isArrayType) << 24 : 0;
     case SyntaxKind.JSDocParameterTag:
     case SyntaxKind.JSDocPropertyTag:
       return node instanceof JSDocParameterOrPropertyTag
-        ? (bit((node as JSDocParameterOrPropertyTag).isBracketed) << 24) |
-            (bit((node as JSDocParameterOrPropertyTag).isNameFirst) << 25)
+        ? (bit(node.isBracketed) << 24) | (bit(node.isNameFirst) << 25)
         : 0;
   }
   return 0;
@@ -1355,13 +1269,13 @@ function dataType(kind: SyntaxKind): number {
 
 /** The text of a node encoded as a string. */
 function nodeText(node: Node): string {
-  if (node instanceof Identifier) return (node as Identifier).text;
-  if (node instanceof PrivateIdentifier) return (node as PrivateIdentifier).text;
-  if (node instanceof JsxText) return (node as JsxText).text;
-  if (node instanceof JSDocText) return (node as JSDocText).text;
-  if (node instanceof JSDocLink) return (node as JSDocLink).text;
-  if (node instanceof JSDocLinkPlain) return (node as JSDocLinkPlain).text;
-  if (node instanceof JSDocLinkCode) return (node as JSDocLinkCode).text;
+  if (node instanceof Identifier) return node.text;
+  if (node instanceof PrivateIdentifier) return node.text;
+  if (node instanceof JsxText) return node.text;
+  if (node instanceof JSDocText) return node.text;
+  if (node instanceof JSDocLink) return node.text;
+  if (node instanceof JSDocLinkPlain) return node.text;
+  if (node instanceof JSDocLinkCode) return node.text;
   return '';
 }
 
@@ -1490,7 +1404,7 @@ class Encoder extends NodeVisitor {
   /** The children in the API's order, then the node's JSDoc comments. */
   visitChildren(node: Node): boolean {
     if (node instanceof JSDocParameterOrPropertyTag) {
-      const tag = node as JSDocParameterOrPropertyTag;
+      const tag = node;
       this.visitNode(tag.tagName);
       this.visitNode(tag.name);
       if (tag.typeExpression !== undefined) this.visitNode(tag.typeExpression);
@@ -1560,118 +1474,41 @@ class Encoder extends NodeVisitor {
     const offset = out.length;
     const strings = this.strings;
     if (node instanceof StringLiteral) {
-      out.u32(
-        strings.add(
-          (node as StringLiteral).text,
-          (node as StringLiteral).kind,
-          (node as StringLiteral).pos,
-          (node as StringLiteral).end,
-        ),
-      );
-      out.u32((node as StringLiteral).tokenFlags);
+      out.u32(strings.add(node.text, node.kind, node.pos, node.end));
+      out.u32(node.tokenFlags);
     } else if (node instanceof NumericLiteral) {
-      out.u32(
-        strings.add(
-          (node as NumericLiteral).text,
-          (node as NumericLiteral).kind,
-          (node as NumericLiteral).pos,
-          (node as NumericLiteral).end,
-        ),
-      );
-      out.u32((node as NumericLiteral).tokenFlags);
+      out.u32(strings.add(node.text, node.kind, node.pos, node.end));
+      out.u32(node.tokenFlags);
     } else if (node instanceof BigIntLiteral) {
-      out.u32(
-        strings.add(
-          (node as BigIntLiteral).text,
-          (node as BigIntLiteral).kind,
-          (node as BigIntLiteral).pos,
-          (node as BigIntLiteral).end,
-        ),
-      );
-      out.u32((node as BigIntLiteral).tokenFlags);
+      out.u32(strings.add(node.text, node.kind, node.pos, node.end));
+      out.u32(node.tokenFlags);
     } else if (node instanceof RegularExpressionLiteral) {
-      out.u32(
-        strings.add(
-          (node as RegularExpressionLiteral).text,
-          (node as RegularExpressionLiteral).kind,
-          (node as RegularExpressionLiteral).pos,
-          (node as RegularExpressionLiteral).end,
-        ),
-      );
-      out.u32((node as RegularExpressionLiteral).tokenFlags);
+      out.u32(strings.add(node.text, node.kind, node.pos, node.end));
+      out.u32(node.tokenFlags);
     } else if (node instanceof NoSubstitutionTemplateLiteral) {
-      out.u32(
-        strings.add(
-          (node as NoSubstitutionTemplateLiteral).text,
-          (node as NoSubstitutionTemplateLiteral).kind,
-          (node as NoSubstitutionTemplateLiteral).pos,
-          (node as NoSubstitutionTemplateLiteral).end,
-        ),
-      );
-      out.u32((node as NoSubstitutionTemplateLiteral).templateFlags);
+      out.u32(strings.add(node.text, node.kind, node.pos, node.end));
+      out.u32(node.templateFlags);
     } else if (node instanceof TemplateHead) {
-      out.u32(
-        strings.add(
-          (node as TemplateHead).text,
-          (node as TemplateHead).kind,
-          (node as TemplateHead).pos,
-          (node as TemplateHead).end,
-        ),
-      );
-      out.u32(
-        strings.add(
-          (node as TemplateHead).rawText,
-          (node as TemplateHead).kind,
-          (node as TemplateHead).pos,
-          (node as TemplateHead).end,
-        ),
-      );
-      out.u32((node as TemplateHead).templateFlags);
+      out.u32(strings.add(node.text, node.kind, node.pos, node.end));
+      out.u32(strings.add(node.rawText, node.kind, node.pos, node.end));
+      out.u32(node.templateFlags);
     } else if (node instanceof TemplateMiddle) {
-      out.u32(
-        strings.add(
-          (node as TemplateMiddle).text,
-          (node as TemplateMiddle).kind,
-          (node as TemplateMiddle).pos,
-          (node as TemplateMiddle).end,
-        ),
-      );
-      out.u32(
-        strings.add(
-          (node as TemplateMiddle).rawText,
-          (node as TemplateMiddle).kind,
-          (node as TemplateMiddle).pos,
-          (node as TemplateMiddle).end,
-        ),
-      );
-      out.u32((node as TemplateMiddle).templateFlags);
+      out.u32(strings.add(node.text, node.kind, node.pos, node.end));
+      out.u32(strings.add(node.rawText, node.kind, node.pos, node.end));
+      out.u32(node.templateFlags);
     } else if (node instanceof TemplateTail) {
-      out.u32(
-        strings.add(
-          (node as TemplateTail).text,
-          (node as TemplateTail).kind,
-          (node as TemplateTail).pos,
-          (node as TemplateTail).end,
-        ),
-      );
-      out.u32(
-        strings.add(
-          (node as TemplateTail).rawText,
-          (node as TemplateTail).kind,
-          (node as TemplateTail).pos,
-          (node as TemplateTail).end,
-        ),
-      );
-      out.u32((node as TemplateTail).templateFlags);
+      out.u32(strings.add(node.text, node.kind, node.pos, node.end));
+      out.u32(strings.add(node.rawText, node.kind, node.pos, node.end));
+      out.u32(node.templateFlags);
     } else if (node instanceof SourceFile) {
-      out.u32(strings.addFileText((node as SourceFile).pos, (node as SourceFile).end));
-      out.u32(strings.add((node as SourceFile).fileName, SyntaxKind.Unknown, 0, 0));
-      out.u32(strings.add((node as SourceFile).path, SyntaxKind.Unknown, 0, 0));
-      out.u32((node as SourceFile).languageVariant);
-      out.u32((node as SourceFile).scriptKind);
-      out.u32(writeFileReferences(this.structured, (node as SourceFile).referencedFiles));
-      out.u32(writeFileReferences(this.structured, (node as SourceFile).typeReferenceDirectives));
-      out.u32(writeFileReferences(this.structured, (node as SourceFile).libReferenceDirectives));
+      out.u32(strings.addFileText(node.pos, node.end));
+      out.u32(strings.add(node.fileName, SyntaxKind.Unknown, 0, 0));
+      out.u32(strings.add(node.path, SyntaxKind.Unknown, 0, 0));
+      out.u32(node.languageVariant);
+      out.u32(node.scriptKind);
+      out.u32(writeFileReferences(this.structured, node.referencedFiles));
+      out.u32(writeFileReferences(this.structured, node.typeReferenceDirectives));
+      out.u32(writeFileReferences(this.structured, node.libReferenceDirectives));
       // Imports, module augmentations, ambient module names and the external module
       // indicator are patched in after the walk.
       out.u32(noStructuredData);
@@ -1780,7 +1617,7 @@ export class NodeIndexTable extends NodeVisitor {
   /** The same order as the encoder's. */
   private visitChildren(node: Node): void {
     if (node instanceof JSDocParameterOrPropertyTag) {
-      const tag = node as JSDocParameterOrPropertyTag;
+      const tag = node;
       this.visitNode(tag.tagName);
       this.visitNode(tag.name);
       if (tag.typeExpression !== undefined) this.visitNode(tag.typeExpression);

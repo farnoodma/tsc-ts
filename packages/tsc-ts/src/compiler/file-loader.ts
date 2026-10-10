@@ -941,8 +941,7 @@ export class FileLoader {
             ((imports[importIndex].flags & NodeFlags.JavaScriptFile) !== 0 ||
               (imports[importIndex].flags & NodeFlags.JSDoc) === 0)));
       if (!shouldAddFile) continue;
-      // `as`: scriptc loses instanceof narrowing here.
-      const specifier = importIndex < 0 && entry instanceof StringLiteral ? (entry as StringLiteral) : undefined;
+      const specifier = importIndex < 0 && entry instanceof StringLiteral ? entry : undefined;
       task.addSubTask(
         resolvedFileName,
         undefined,

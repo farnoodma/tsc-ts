@@ -123,7 +123,7 @@ class Flattener {
     let end = node.end;
     let value: Node | undefined = undefined;
     if (node instanceof BinaryExpression && isDestructuringAssignment(node)) {
-      let assignment: BinaryExpression = node as BinaryExpression;
+      let assignment: BinaryExpression = node;
       value = assignment.right;
       while (isEmptyPattern(assignment.left)) {
         const right = assignment.right;
@@ -174,13 +174,7 @@ class Flattener {
           initializer.pos,
           initializer.end,
         );
-        node = factory.updateVariableDeclaration(
-          node as VariableDeclaration,
-          node.name,
-          undefined,
-          undefined,
-          initializer,
-        );
+        node = factory.updateVariableDeclaration(node, node.name, undefined, undefined, initializer);
       }
     }
     this.flattenElement(node, rval, node.pos, node.end, skipInitializer);
@@ -225,7 +219,7 @@ class Flattener {
   private emitAssignment(target: Node, value: Node, pos: number, end: number, original: Node | undefined): boolean {
     let expression: Node;
     if (this.assignments !== undefined && target instanceof Identifier)
-      expression = this.assignments.createAssignment(target as Identifier, value, pos, end);
+      expression = this.assignments.createAssignment(target, value, pos, end);
     else {
       expression = this.visitor.factory.createAssignment(this.visitor.visitNode(target)!, value);
       expression.pos = pos;
@@ -646,11 +640,7 @@ export function convertBindingNameToTarget(visitor: VisitorHooks, name: Node): N
   const object = name.kind === SyntaxKind.ObjectBindingPattern;
   for (const element of elements) {
     if (element instanceof BindingElement)
-      converted.push(
-        object
-          ? convertToObjectElement(visitor, element as BindingElement)
-          : convertToArrayElement(visitor, element as BindingElement),
-      );
+      converted.push(object ? convertToObjectElement(visitor, element) : convertToArrayElement(visitor, element));
   }
   const list = factory.createNodeList(converted);
   list.pos = name.elements.pos;

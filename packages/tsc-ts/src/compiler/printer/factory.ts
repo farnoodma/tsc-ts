@@ -339,7 +339,7 @@ export class NodeFactory extends NodeFactoryBase {
         ? getNonAssignedNameOfDeclaration(node)
         : getNameOfDeclaration(node);
     if (!(name instanceof Identifier)) return this.createGeneratedNameForNode(node, 0, '', '');
-    const clone = this.cloneIdentifier(name as Identifier);
+    const clone = this.cloneIdentifier(name);
     if ((options & NameOptions.AllowComments) === 0) emitFlags |= EmitFlags.NoComments;
     if ((options & NameOptions.AllowSourceMaps) === 0) emitFlags |= EmitFlags.NoSourceMap;
     this.context.addEmitFlags(clone, emitFlags);
@@ -592,22 +592,14 @@ export class NodeFactory extends NodeFactoryBase {
   }
 
   private updateOuterExpression(outer: Node, expression: Node): Node {
-    if (outer instanceof ParenthesizedExpression)
-      return this.updateParenthesizedExpression(outer as ParenthesizedExpression, expression);
-    if (outer instanceof TypeAssertion) return this.updateTypeAssertion(outer as TypeAssertion, outer.type, expression);
-    if (outer instanceof AsExpression) return this.updateAsExpression(outer as AsExpression, expression, outer.type);
-    if (outer instanceof SatisfiesExpression)
-      return this.updateSatisfiesExpression(outer as SatisfiesExpression, expression, outer.type);
-    if (outer instanceof NonNullExpression)
-      return this.updateNonNullExpression(outer as NonNullExpression, expression, outer.flags);
+    if (outer instanceof ParenthesizedExpression) return this.updateParenthesizedExpression(outer, expression);
+    if (outer instanceof TypeAssertion) return this.updateTypeAssertion(outer, outer.type, expression);
+    if (outer instanceof AsExpression) return this.updateAsExpression(outer, expression, outer.type);
+    if (outer instanceof SatisfiesExpression) return this.updateSatisfiesExpression(outer, expression, outer.type);
+    if (outer instanceof NonNullExpression) return this.updateNonNullExpression(outer, expression, outer.flags);
     if (outer instanceof ExpressionWithTypeArguments)
-      return this.updateExpressionWithTypeArguments(
-        outer as ExpressionWithTypeArguments,
-        expression,
-        outer.typeArguments,
-      );
-    if (outer instanceof PartiallyEmittedExpression)
-      return this.updatePartiallyEmittedExpression(outer as PartiallyEmittedExpression, expression);
+      return this.updateExpressionWithTypeArguments(outer, expression, outer.typeArguments);
+    if (outer instanceof PartiallyEmittedExpression) return this.updatePartiallyEmittedExpression(outer, expression);
     throw new Error('Unexpected outer expression');
   }
 

@@ -180,7 +180,7 @@ export class DecoratorMetadata extends Transformer {
     if (!classOrConstructorParameterIsDecorated(this.legacyDecorators, node)) result = this.visitEachChild(node);
     else if (node instanceof ClassDeclaration)
       result = this.factory.updateClassDeclaration(
-        node as ClassDeclaration,
+        node,
         this.injectClassTypeMetadata(this.visitModifiers(node.modifiers), node),
         node.name,
         this.visitNodes(node.typeParameters),
@@ -189,7 +189,7 @@ export class DecoratorMetadata extends Transformer {
       );
     else if (node instanceof ClassExpression)
       result = this.factory.updateClassExpression(
-        node as ClassExpression,
+        node,
         this.injectClassTypeMetadata(this.visitModifiers(node.modifiers), node),
         node.name,
         this.visitNodes(node.typeParameters),

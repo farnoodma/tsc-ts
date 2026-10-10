@@ -612,7 +612,7 @@ class ExistingNodeReuser extends VisitorBase {
         (b.flags & NodeBuilderFlags.UseSingleQuotesForStringLiteralType) !== 0 &&
         (copy.tokenFlags & TokenFlags.SingleQuote) === 0
       ) {
-        const literal = copy as StringLiteral;
+        const literal = copy;
         literal.tokenFlags = literal.tokenFlags | TokenFlags.SingleQuote;
       }
       this.context.addEmitFlags(copy, EmitFlags.NoAsciiEscaping);
@@ -665,13 +665,13 @@ function withAnyType(b: NodeBuilder, node: Node): boolean {
 
 function asImportAttributes(node: Node | undefined): ImportAttributes | undefined {
   if (node === undefined) return undefined;
-  if (node instanceof ImportAttributes) return node as ImportAttributes;
+  if (node instanceof ImportAttributes) return node;
   return undefined;
 }
 
 function asToken(node: Node | undefined): Token | undefined {
   if (node === undefined) return undefined;
-  if (node instanceof Token) return node as Token;
+  if (node instanceof Token) return node;
   return undefined;
 }
 

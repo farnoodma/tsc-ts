@@ -19,7 +19,7 @@ export class LogicalAssignmentTransformer extends Transformer {
     if (!this.facts.has(node, SubtreeFacts.ContainsLogicalAssignments)) return node;
     if (node instanceof BinaryExpression) {
       const operator = logicalOperatorOf(node.operatorToken.kind);
-      if (operator !== SyntaxKind.Unknown) return this.visitLogicalAssignment(node as BinaryExpression, operator);
+      if (operator !== SyntaxKind.Unknown) return this.visitLogicalAssignment(node, operator);
     }
     return this.visitEachChild(node);
   }

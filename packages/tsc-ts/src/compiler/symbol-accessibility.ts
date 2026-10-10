@@ -353,8 +353,7 @@ function getAlternativeContainingModules(c: Checker, symbol: Symbol, enclosingDe
   // Search every module; expensive, but independent of the location.
   for (const file of c.host.getSourceFiles()) {
     if (!isExternalModule(file)) continue;
-    // `as`: scriptc passes a for-of element of a subclass array only as that class.
-    const fileSymbol = getSymbolOfDeclaration(c, file as Node);
+    const fileSymbol = getSymbolOfDeclaration(c, file);
     if (fileSymbol === undefined || getAliasForSymbolInContainer(c, fileSymbol, symbol) === undefined) continue;
     results.push(fileSymbol);
   }
@@ -526,11 +525,11 @@ class ChainSearch {
       byKey = new Map<string, Symbol[]>();
       cache.accessibleChains.set(symbolId, byKey);
     }
-    // `!`: scriptc keeps the callback's optional scope optional after narrowing.
+    // Widened: control flow analysis doesn't see the callback's assignment.
     const location: Node | undefined = firstRelevantLocation;
     const key =
       (this.useOnlyExternalAliasing ? '1:' : '0:') +
-      (location === undefined ? 0 : getNodeId(location!)) +
+      (location === undefined ? 0 : getNodeId(location)) +
       ':' +
       this.meaning;
     const existing = byKey.get(key);

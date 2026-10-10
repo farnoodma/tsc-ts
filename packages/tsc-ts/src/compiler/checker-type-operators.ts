@@ -15,7 +15,6 @@ import {
   type MappedTypeNode,
   IndexedAccessTypeNode,
   PrefixUnaryExpression,
-  TypeParameterDeclaration,
   getDotDotDotToken,
   getElements,
   getExpression,
@@ -1490,7 +1489,7 @@ export function getTemplateTypeFromMappedType(c: Checker, t: MappedType): Type {
 }
 
 function getConstraintDeclarationForMappedType(t: MappedType): Node | undefined {
-  return (mappedDeclaration(t).typeParameter as TypeParameterDeclaration).constraint;
+  return mappedDeclaration(t).typeParameter.constraint;
 }
 
 export function isMappedTypeWithKeyofConstraintDeclaration(c: Checker, t: MappedType): boolean {

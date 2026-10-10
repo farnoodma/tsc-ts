@@ -1087,11 +1087,11 @@ export class JSDocParser {
           if (canParseTag && p.scanner.canFollowJSDocAt()) {
             const child = this.tryParseChildTag(target, indent);
             if (child instanceof JSDocParameterOrPropertyTag && name !== undefined) {
-              const childName = (child as JSDocParameterOrPropertyTag).name;
+              const childName = child.name;
               if (
                 childName instanceof Identifier ||
                 !(childName instanceof QualifiedName) ||
-                !textsEqual(name, (childName as QualifiedName).left)
+                !textsEqual(name, childName.left)
               )
                 return undefined;
             }
@@ -1254,31 +1254,23 @@ function hasTagOfKind(tags: readonly Node[], kind: SyntaxKind): boolean {
 
 function isObjectOrObjectArrayTypeReference(node: Node): boolean {
   if (node.kind === SyntaxKind.ObjectKeyword) return true;
-  if (node instanceof ArrayTypeNode) return isObjectOrObjectArrayTypeReference((node as ArrayTypeNode).elementType);
+  if (node instanceof ArrayTypeNode) return isObjectOrObjectArrayTypeReference(node.elementType);
   if (!(node instanceof TypeReferenceNode)) return false;
-  const typeName = (node as TypeReferenceNode).typeName;
-  return (
-    typeName instanceof Identifier &&
-    (typeName as Identifier).text === 'Object' &&
-    (node as TypeReferenceNode).typeArguments === undefined
-  );
+  const typeName = node.typeName;
+  return typeName instanceof Identifier && typeName.text === 'Object' && node.typeArguments === undefined;
 }
 
 /** Whether two entity names are the same dotted name. */
 function textsEqual(a: Node, b: Node): boolean {
   while (!(a instanceof Identifier) || !(b instanceof Identifier)) {
-    if (
-      a instanceof QualifiedName &&
-      b instanceof QualifiedName &&
-      (a as QualifiedName).right.text === (b as QualifiedName).right.text
-    ) {
-      a = (a as QualifiedName).left;
-      b = (b as QualifiedName).left;
+    if (a instanceof QualifiedName && b instanceof QualifiedName && a.right.text === b.right.text) {
+      a = a.left;
+      b = b.left;
     } else {
       return false;
     }
   }
-  return (a as Identifier).text === (b as Identifier).text;
+  return a.text === b.text;
 }
 
 function isNextNonwhitespaceTokenEndOfFile(p: Parser): boolean {

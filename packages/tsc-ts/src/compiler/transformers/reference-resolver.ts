@@ -522,7 +522,7 @@ export class ReferenceResolver {
   isGlobalSymbol(symbol: Symbol): boolean {
     if (symbol.declarations.length === 0) return false;
     const container = getDeclarationContainer(symbol.declarations[0]!);
-    return container instanceof SourceFile && !isExternalOrCommonJSModule(container as SourceFile);
+    return container instanceof SourceFile && !isExternalOrCommonJSModule(container);
   }
 
   /** Whether a symbol is a value at runtime: const enums aren't unless preserved. */
@@ -753,7 +753,7 @@ export class ReferenceResolver {
   /** The value of an enum member, computing the values of its whole declaration. */
   getEnumMemberValue(member: Node): Evaluation {
     const declaration = member.parent;
-    if (declaration instanceof EnumDeclaration) this.computeEnumMemberValues(declaration as EnumDeclaration);
+    if (declaration instanceof EnumDeclaration) this.computeEnumMemberValues(declaration);
     const value = this.enumValues.get(member);
     return value !== undefined ? value : noEvaluation;
   }

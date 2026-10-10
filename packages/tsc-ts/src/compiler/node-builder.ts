@@ -2709,7 +2709,7 @@ const enum TransformKind {
 
 function asBindingPattern(node: Node | undefined): BindingPattern | undefined {
   if (node === undefined) return undefined;
-  if (node instanceof BindingPattern) return node as BindingPattern;
+  if (node instanceof BindingPattern) return node;
   return undefined;
 }
 

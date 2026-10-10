@@ -457,127 +457,127 @@ class Decoder {
   token(bit: number): Token | undefined {
     const node = this.node(bit);
     if (node === undefined) return undefined;
-    if (node instanceof Token) return node as Token;
+    if (node instanceof Token) return node;
     throw unexpected(node);
   }
 
   requiredToken(bit: number): Token {
     const node = this.required(bit);
-    if (node instanceof Token) return node as Token;
+    if (node instanceof Token) return node;
     throw unexpected(node);
   }
 
   identifier(bit: number): Identifier | undefined {
     const node = this.node(bit);
     if (node === undefined) return undefined;
-    if (node instanceof Identifier) return node as Identifier;
+    if (node instanceof Identifier) return node;
     throw unexpected(node);
   }
 
   requiredIdentifier(bit: number): Identifier {
     const node = this.required(bit);
-    if (node instanceof Identifier) return node as Identifier;
+    if (node instanceof Identifier) return node;
     throw unexpected(node);
   }
 
   block(bit: number): Block | undefined {
     const node = this.node(bit);
     if (node === undefined) return undefined;
-    if (node instanceof Block) return node as Block;
+    if (node instanceof Block) return node;
     throw unexpected(node);
   }
 
   requiredBlock(bit: number): Block {
     const node = this.required(bit);
-    if (node instanceof Block) return node as Block;
+    if (node instanceof Block) return node;
     throw unexpected(node);
   }
 
   caseBlock(bit: number): CaseBlock {
     const node = this.required(bit);
-    if (node instanceof CaseBlock) return node as CaseBlock;
+    if (node instanceof CaseBlock) return node;
     throw unexpected(node);
   }
 
   catchClause(bit: number): CatchClause | undefined {
     const node = this.node(bit);
     if (node === undefined) return undefined;
-    if (node instanceof CatchClause) return node as CatchClause;
+    if (node instanceof CatchClause) return node;
     throw unexpected(node);
   }
 
   variableDeclaration(bit: number): VariableDeclaration | undefined {
     const node = this.node(bit);
     if (node === undefined) return undefined;
-    if (node instanceof VariableDeclaration) return node as VariableDeclaration;
+    if (node instanceof VariableDeclaration) return node;
     throw unexpected(node);
   }
 
   variableDeclarationList(bit: number): VariableDeclarationList {
     const node = this.required(bit);
-    if (node instanceof VariableDeclarationList) return node as VariableDeclarationList;
+    if (node instanceof VariableDeclarationList) return node;
     throw unexpected(node);
   }
 
   typeParameter(bit: number): TypeParameterDeclaration {
     const node = this.required(bit);
-    if (node instanceof TypeParameterDeclaration) return node as TypeParameterDeclaration;
+    if (node instanceof TypeParameterDeclaration) return node;
     throw unexpected(node);
   }
 
   importClause(bit: number): ImportClause | undefined {
     const node = this.node(bit);
     if (node === undefined) return undefined;
-    if (node instanceof ImportClause) return node as ImportClause;
+    if (node instanceof ImportClause) return node;
     throw unexpected(node);
   }
 
   importAttributes(bit: number): ImportAttributes | undefined {
     const node = this.node(bit);
     if (node === undefined) return undefined;
-    if (node instanceof ImportAttributes) return node as ImportAttributes;
+    if (node instanceof ImportAttributes) return node;
     throw unexpected(node);
   }
 
   templateHead(bit: number): TemplateHead {
     const node = this.required(bit);
-    if (node instanceof TemplateHead) return node as TemplateHead;
+    if (node instanceof TemplateHead) return node;
     throw unexpected(node);
   }
 
   jsxOpeningElement(bit: number): JsxOpeningElement {
     const node = this.required(bit);
-    if (node instanceof JsxOpeningElement) return node as JsxOpeningElement;
+    if (node instanceof JsxOpeningElement) return node;
     throw unexpected(node);
   }
 
   jsxClosingElement(bit: number): JsxClosingElement {
     const node = this.required(bit);
-    if (node instanceof JsxClosingElement) return node as JsxClosingElement;
+    if (node instanceof JsxClosingElement) return node;
     throw unexpected(node);
   }
 
   jsxOpeningFragment(bit: number): JsxOpeningFragment {
     const node = this.required(bit);
-    if (node instanceof JsxOpeningFragment) return node as JsxOpeningFragment;
+    if (node instanceof JsxOpeningFragment) return node;
     throw unexpected(node);
   }
 
   jsxClosingFragment(bit: number): JsxClosingFragment {
     const node = this.required(bit);
-    if (node instanceof JsxClosingFragment) return node as JsxClosingFragment;
+    if (node instanceof JsxClosingFragment) return node;
     throw unexpected(node);
   }
 
   jsxAttributes(bit: number): JsxAttributes {
     const node = this.required(bit);
-    if (node instanceof JsxAttributes) return node as JsxAttributes;
+    if (node instanceof JsxAttributes) return node;
     throw unexpected(node);
   }
 
   expressionWithTypeArguments(bit: number): ExpressionWithTypeArguments {
     const node = this.required(bit);
-    if (node instanceof ExpressionWithTypeArguments) return node as ExpressionWithTypeArguments;
+    if (node instanceof ExpressionWithTypeArguments) return node;
     throw unexpected(node);
   }
 

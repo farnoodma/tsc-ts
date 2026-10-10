@@ -3700,9 +3700,7 @@ export class Printer extends NameGeneratorHost {
     return this.emitJsxName(node);
   }
 
-  // Typed `Node | undefined` (with a check) so scriptc narrows elements read from arrays.
-  private emitJsxChild(node: Node | undefined): boolean {
-    if (node === undefined) return false;
+  private emitJsxChild(node: Node): boolean {
     if (node instanceof JsxText) {
       const state = this.enterNode(node);
       this.writer.writeText(node.text);
@@ -3899,9 +3897,7 @@ export class Printer extends NameGeneratorHost {
 
   // Lists
 
-  // Typed `Node | undefined` (with a check) so scriptc narrows elements read from arrays.
-  private emitListItem(item: ListItem, node: Node | undefined): boolean {
-    if (node === undefined) return false;
+  private emitListItem(item: ListItem, node: Node): boolean {
     switch (item) {
       case ListItem.Keyword:
         return this.emitTokenNode(node);
@@ -4347,13 +4343,12 @@ export class Printer extends NameGeneratorHost {
   private emitCommentsAfterNode(node: Node): boolean {
     const stack = this.commentStack;
     const base = stack.length - 6;
-    // `| 0` keeps scriptc from typing array reads as possibly undefined.
-    const flags = stack[base] | 0;
-    const pos = stack[base + 1] | 0;
-    const end = stack[base + 2] | 0;
-    const containerPos = stack[base + 3] | 0;
-    const containerEnd = stack[base + 4] | 0;
-    const declarationListContainerEnd = stack[base + 5] | 0;
+    const flags = stack[base];
+    const pos = stack[base + 1];
+    const end = stack[base + 2];
+    const containerPos = stack[base + 3];
+    const containerEnd = stack[base + 4];
+    const declarationListContainerEnd = stack[base + 5];
     stack.length = base;
     if ((flags & EmitFlags.NoNestedComments) !== 0) this.commentsDisabled = false;
     if ((flags & EmitFlags.NoTrailingComments) === 0) {

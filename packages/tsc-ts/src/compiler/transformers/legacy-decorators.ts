@@ -451,14 +451,14 @@ export class LegacyDecorators extends Transformer {
   }
 
   isReferenceTo(node: Node, declaration: Node): boolean {
-    return node instanceof Identifier && this.getReferencedValueDeclaration(node as Identifier) === declaration;
+    return node instanceof Identifier && this.getReferencedValueDeclaration(node) === declaration;
   }
 
   /** The declaration the parse-tree identifier behind `node` refers to. */
   private getReferencedValueDeclaration(node: Identifier): Node | undefined {
     const original = this.context.mostOriginal(node);
     if (original instanceof Identifier && (original.flags & NodeFlags.Synthesized) === 0) {
-      return this.resolver.getReferencedValueDeclaration(original as Identifier);
+      return this.resolver.getReferencedValueDeclaration(original);
     }
     return undefined;
   }

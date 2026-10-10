@@ -1312,9 +1312,7 @@ export class Relater extends TypeComparer {
       ) {
         // A literal relates to a primitive union only via its base primitive or other freshness form.
         const literal = source as LiteralType;
-        // Typed: scriptc can't pass the narrowed LiteralType field as a Type.
-        const alternateForm: Type | undefined =
-          source === literal.regularType ? literal.freshType : literal.regularType;
+        const alternateForm = source === literal.regularType ? literal.freshType : literal.regularType;
         let primitive: Type | undefined;
         if ((source.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
         else if ((source.flags & TypeFlags.NumberLiteral) !== 0) primitive = c.numberType;

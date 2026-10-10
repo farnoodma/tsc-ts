@@ -101,7 +101,7 @@ export class OptionalChainTransformer extends Transformer {
     }
     if (node instanceof PropertyAccessExpression)
       expression = factory.updatePropertyAccessExpression(
-        node as PropertyAccessExpression,
+        node,
         expression,
         undefined,
         this.visitNode(node.name)!,
@@ -109,7 +109,7 @@ export class OptionalChainTransformer extends Transformer {
       );
     else if (node instanceof ElementAccessExpression)
       expression = factory.updateElementAccessExpression(
-        node as ElementAccessExpression,
+        node,
         expression,
         undefined,
         this.visitNode(node.argumentExpression)!,

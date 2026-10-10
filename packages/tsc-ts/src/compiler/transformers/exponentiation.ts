@@ -17,7 +17,7 @@ export class ExponentiationTransformer extends Transformer {
     if (!this.facts.has(node, SubtreeFacts.ContainsExponentiationOperator)) return node;
     if (node instanceof BinaryExpression) {
       const operator = node.operatorToken.kind;
-      if (operator === SyntaxKind.AsteriskAsteriskEqualsToken) return this.visitAssignment(node as BinaryExpression);
+      if (operator === SyntaxKind.AsteriskAsteriskEqualsToken) return this.visitAssignment(node);
       if (operator === SyntaxKind.AsteriskAsteriskToken) {
         const left = this.visitNode(node.left)!;
         const right = this.visitNode(node.right)!;

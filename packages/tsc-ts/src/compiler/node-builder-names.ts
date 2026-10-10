@@ -373,8 +373,8 @@ function createAccessFromSymbolChain(
 
 /** `ref`'s names appended to the reference `root`, for an outer type parameter group. */
 export function appendReferenceToType(b: NodeBuilder, root: Node, ref: Node): Node {
-  if (root instanceof ImportTypeNode) return appendReferenceToImportType(b, root as ImportTypeNode, ref);
-  if (root instanceof TypeReferenceNode) return appendReferenceToTypeReference(b, root as TypeReferenceNode, ref);
+  if (root instanceof ImportTypeNode) return appendReferenceToImportType(b, root, ref);
+  if (root instanceof TypeReferenceNode) return appendReferenceToTypeReference(b, root, ref);
   let expr = createAccessExpression(b, root);
   for (const id of getAccessStack(ref))
     expr = b.created(new PropertyAccessExpression(expr, undefined, id, NodeFlags.None));
@@ -413,7 +413,7 @@ function appendReferenceToTypeReference(b: NodeBuilder, root: TypeReferenceNode,
 }
 
 function referenceTypeArguments(ref: Node): NodeList | undefined {
-  return ref instanceof TypeReferenceNode ? (ref as TypeReferenceNode).typeArguments : undefined;
+  return ref instanceof TypeReferenceNode ? ref.typeArguments : undefined;
 }
 
 function getAccessStack(ref: Node): Node[] {
@@ -963,7 +963,7 @@ function tryGetModuleSpecifierFromDeclaration(node: Node): Node | undefined {
       break;
     case SyntaxKind.ImportType: {
       const argument = (node as ImportTypeNode).argument;
-      specifier = argument instanceof LiteralTypeNode ? (argument as LiteralTypeNode).literal : undefined;
+      specifier = argument instanceof LiteralTypeNode ? argument.literal : undefined;
       break;
     }
   }
@@ -1048,7 +1048,7 @@ class FallbackOutputPathsHost implements OutputPathsHost {
 
 function asSourceFile(node: Node | undefined): SourceFile | undefined {
   if (node === undefined) return undefined;
-  if (node instanceof SourceFile) return node as SourceFile;
+  if (node instanceof SourceFile) return node;
   return undefined;
 }
 
