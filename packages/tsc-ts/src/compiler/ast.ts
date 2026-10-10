@@ -370,11 +370,7 @@ export class Token extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): Token {
+  deepClone(): Token {
     const node = new Token(this.kind);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -398,11 +394,7 @@ export class Identifier extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): Identifier {
+  deepClone(): Identifier {
     const node = new Identifier(this.text);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -423,11 +415,7 @@ export class PrivateIdentifier extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): PrivateIdentifier {
+  deepClone(): PrivateIdentifier {
     const node = new PrivateIdentifier(this.text);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -454,12 +442,8 @@ export class QualifiedName extends Node {
     return v.visitNode(this.right);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): QualifiedName {
-    const node = new QualifiedName(this.left.deepClone(), this.right.copy());
+  deepClone(): QualifiedName {
+    const node = new QualifiedName(this.left.deepClone(), this.right.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -479,11 +463,7 @@ export class ComputedPropertyName extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ComputedPropertyName {
+  deepClone(): ComputedPropertyName {
     const node = new ComputedPropertyName(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -504,11 +484,7 @@ export class Decorator extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): Decorator {
+  deepClone(): Decorator {
     const node = new Decorator(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -530,11 +506,7 @@ export class EmptyStatement extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): EmptyStatement {
+  deepClone(): EmptyStatement {
     const node = new EmptyStatement();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -564,11 +536,7 @@ export class IfStatement extends Node {
     return this.elseStatement !== undefined && v.visitNode(this.elseStatement);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): IfStatement {
+  deepClone(): IfStatement {
     const node = new IfStatement(
       this.expression.deepClone(),
       this.thenStatement.deepClone(),
@@ -599,11 +567,7 @@ export class DoStatement extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): DoStatement {
+  deepClone(): DoStatement {
     const node = new DoStatement(this.statement.deepClone(), this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -630,11 +594,7 @@ export class WhileStatement extends Node {
     return v.visitNode(this.statement);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): WhileStatement {
+  deepClone(): WhileStatement {
     const node = new WhileStatement(this.expression.deepClone(), this.statement.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -676,11 +636,7 @@ export class ForStatement extends Node {
     return v.visitNode(this.statement);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ForStatement {
+  deepClone(): ForStatement {
     const node = new ForStatement(
       this.initializer === undefined ? undefined : this.initializer.deepClone(),
       this.condition === undefined ? undefined : this.condition.deepClone(),
@@ -728,14 +684,10 @@ export class ForInOrOfStatement extends Node {
     return v.visitNode(this.statement);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ForInOrOfStatement {
+  deepClone(): ForInOrOfStatement {
     const node = new ForInOrOfStatement(
       this.kind,
-      this.awaitModifier === undefined ? undefined : this.awaitModifier.copy(),
+      this.awaitModifier === undefined ? undefined : this.awaitModifier.deepClone(),
       this.initializer.deepClone(),
       this.expression.deepClone(),
       this.statement.deepClone(),
@@ -762,12 +714,8 @@ export class BreakStatement extends Node {
     return this.label !== undefined && v.visitNode(this.label);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): BreakStatement {
-    const node = new BreakStatement(this.label === undefined ? undefined : this.label.copy());
+  deepClone(): BreakStatement {
+    const node = new BreakStatement(this.label === undefined ? undefined : this.label.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -790,12 +738,8 @@ export class ContinueStatement extends Node {
     return this.label !== undefined && v.visitNode(this.label);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ContinueStatement {
-    const node = new ContinueStatement(this.label === undefined ? undefined : this.label.copy());
+  deepClone(): ContinueStatement {
+    const node = new ContinueStatement(this.label === undefined ? undefined : this.label.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -818,11 +762,7 @@ export class ReturnStatement extends Node {
     return this.expression !== undefined && v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ReturnStatement {
+  deepClone(): ReturnStatement {
     const node = new ReturnStatement(this.expression === undefined ? undefined : this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -849,11 +789,7 @@ export class WithStatement extends Node {
     return v.visitNode(this.statement);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): WithStatement {
+  deepClone(): WithStatement {
     const node = new WithStatement(this.expression.deepClone(), this.statement.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -880,12 +816,8 @@ export class SwitchStatement extends Node {
     return v.visitNode(this.caseBlock);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): SwitchStatement {
-    const node = new SwitchStatement(this.expression.deepClone(), this.caseBlock.copy());
+  deepClone(): SwitchStatement {
+    const node = new SwitchStatement(this.expression.deepClone(), this.caseBlock.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -910,11 +842,7 @@ export class CaseBlock extends Node {
     return v.visitList(this.clauses);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): CaseBlock {
+  deepClone(): CaseBlock {
     const node = new CaseBlock(cloneList(this.clauses));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -941,11 +869,7 @@ export class CaseOrDefaultClause extends Node {
     return v.visitList(this.statements);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): CaseOrDefaultClause {
+  deepClone(): CaseOrDefaultClause {
     const node = new CaseOrDefaultClause(
       this.kind,
       this.expression === undefined ? undefined : this.expression.deepClone(),
@@ -973,11 +897,7 @@ export class ThrowStatement extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ThrowStatement {
+  deepClone(): ThrowStatement {
     const node = new ThrowStatement(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1007,15 +927,11 @@ export class TryStatement extends Node {
     return this.finallyBlock !== undefined && v.visitNode(this.finallyBlock);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TryStatement {
+  deepClone(): TryStatement {
     const node = new TryStatement(
-      this.tryBlock.copy(),
-      this.catchClause === undefined ? undefined : this.catchClause.copy(),
-      this.finallyBlock === undefined ? undefined : this.finallyBlock.copy(),
+      this.tryBlock.deepClone(),
+      this.catchClause === undefined ? undefined : this.catchClause.deepClone(),
+      this.finallyBlock === undefined ? undefined : this.finallyBlock.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1044,14 +960,10 @@ export class CatchClause extends Node {
     return v.visitNode(this.block);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): CatchClause {
+  deepClone(): CatchClause {
     const node = new CatchClause(
-      this.variableDeclaration === undefined ? undefined : this.variableDeclaration.copy(),
-      this.block.copy(),
+      this.variableDeclaration === undefined ? undefined : this.variableDeclaration.deepClone(),
+      this.block.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1073,11 +985,7 @@ export class DebuggerStatement extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): DebuggerStatement {
+  deepClone(): DebuggerStatement {
     const node = new DebuggerStatement();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1104,12 +1012,8 @@ export class LabeledStatement extends Node {
     return v.visitNode(this.statement);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): LabeledStatement {
-    const node = new LabeledStatement(this.label.copy(), this.statement.deepClone());
+  deepClone(): LabeledStatement {
+    const node = new LabeledStatement(this.label.deepClone(), this.statement.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -1132,11 +1036,7 @@ export class ExpressionStatement extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ExpressionStatement {
+  deepClone(): ExpressionStatement {
     const node = new ExpressionStatement(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1166,11 +1066,7 @@ export class Block extends Node {
     return v.visitList(this.statements);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): Block {
+  deepClone(): Block {
     const node = new Block(cloneList(this.statements), this.multiLine);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1197,14 +1093,10 @@ export class VariableStatement extends Node {
     return v.visitNode(this.declarationList);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): VariableStatement {
+  deepClone(): VariableStatement {
     const node = new VariableStatement(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.declarationList.copy(),
+      this.declarationList.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1244,14 +1136,10 @@ export class VariableDeclaration extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): VariableDeclaration {
+  deepClone(): VariableDeclaration {
     const node = new VariableDeclaration(
       this.name.deepClone(),
-      this.exclamationToken === undefined ? undefined : this.exclamationToken.copy(),
+      this.exclamationToken === undefined ? undefined : this.exclamationToken.deepClone(),
       this.type === undefined ? undefined : this.type.deepClone(),
       this.initializer === undefined ? undefined : this.initializer.deepClone(),
     );
@@ -1275,11 +1163,7 @@ export class VariableDeclarationList extends Node {
     return v.visitList(this.declarations);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): VariableDeclarationList {
+  deepClone(): VariableDeclarationList {
     const node = new VariableDeclarationList(cloneList(this.declarations), this.flags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1300,11 +1184,7 @@ export class BindingPattern extends Node {
     return v.visitList(this.elements);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): BindingPattern {
+  deepClone(): BindingPattern {
     const node = new BindingPattern(this.kind, cloneList(this.elements));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1350,16 +1230,12 @@ export class ParameterDeclaration extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ParameterDeclaration {
+  deepClone(): ParameterDeclaration {
     const node = new ParameterDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.dotDotDotToken === undefined ? undefined : this.dotDotDotToken.copy(),
+      this.dotDotDotToken === undefined ? undefined : this.dotDotDotToken.deepClone(),
       this.name.deepClone(),
-      this.questionToken === undefined ? undefined : this.questionToken.copy(),
+      this.questionToken === undefined ? undefined : this.questionToken.deepClone(),
       this.type === undefined ? undefined : this.type.deepClone(),
       this.initializer === undefined ? undefined : this.initializer.deepClone(),
     );
@@ -1403,13 +1279,9 @@ export class BindingElement extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): BindingElement {
+  deepClone(): BindingElement {
     const node = new BindingElement(
-      this.dotDotDotToken === undefined ? undefined : this.dotDotDotToken.copy(),
+      this.dotDotDotToken === undefined ? undefined : this.dotDotDotToken.deepClone(),
       this.propertyName === undefined ? undefined : this.propertyName.deepClone(),
       this.name === undefined ? undefined : this.name.deepClone(),
       this.initializer === undefined ? undefined : this.initializer.deepClone(),
@@ -1438,11 +1310,7 @@ export class MissingDeclaration extends Node {
     return this.modifiers !== undefined && v.visitModifiers(this.modifiers);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): MissingDeclaration {
+  deepClone(): MissingDeclaration {
     const node = new MissingDeclaration(this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1508,15 +1376,11 @@ export class FunctionDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): FunctionDeclaration {
+  deepClone(): FunctionDeclaration {
     const node = new FunctionDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.asteriskToken === undefined ? undefined : this.asteriskToken.copy(),
-      this.name === undefined ? undefined : this.name.copy(),
+      this.asteriskToken === undefined ? undefined : this.asteriskToken.deepClone(),
+      this.name === undefined ? undefined : this.name.deepClone(),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       cloneList(this.parameters),
       this.type === undefined ? undefined : this.type.deepClone(),
@@ -1571,14 +1435,10 @@ export class ClassDeclaration extends Node {
     return v.visitList(this.members);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ClassDeclaration {
+  deepClone(): ClassDeclaration {
     const node = new ClassDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.name === undefined ? undefined : this.name.copy(),
+      this.name === undefined ? undefined : this.name.deepClone(),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       this.heritageClauses === undefined ? undefined : cloneList(this.heritageClauses),
       cloneList(this.members),
@@ -1629,14 +1489,10 @@ export class ClassExpression extends Node {
     return v.visitList(this.members);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ClassExpression {
+  deepClone(): ClassExpression {
     const node = new ClassExpression(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.name === undefined ? undefined : this.name.copy(),
+      this.name === undefined ? undefined : this.name.deepClone(),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       this.heritageClauses === undefined ? undefined : cloneList(this.heritageClauses),
       cloneList(this.members),
@@ -1662,11 +1518,7 @@ export class HeritageClause extends Node {
     return v.visitList(this.types);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): HeritageClause {
+  deepClone(): HeritageClause {
     const node = new HeritageClause(this.token, cloneList(this.types));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1712,14 +1564,10 @@ export class InterfaceDeclaration extends Node {
     return v.visitList(this.members);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): InterfaceDeclaration {
+  deepClone(): InterfaceDeclaration {
     const node = new InterfaceDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.name.copy(),
+      this.name.deepClone(),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       this.heritageClauses === undefined ? undefined : cloneList(this.heritageClauses),
       cloneList(this.members),
@@ -1769,15 +1617,11 @@ export class TypeAliasDeclaration extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TypeAliasDeclaration {
+  deepClone(): TypeAliasDeclaration {
     const node = new TypeAliasDeclaration(
       this.kind,
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.name.copy(),
+      this.name.deepClone(),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       this.type.deepClone(),
     );
@@ -1806,11 +1650,7 @@ export class EnumMember extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): EnumMember {
+  deepClone(): EnumMember {
     const node = new EnumMember(
       this.name.deepClone(),
       this.initializer === undefined ? undefined : this.initializer.deepClone(),
@@ -1847,14 +1687,10 @@ export class EnumDeclaration extends Node {
     return v.visitList(this.members);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): EnumDeclaration {
+  deepClone(): EnumDeclaration {
     const node = new EnumDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.name.copy(),
+      this.name.deepClone(),
       cloneList(this.members),
     );
     node.flags = this.flags;
@@ -1879,11 +1715,7 @@ export class ModuleBlock extends Node {
     return v.visitList(this.statements);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ModuleBlock {
+  deepClone(): ModuleBlock {
     const node = new ModuleBlock(cloneList(this.statements));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1905,11 +1737,7 @@ export class NotEmittedStatement extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NotEmittedStatement {
+  deepClone(): NotEmittedStatement {
     const node = new NotEmittedStatement();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1927,11 +1755,7 @@ export class NotEmittedTypeElement extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NotEmittedTypeElement {
+  deepClone(): NotEmittedTypeElement {
     const node = new NotEmittedTypeElement();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -1972,17 +1796,13 @@ export class ImportDeclaration extends Node {
     return this.attributes !== undefined && v.visitNode(this.attributes);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ImportDeclaration {
+  deepClone(): ImportDeclaration {
     const node = new ImportDeclaration(
       this.kind,
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.importClause === undefined ? undefined : this.importClause.copy(),
+      this.importClause === undefined ? undefined : this.importClause.deepClone(),
       this.moduleSpecifier.deepClone(),
-      this.attributes === undefined ? undefined : this.attributes.copy(),
+      this.attributes === undefined ? undefined : this.attributes.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2003,11 +1823,7 @@ export class ExternalModuleReference extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ExternalModuleReference {
+  deepClone(): ExternalModuleReference {
     const node = new ExternalModuleReference(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2033,12 +1849,8 @@ export class NamespaceImport extends Node {
     return v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NamespaceImport {
-    const node = new NamespaceImport(this.name.copy());
+  deepClone(): NamespaceImport {
+    const node = new NamespaceImport(this.name.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -2058,11 +1870,7 @@ export class NamedImports extends Node {
     return v.visitList(this.elements);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NamedImports {
+  deepClone(): NamedImports {
     const node = new NamedImports(cloneList(this.elements));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2101,11 +1909,7 @@ export class ExportAssignment extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ExportAssignment {
+  deepClone(): ExportAssignment {
     const node = new ExportAssignment(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.isExportEquals,
@@ -2139,14 +1943,10 @@ export class NamespaceExportDeclaration extends Node {
     return v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NamespaceExportDeclaration {
+  deepClone(): NamespaceExportDeclaration {
     const node = new NamespaceExportDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.name.copy(),
+      this.name.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2170,11 +1970,7 @@ export class NamespaceExport extends Node {
     return v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NamespaceExport {
+  deepClone(): NamespaceExport {
     const node = new NamespaceExport(this.name.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2195,11 +1991,7 @@ export class NamedExports extends Node {
     return v.visitList(this.elements);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NamedExports {
+  deepClone(): NamedExports {
     const node = new NamedExports(cloneList(this.elements));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2230,11 +2022,7 @@ export class ExportSpecifier extends Node {
     return v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ExportSpecifier {
+  deepClone(): ExportSpecifier {
     const node = new ExportSpecifier(
       this.isTypeOnly,
       this.propertyName === undefined ? undefined : this.propertyName.deepClone(),
@@ -2272,11 +2060,7 @@ export class CallSignatureDeclaration extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): CallSignatureDeclaration {
+  deepClone(): CallSignatureDeclaration {
     const node = new CallSignatureDeclaration(
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       cloneList(this.parameters),
@@ -2314,11 +2098,7 @@ export class ConstructSignatureDeclaration extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ConstructSignatureDeclaration {
+  deepClone(): ConstructSignatureDeclaration {
     const node = new ConstructSignatureDeclaration(
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       cloneList(this.parameters),
@@ -2376,11 +2156,7 @@ export class ConstructorDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ConstructorDeclaration {
+  deepClone(): ConstructorDeclaration {
     const node = new ConstructorDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
@@ -2445,11 +2221,7 @@ export class GetAccessorDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): GetAccessorDeclaration {
+  deepClone(): GetAccessorDeclaration {
     const node = new GetAccessorDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.name.deepClone(),
@@ -2515,11 +2287,7 @@ export class SetAccessorDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): SetAccessorDeclaration {
+  deepClone(): SetAccessorDeclaration {
     const node = new SetAccessorDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.name.deepClone(),
@@ -2561,11 +2329,7 @@ export class IndexSignatureDeclaration extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): IndexSignatureDeclaration {
+  deepClone(): IndexSignatureDeclaration {
     const node = new IndexSignatureDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       cloneList(this.parameters),
@@ -2619,15 +2383,11 @@ export class MethodSignatureDeclaration extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): MethodSignatureDeclaration {
+  deepClone(): MethodSignatureDeclaration {
     const node = new MethodSignatureDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.name.deepClone(),
-      this.postfixToken === undefined ? undefined : this.postfixToken.copy(),
+      this.postfixToken === undefined ? undefined : this.postfixToken.deepClone(),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       cloneList(this.parameters),
       this.type === undefined ? undefined : this.type.deepClone(),
@@ -2696,16 +2456,12 @@ export class MethodDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): MethodDeclaration {
+  deepClone(): MethodDeclaration {
     const node = new MethodDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.asteriskToken === undefined ? undefined : this.asteriskToken.copy(),
+      this.asteriskToken === undefined ? undefined : this.asteriskToken.deepClone(),
       this.name.deepClone(),
-      this.postfixToken === undefined ? undefined : this.postfixToken.copy(),
+      this.postfixToken === undefined ? undefined : this.postfixToken.deepClone(),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       cloneList(this.parameters),
       this.type === undefined ? undefined : this.type.deepClone(),
@@ -2752,15 +2508,11 @@ export class PropertySignatureDeclaration extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): PropertySignatureDeclaration {
+  deepClone(): PropertySignatureDeclaration {
     const node = new PropertySignatureDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.name.deepClone(),
-      this.postfixToken === undefined ? undefined : this.postfixToken.copy(),
+      this.postfixToken === undefined ? undefined : this.postfixToken.deepClone(),
       this.type === undefined ? undefined : this.type.deepClone(),
       this.initializer === undefined ? undefined : this.initializer.deepClone(),
     );
@@ -2804,15 +2556,11 @@ export class PropertyDeclaration extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): PropertyDeclaration {
+  deepClone(): PropertyDeclaration {
     const node = new PropertyDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.name.deepClone(),
-      this.postfixToken === undefined ? undefined : this.postfixToken.copy(),
+      this.postfixToken === undefined ? undefined : this.postfixToken.deepClone(),
       this.type === undefined ? undefined : this.type.deepClone(),
       this.initializer === undefined ? undefined : this.initializer.deepClone(),
     );
@@ -2836,11 +2584,7 @@ export class SemicolonClassElement extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): SemicolonClassElement {
+  deepClone(): SemicolonClassElement {
     const node = new SemicolonClassElement();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2873,14 +2617,10 @@ export class ClassStaticBlockDeclaration extends Node {
     return v.visitNode(this.body);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ClassStaticBlockDeclaration {
+  deepClone(): ClassStaticBlockDeclaration {
     const node = new ClassStaticBlockDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.body.copy(),
+      this.body.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2898,11 +2638,7 @@ export class OmittedExpression extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): OmittedExpression {
+  deepClone(): OmittedExpression {
     const node = new OmittedExpression();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2924,11 +2660,7 @@ export class KeywordExpression extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): KeywordExpression {
+  deepClone(): KeywordExpression {
     const node = new KeywordExpression(this.kind);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2951,11 +2683,7 @@ export class StringLiteral extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): StringLiteral {
+  deepClone(): StringLiteral {
     const node = new StringLiteral(this.text, this.tokenFlags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -2978,11 +2706,7 @@ export class NumericLiteral extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NumericLiteral {
+  deepClone(): NumericLiteral {
     const node = new NumericLiteral(this.text, this.tokenFlags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3005,11 +2729,7 @@ export class BigIntLiteral extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): BigIntLiteral {
+  deepClone(): BigIntLiteral {
     const node = new BigIntLiteral(this.text, this.tokenFlags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3032,11 +2752,7 @@ export class RegularExpressionLiteral extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): RegularExpressionLiteral {
+  deepClone(): RegularExpressionLiteral {
     const node = new RegularExpressionLiteral(this.text, this.tokenFlags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3062,11 +2778,7 @@ export class NoSubstitutionTemplateLiteral extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NoSubstitutionTemplateLiteral {
+  deepClone(): NoSubstitutionTemplateLiteral {
     const node = new NoSubstitutionTemplateLiteral(this.text, this.templateFlags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3108,16 +2820,12 @@ export class BinaryExpression extends Node {
     return v.visitNode(this.right);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): BinaryExpression {
+  deepClone(): BinaryExpression {
     const node = new BinaryExpression(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.left.deepClone(),
       this.type === undefined ? undefined : this.type.deepClone(),
-      this.operatorToken.copy(),
+      this.operatorToken.deepClone(),
       this.right.deepClone(),
     );
     node.flags = this.flags;
@@ -3141,11 +2849,7 @@ export class PrefixUnaryExpression extends Node {
     return v.visitNode(this.operand);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): PrefixUnaryExpression {
+  deepClone(): PrefixUnaryExpression {
     const node = new PrefixUnaryExpression(this.operator, this.operand.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3168,11 +2872,7 @@ export class PostfixUnaryExpression extends Node {
     return v.visitNode(this.operand);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): PostfixUnaryExpression {
+  deepClone(): PostfixUnaryExpression {
     const node = new PostfixUnaryExpression(this.operand.deepClone(), this.operator);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3196,13 +2896,9 @@ export class YieldExpression extends Node {
     return this.expression !== undefined && v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): YieldExpression {
+  deepClone(): YieldExpression {
     const node = new YieldExpression(
-      this.asteriskToken === undefined ? undefined : this.asteriskToken.copy(),
+      this.asteriskToken === undefined ? undefined : this.asteriskToken.deepClone(),
       this.expression === undefined ? undefined : this.expression.deepClone(),
     );
     node.flags = this.flags;
@@ -3261,18 +2957,14 @@ export class ArrowFunction extends Node {
     return v.visitNode(this.body);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ArrowFunction {
+  deepClone(): ArrowFunction {
     const node = new ArrowFunction(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       cloneList(this.parameters),
       this.type === undefined ? undefined : this.type.deepClone(),
       this.fullSignature === undefined ? undefined : this.fullSignature.deepClone(),
-      this.equalsGreaterThanToken === undefined ? undefined : this.equalsGreaterThanToken.copy(),
+      this.equalsGreaterThanToken === undefined ? undefined : this.equalsGreaterThanToken.deepClone(),
       this.body.deepClone(),
     );
     node.flags = this.flags;
@@ -3337,15 +3029,11 @@ export class FunctionExpression extends Node {
     return v.visitNode(this.body);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): FunctionExpression {
+  deepClone(): FunctionExpression {
     const node = new FunctionExpression(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.asteriskToken === undefined ? undefined : this.asteriskToken.copy(),
-      this.name === undefined ? undefined : this.name.copy(),
+      this.asteriskToken === undefined ? undefined : this.asteriskToken.deepClone(),
+      this.name === undefined ? undefined : this.name.deepClone(),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       cloneList(this.parameters),
       this.type === undefined ? undefined : this.type.deepClone(),
@@ -3374,11 +3062,7 @@ export class AsExpression extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): AsExpression {
+  deepClone(): AsExpression {
     const node = new AsExpression(this.expression.deepClone(), this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3402,11 +3086,7 @@ export class SatisfiesExpression extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): SatisfiesExpression {
+  deepClone(): SatisfiesExpression {
     const node = new SatisfiesExpression(this.expression.deepClone(), this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3445,16 +3125,12 @@ export class ConditionalExpression extends Node {
     return v.visitNode(this.whenFalse);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ConditionalExpression {
+  deepClone(): ConditionalExpression {
     const node = new ConditionalExpression(
       this.condition.deepClone(),
-      this.questionToken.copy(),
+      this.questionToken.deepClone(),
       this.whenTrue.deepClone(),
-      this.colonToken.copy(),
+      this.colonToken.deepClone(),
       this.whenFalse.deepClone(),
     );
     node.flags = this.flags;
@@ -3486,14 +3162,10 @@ export class PropertyAccessExpression extends Node {
     return v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): PropertyAccessExpression {
+  deepClone(): PropertyAccessExpression {
     const node = new PropertyAccessExpression(
       this.expression.deepClone(),
-      this.questionDotToken === undefined ? undefined : this.questionDotToken.copy(),
+      this.questionDotToken === undefined ? undefined : this.questionDotToken.deepClone(),
       this.name.deepClone(),
       this.flags,
     );
@@ -3531,14 +3203,10 @@ export class ElementAccessExpression extends Node {
     return v.visitNode(this.argumentExpression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ElementAccessExpression {
+  deepClone(): ElementAccessExpression {
     const node = new ElementAccessExpression(
       this.expression.deepClone(),
-      this.questionDotToken === undefined ? undefined : this.questionDotToken.copy(),
+      this.questionDotToken === undefined ? undefined : this.questionDotToken.deepClone(),
       this.argumentExpression.deepClone(),
       this.flags,
     );
@@ -3580,14 +3248,10 @@ export class CallExpression extends Node {
     return v.visitList(this.arguments);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): CallExpression {
+  deepClone(): CallExpression {
     const node = new CallExpression(
       this.expression.deepClone(),
-      this.questionDotToken === undefined ? undefined : this.questionDotToken.copy(),
+      this.questionDotToken === undefined ? undefined : this.questionDotToken.deepClone(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
       cloneList(this.arguments),
       this.flags,
@@ -3617,11 +3281,7 @@ export class NewExpression extends Node {
     return this.arguments !== undefined && v.visitList(this.arguments);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NewExpression {
+  deepClone(): NewExpression {
     const node = new NewExpression(
       this.expression.deepClone(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
@@ -3651,12 +3311,8 @@ export class MetaProperty extends Node {
     return v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): MetaProperty {
-    const node = new MetaProperty(this.keywordToken, this.name.copy());
+  deepClone(): MetaProperty {
+    const node = new MetaProperty(this.keywordToken, this.name.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -3677,11 +3333,7 @@ export class NonNullExpression extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NonNullExpression {
+  deepClone(): NonNullExpression {
     const node = new NonNullExpression(this.expression.deepClone(), this.flags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3702,11 +3354,7 @@ export class SpreadElement extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): SpreadElement {
+  deepClone(): SpreadElement {
     const node = new SpreadElement(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3730,12 +3378,8 @@ export class TemplateExpression extends Node {
     return v.visitList(this.templateSpans);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TemplateExpression {
-    const node = new TemplateExpression(this.head.copy(), cloneList(this.templateSpans));
+  deepClone(): TemplateExpression {
+    const node = new TemplateExpression(this.head.deepClone(), cloneList(this.templateSpans));
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -3758,11 +3402,7 @@ export class TemplateSpan extends Node {
     return v.visitNode(this.literal);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TemplateSpan {
+  deepClone(): TemplateSpan {
     const node = new TemplateSpan(this.expression.deepClone(), this.literal.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3799,14 +3439,10 @@ export class TaggedTemplateExpression extends Node {
     return v.visitNode(this.template);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TaggedTemplateExpression {
+  deepClone(): TaggedTemplateExpression {
     const node = new TaggedTemplateExpression(
       this.tag.deepClone(),
-      this.questionDotToken === undefined ? undefined : this.questionDotToken.copy(),
+      this.questionDotToken === undefined ? undefined : this.questionDotToken.deepClone(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
       this.template.deepClone(),
       this.flags,
@@ -3830,11 +3466,7 @@ export class ParenthesizedExpression extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ParenthesizedExpression {
+  deepClone(): ParenthesizedExpression {
     const node = new ParenthesizedExpression(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3857,11 +3489,7 @@ export class ArrayLiteralExpression extends Node {
     return v.visitList(this.elements);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ArrayLiteralExpression {
+  deepClone(): ArrayLiteralExpression {
     const node = new ArrayLiteralExpression(cloneList(this.elements), this.multiLine);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3887,11 +3515,7 @@ export class ObjectLiteralExpression extends Node {
     return v.visitList(this.properties);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ObjectLiteralExpression {
+  deepClone(): ObjectLiteralExpression {
     const node = new ObjectLiteralExpression(cloneList(this.properties), this.multiLine);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3915,11 +3539,7 @@ export class SpreadAssignment extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): SpreadAssignment {
+  deepClone(): SpreadAssignment {
     const node = new SpreadAssignment(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -3961,15 +3581,11 @@ export class PropertyAssignment extends Node {
     return v.visitNode(this.initializer);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): PropertyAssignment {
+  deepClone(): PropertyAssignment {
     const node = new PropertyAssignment(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.name.deepClone(),
-      this.postfixToken === undefined ? undefined : this.postfixToken.copy(),
+      this.postfixToken === undefined ? undefined : this.postfixToken.deepClone(),
       this.type === undefined ? undefined : this.type.deepClone(),
       this.initializer.deepClone(),
     );
@@ -4017,17 +3633,13 @@ export class ShorthandPropertyAssignment extends Node {
     return this.objectAssignmentInitializer !== undefined && v.visitNode(this.objectAssignmentInitializer);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ShorthandPropertyAssignment {
+  deepClone(): ShorthandPropertyAssignment {
     const node = new ShorthandPropertyAssignment(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.name.deepClone(),
-      this.postfixToken === undefined ? undefined : this.postfixToken.copy(),
+      this.postfixToken === undefined ? undefined : this.postfixToken.deepClone(),
       this.type === undefined ? undefined : this.type.deepClone(),
-      this.equalsToken === undefined ? undefined : this.equalsToken.copy(),
+      this.equalsToken === undefined ? undefined : this.equalsToken.deepClone(),
       this.objectAssignmentInitializer === undefined ? undefined : this.objectAssignmentInitializer.deepClone(),
     );
     node.flags = this.flags;
@@ -4049,11 +3661,7 @@ export class DeleteExpression extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): DeleteExpression {
+  deepClone(): DeleteExpression {
     const node = new DeleteExpression(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4074,11 +3682,7 @@ export class TypeOfExpression extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TypeOfExpression {
+  deepClone(): TypeOfExpression {
     const node = new TypeOfExpression(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4099,11 +3703,7 @@ export class VoidExpression extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): VoidExpression {
+  deepClone(): VoidExpression {
     const node = new VoidExpression(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4124,11 +3724,7 @@ export class AwaitExpression extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): AwaitExpression {
+  deepClone(): AwaitExpression {
     const node = new AwaitExpression(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4152,11 +3748,7 @@ export class TypeAssertion extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TypeAssertion {
+  deepClone(): TypeAssertion {
     const node = new TypeAssertion(this.type.deepClone(), this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4174,11 +3766,7 @@ export class KeywordTypeNode extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): KeywordTypeNode {
+  deepClone(): KeywordTypeNode {
     const node = new KeywordTypeNode(this.kind);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4199,11 +3787,7 @@ export class UnionTypeNode extends Node {
     return v.visitList(this.types);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): UnionTypeNode {
+  deepClone(): UnionTypeNode {
     const node = new UnionTypeNode(cloneList(this.types));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4224,11 +3808,7 @@ export class IntersectionTypeNode extends Node {
     return v.visitList(this.types);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): IntersectionTypeNode {
+  deepClone(): IntersectionTypeNode {
     const node = new IntersectionTypeNode(cloneList(this.types));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4263,11 +3843,7 @@ export class ConditionalTypeNode extends Node {
     return v.visitNode(this.falseType);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ConditionalTypeNode {
+  deepClone(): ConditionalTypeNode {
     const node = new ConditionalTypeNode(
       this.checkType.deepClone(),
       this.extendsType.deepClone(),
@@ -4295,11 +3871,7 @@ export class TypeOperatorNode extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TypeOperatorNode {
+  deepClone(): TypeOperatorNode {
     const node = new TypeOperatorNode(this.operator, this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4320,12 +3892,8 @@ export class InferTypeNode extends Node {
     return v.visitNode(this.typeParameter);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): InferTypeNode {
-    const node = new InferTypeNode(this.typeParameter.copy());
+  deepClone(): InferTypeNode {
+    const node = new InferTypeNode(this.typeParameter.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -4345,11 +3913,7 @@ export class ArrayTypeNode extends Node {
     return v.visitNode(this.elementType);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ArrayTypeNode {
+  deepClone(): ArrayTypeNode {
     const node = new ArrayTypeNode(this.elementType.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4373,11 +3937,7 @@ export class IndexedAccessTypeNode extends Node {
     return v.visitNode(this.indexType);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): IndexedAccessTypeNode {
+  deepClone(): IndexedAccessTypeNode {
     const node = new IndexedAccessTypeNode(this.objectType.deepClone(), this.indexType.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4401,11 +3961,7 @@ export class TypeReferenceNode extends Node {
     return this.typeArguments !== undefined && v.visitList(this.typeArguments);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TypeReferenceNode {
+  deepClone(): TypeReferenceNode {
     const node = new TypeReferenceNode(
       this.typeName.deepClone(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
@@ -4432,11 +3988,7 @@ export class ExpressionWithTypeArguments extends Node {
     return this.typeArguments !== undefined && v.visitList(this.typeArguments);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ExpressionWithTypeArguments {
+  deepClone(): ExpressionWithTypeArguments {
     const node = new ExpressionWithTypeArguments(
       this.expression.deepClone(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
@@ -4460,11 +4012,7 @@ export class LiteralTypeNode extends Node {
     return v.visitNode(this.literal);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): LiteralTypeNode {
+  deepClone(): LiteralTypeNode {
     const node = new LiteralTypeNode(this.literal.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4482,11 +4030,7 @@ export class ThisTypeNode extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ThisTypeNode {
+  deepClone(): ThisTypeNode {
     const node = new ThisTypeNode();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4517,13 +4061,9 @@ export class TypePredicateNode extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TypePredicateNode {
+  deepClone(): TypePredicateNode {
     const node = new TypePredicateNode(
-      this.assertsModifier === undefined ? undefined : this.assertsModifier.copy(),
+      this.assertsModifier === undefined ? undefined : this.assertsModifier.deepClone(),
       this.parameterName.deepClone(),
       this.type === undefined ? undefined : this.type.deepClone(),
     );
@@ -4549,11 +4089,7 @@ export class ImportAttribute extends Node {
     return v.visitNode(this.value);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ImportAttribute {
+  deepClone(): ImportAttribute {
     const node = new ImportAttribute(
       this.name === undefined ? undefined : this.name.deepClone(),
       this.value.deepClone(),
@@ -4581,11 +4117,7 @@ export class ImportAttributes extends Node {
     return v.visitList(this.attributes);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ImportAttributes {
+  deepClone(): ImportAttributes {
     const node = new ImportAttributes(this.token, cloneList(this.attributes), this.multiLine);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4609,11 +4141,7 @@ export class TypeQueryNode extends Node {
     return this.typeArguments !== undefined && v.visitList(this.typeArguments);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TypeQueryNode {
+  deepClone(): TypeQueryNode {
     const node = new TypeQueryNode(
       this.exprName.deepClone(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
@@ -4666,16 +4194,12 @@ export class MappedTypeNode extends Node {
     return this.members !== undefined && v.visitList(this.members);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): MappedTypeNode {
+  deepClone(): MappedTypeNode {
     const node = new MappedTypeNode(
-      this.readonlyToken === undefined ? undefined : this.readonlyToken.copy(),
-      this.typeParameter.copy(),
+      this.readonlyToken === undefined ? undefined : this.readonlyToken.deepClone(),
+      this.typeParameter.deepClone(),
       this.nameType === undefined ? undefined : this.nameType.deepClone(),
-      this.questionToken === undefined ? undefined : this.questionToken.copy(),
+      this.questionToken === undefined ? undefined : this.questionToken.deepClone(),
       this.type === undefined ? undefined : this.type.deepClone(),
       this.members === undefined ? undefined : cloneList(this.members),
     );
@@ -4701,11 +4225,7 @@ export class TypeLiteralNode extends Node {
     return v.visitList(this.members);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TypeLiteralNode {
+  deepClone(): TypeLiteralNode {
     const node = new TypeLiteralNode(cloneList(this.members));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4726,11 +4246,7 @@ export class TupleTypeNode extends Node {
     return v.visitList(this.elements);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TupleTypeNode {
+  deepClone(): TupleTypeNode {
     const node = new TupleTypeNode(cloneList(this.elements));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4763,15 +4279,11 @@ export class NamedTupleMember extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): NamedTupleMember {
+  deepClone(): NamedTupleMember {
     const node = new NamedTupleMember(
-      this.dotDotDotToken === undefined ? undefined : this.dotDotDotToken.copy(),
-      this.name.copy(),
-      this.questionToken === undefined ? undefined : this.questionToken.copy(),
+      this.dotDotDotToken === undefined ? undefined : this.dotDotDotToken.deepClone(),
+      this.name.deepClone(),
+      this.questionToken === undefined ? undefined : this.questionToken.deepClone(),
       this.type.deepClone(),
     );
     node.flags = this.flags;
@@ -4793,11 +4305,7 @@ export class OptionalTypeNode extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): OptionalTypeNode {
+  deepClone(): OptionalTypeNode {
     const node = new OptionalTypeNode(this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4818,11 +4326,7 @@ export class RestTypeNode extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): RestTypeNode {
+  deepClone(): RestTypeNode {
     const node = new RestTypeNode(this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4843,11 +4347,7 @@ export class ParenthesizedTypeNode extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ParenthesizedTypeNode {
+  deepClone(): ParenthesizedTypeNode {
     const node = new ParenthesizedTypeNode(this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4881,11 +4381,7 @@ export class FunctionTypeNode extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): FunctionTypeNode {
+  deepClone(): FunctionTypeNode {
     const node = new FunctionTypeNode(
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       cloneList(this.parameters),
@@ -4931,11 +4427,7 @@ export class ConstructorTypeNode extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ConstructorTypeNode {
+  deepClone(): ConstructorTypeNode {
     const node = new ConstructorTypeNode(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
@@ -4965,11 +4457,7 @@ export class TemplateHead extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TemplateHead {
+  deepClone(): TemplateHead {
     const node = new TemplateHead(this.text, this.rawText, this.templateFlags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -4994,11 +4482,7 @@ export class TemplateMiddle extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TemplateMiddle {
+  deepClone(): TemplateMiddle {
     const node = new TemplateMiddle(this.text, this.rawText, this.templateFlags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5023,11 +4507,7 @@ export class TemplateTail extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TemplateTail {
+  deepClone(): TemplateTail {
     const node = new TemplateTail(this.text, this.rawText, this.templateFlags);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5051,12 +4531,8 @@ export class TemplateLiteralTypeNode extends Node {
     return v.visitList(this.templateSpans);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TemplateLiteralTypeNode {
-    const node = new TemplateLiteralTypeNode(this.head.copy(), cloneList(this.templateSpans));
+  deepClone(): TemplateLiteralTypeNode {
+    const node = new TemplateLiteralTypeNode(this.head.deepClone(), cloneList(this.templateSpans));
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -5079,11 +4555,7 @@ export class TemplateLiteralTypeSpan extends Node {
     return v.visitNode(this.literal);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TemplateLiteralTypeSpan {
+  deepClone(): TemplateLiteralTypeSpan {
     const node = new TemplateLiteralTypeSpan(this.type.deepClone(), this.literal.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5104,11 +4576,7 @@ export class PartiallyEmittedExpression extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): PartiallyEmittedExpression {
+  deepClone(): PartiallyEmittedExpression {
     const node = new PartiallyEmittedExpression(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5135,12 +4603,12 @@ export class JsxElement extends Node {
     return v.visitNode(this.closingElement);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxElement {
-    const node = new JsxElement(this.openingElement.copy(), cloneList(this.children), this.closingElement.copy());
+  deepClone(): JsxElement {
+    const node = new JsxElement(
+      this.openingElement.deepClone(),
+      cloneList(this.children),
+      this.closingElement.deepClone(),
+    );
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -5163,11 +4631,7 @@ export class JsxAttributes extends Node {
     return v.visitList(this.properties);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxAttributes {
+  deepClone(): JsxAttributes {
     const node = new JsxAttributes(cloneList(this.properties));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5191,12 +4655,8 @@ export class JsxNamespacedName extends Node {
     return v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxNamespacedName {
-    const node = new JsxNamespacedName(this.namespace.copy(), this.name.copy());
+  deepClone(): JsxNamespacedName {
+    const node = new JsxNamespacedName(this.namespace.deepClone(), this.name.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -5222,15 +4682,11 @@ export class JsxOpeningElement extends Node {
     return v.visitNode(this.attributes);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxOpeningElement {
+  deepClone(): JsxOpeningElement {
     const node = new JsxOpeningElement(
       this.tagName.deepClone(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
-      this.attributes.copy(),
+      this.attributes.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5257,15 +4713,11 @@ export class JsxSelfClosingElement extends Node {
     return v.visitNode(this.attributes);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxSelfClosingElement {
+  deepClone(): JsxSelfClosingElement {
     const node = new JsxSelfClosingElement(
       this.tagName.deepClone(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
-      this.attributes.copy(),
+      this.attributes.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5292,12 +4744,12 @@ export class JsxFragment extends Node {
     return v.visitNode(this.closingFragment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxFragment {
-    const node = new JsxFragment(this.openingFragment.copy(), cloneList(this.children), this.closingFragment.copy());
+  deepClone(): JsxFragment {
+    const node = new JsxFragment(
+      this.openingFragment.deepClone(),
+      cloneList(this.children),
+      this.closingFragment.deepClone(),
+    );
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -5314,11 +4766,7 @@ export class JsxOpeningFragment extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxOpeningFragment {
+  deepClone(): JsxOpeningFragment {
     const node = new JsxOpeningFragment();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5336,11 +4784,7 @@ export class JsxClosingFragment extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxClosingFragment {
+  deepClone(): JsxClosingFragment {
     const node = new JsxClosingFragment();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5367,11 +4811,7 @@ export class JsxAttribute extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxAttribute {
+  deepClone(): JsxAttribute {
     const node = new JsxAttribute(
       this.name.deepClone(),
       this.initializer === undefined ? undefined : this.initializer.deepClone(),
@@ -5395,11 +4835,7 @@ export class JsxSpreadAttribute extends Node {
     return v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxSpreadAttribute {
+  deepClone(): JsxSpreadAttribute {
     const node = new JsxSpreadAttribute(this.expression.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5420,11 +4856,7 @@ export class JsxClosingElement extends Node {
     return v.visitNode(this.tagName);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxClosingElement {
+  deepClone(): JsxClosingElement {
     const node = new JsxClosingElement(this.tagName.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5448,13 +4880,9 @@ export class JsxExpression extends Node {
     return this.expression !== undefined && v.visitNode(this.expression);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxExpression {
+  deepClone(): JsxExpression {
     const node = new JsxExpression(
-      this.dotDotDotToken === undefined ? undefined : this.dotDotDotToken.copy(),
+      this.dotDotDotToken === undefined ? undefined : this.dotDotDotToken.deepClone(),
       this.expression === undefined ? undefined : this.expression.deepClone(),
     );
     node.flags = this.flags;
@@ -5478,11 +4906,7 @@ export class JsxText extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JsxText {
+  deepClone(): JsxText {
     const node = new JsxText(this.text, this.containsOnlyTriviaWhiteSpaces);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5504,11 +4928,7 @@ export class SyntaxList extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): SyntaxList {
+  deepClone(): SyntaxList {
     const node = new SyntaxList(cloneNodes(this.children));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5532,11 +4952,7 @@ export class JSDoc extends Node {
     return this.tags !== undefined && v.visitList(this.tags);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDoc {
+  deepClone(): JSDoc {
     const node = new JSDoc(cloneList(this.comment), this.tags === undefined ? undefined : cloneList(this.tags));
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5557,11 +4973,7 @@ export class JSDocTypeExpression extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocTypeExpression {
+  deepClone(): JSDocTypeExpression {
     const node = new JSDocTypeExpression(this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5582,11 +4994,7 @@ export class JSDocNonNullableType extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocNonNullableType {
+  deepClone(): JSDocNonNullableType {
     const node = new JSDocNonNullableType(this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5607,11 +5015,7 @@ export class JSDocNullableType extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocNullableType {
+  deepClone(): JSDocNullableType {
     const node = new JSDocNullableType(this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5629,11 +5033,7 @@ export class JSDocAllType extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocAllType {
+  deepClone(): JSDocAllType {
     const node = new JSDocAllType();
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5654,11 +5054,7 @@ export class JSDocVariadicType extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocVariadicType {
+  deepClone(): JSDocVariadicType {
     const node = new JSDocVariadicType(this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5679,11 +5075,7 @@ export class JSDocOptionalType extends Node {
     return v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocOptionalType {
+  deepClone(): JSDocOptionalType {
     const node = new JSDocOptionalType(this.type.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -5710,13 +5102,9 @@ export class JSDocTypeTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocTypeTag {
+  deepClone(): JSDocTypeTag {
     const node = new JSDocTypeTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.typeExpression === undefined ? undefined : this.typeExpression.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
@@ -5742,13 +5130,9 @@ export class JSDocUnknownTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocUnknownTag {
+  deepClone(): JSDocUnknownTag {
     const node = new JSDocUnknownTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -5784,13 +5168,9 @@ export class JSDocTemplateTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocTemplateTag {
+  deepClone(): JSDocTemplateTag {
     const node = new JSDocTemplateTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.constraint === undefined ? undefined : this.constraint.deepClone(),
       cloneList(this.typeParameters),
       this.comment === undefined ? undefined : cloneList(this.comment),
@@ -5820,13 +5200,9 @@ export class JSDocReturnTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocReturnTag {
+  deepClone(): JSDocReturnTag {
     const node = new JSDocReturnTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.typeExpression === undefined ? undefined : this.typeExpression.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
@@ -5852,13 +5228,9 @@ export class JSDocPublicTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocPublicTag {
+  deepClone(): JSDocPublicTag {
     const node = new JSDocPublicTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -5883,13 +5255,9 @@ export class JSDocPrivateTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocPrivateTag {
+  deepClone(): JSDocPrivateTag {
     const node = new JSDocPrivateTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -5914,13 +5282,9 @@ export class JSDocProtectedTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocProtectedTag {
+  deepClone(): JSDocProtectedTag {
     const node = new JSDocProtectedTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -5945,13 +5309,9 @@ export class JSDocReadonlyTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocReadonlyTag {
+  deepClone(): JSDocReadonlyTag {
     const node = new JSDocReadonlyTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -5976,13 +5336,9 @@ export class JSDocOverrideTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocOverrideTag {
+  deepClone(): JSDocOverrideTag {
     const node = new JSDocOverrideTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -6007,13 +5363,9 @@ export class JSDocDeprecatedTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocDeprecatedTag {
+  deepClone(): JSDocDeprecatedTag {
     const node = new JSDocDeprecatedTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -6041,13 +5393,9 @@ export class JSDocSeeTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocSeeTag {
+  deepClone(): JSDocSeeTag {
     const node = new JSDocSeeTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.nameExpression === undefined ? undefined : this.nameExpression.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
@@ -6076,14 +5424,10 @@ export class JSDocImplementsTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocImplementsTag {
+  deepClone(): JSDocImplementsTag {
     const node = new JSDocImplementsTag(
-      this.tagName.copy(),
-      this.className.copy(),
+      this.tagName.deepClone(),
+      this.className.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -6111,14 +5455,10 @@ export class JSDocAugmentsTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocAugmentsTag {
+  deepClone(): JSDocAugmentsTag {
     const node = new JSDocAugmentsTag(
-      this.tagName.copy(),
-      this.className.copy(),
+      this.tagName.deepClone(),
+      this.className.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -6146,13 +5486,9 @@ export class JSDocSatisfiesTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocSatisfiesTag {
+  deepClone(): JSDocSatisfiesTag {
     const node = new JSDocSatisfiesTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.typeExpression.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
@@ -6181,13 +5517,9 @@ export class JSDocThrowsTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocThrowsTag {
+  deepClone(): JSDocThrowsTag {
     const node = new JSDocThrowsTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.typeExpression === undefined ? undefined : this.typeExpression.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
@@ -6216,13 +5548,9 @@ export class JSDocThisTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocThisTag {
+  deepClone(): JSDocThisTag {
     const node = new JSDocThisTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.typeExpression.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
@@ -6263,16 +5591,12 @@ export class JSDocImportTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocImportTag {
+  deepClone(): JSDocImportTag {
     const node = new JSDocImportTag(
-      this.tagName.copy(),
-      this.importClause === undefined ? undefined : this.importClause.copy(),
+      this.tagName.deepClone(),
+      this.importClause === undefined ? undefined : this.importClause.deepClone(),
       this.moduleSpecifier.deepClone(),
-      this.attributes === undefined ? undefined : this.attributes.copy(),
+      this.attributes === undefined ? undefined : this.attributes.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;
@@ -6308,13 +5632,9 @@ export class JSDocCallbackTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocCallbackTag {
+  deepClone(): JSDocCallbackTag {
     const node = new JSDocCallbackTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.typeExpression.deepClone(),
       this.name === undefined ? undefined : this.name.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
@@ -6344,13 +5664,9 @@ export class JSDocOverloadTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocOverloadTag {
+  deepClone(): JSDocOverloadTag {
     const node = new JSDocOverloadTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.typeExpression.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
@@ -6387,13 +5703,9 @@ export class JSDocTypedefTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocTypedefTag {
+  deepClone(): JSDocTypedefTag {
     const node = new JSDocTypedefTag(
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.typeExpression === undefined ? undefined : this.typeExpression.deepClone(),
       this.name === undefined ? undefined : this.name.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
@@ -6430,11 +5742,7 @@ export class JSDocSignature extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocSignature {
+  deepClone(): JSDocSignature {
     const node = new JSDocSignature(
       this.typeParameters === undefined ? undefined : cloneList(this.typeParameters),
       cloneList(this.parameters),
@@ -6459,11 +5767,7 @@ export class JSDocNameReference extends Node {
     return this.name !== undefined && v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocNameReference {
+  deepClone(): JSDocNameReference {
     const node = new JSDocNameReference(this.name === undefined ? undefined : this.name.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -6510,11 +5814,7 @@ export class ModuleDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ModuleDeclaration {
+  deepClone(): ModuleDeclaration {
     const node = new ModuleDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.keyword,
@@ -6560,15 +5860,11 @@ export class ImportEqualsDeclaration extends Node {
     return v.visitNode(this.moduleReference);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ImportEqualsDeclaration {
+  deepClone(): ImportEqualsDeclaration {
     const node = new ImportEqualsDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.isTypeOnly,
-      this.name.copy(),
+      this.name.deepClone(),
       this.moduleReference.deepClone(),
     );
     node.flags = this.flags;
@@ -6612,17 +5908,13 @@ export class ExportDeclaration extends Node {
     return this.attributes !== undefined && v.visitNode(this.attributes);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ExportDeclaration {
+  deepClone(): ExportDeclaration {
     const node = new ExportDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.isTypeOnly,
       this.exportClause === undefined ? undefined : this.exportClause.deepClone(),
       this.moduleSpecifier === undefined ? undefined : this.moduleSpecifier.deepClone(),
-      this.attributes === undefined ? undefined : this.attributes.copy(),
+      this.attributes === undefined ? undefined : this.attributes.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -6660,15 +5952,11 @@ export class ImportTypeNode extends Node {
     return this.typeArguments !== undefined && v.visitList(this.typeArguments);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ImportTypeNode {
+  deepClone(): ImportTypeNode {
     const node = new ImportTypeNode(
       this.isTypeOf,
       this.argument.deepClone(),
-      this.attributes === undefined ? undefined : this.attributes.copy(),
+      this.attributes === undefined ? undefined : this.attributes.deepClone(),
       this.qualifier === undefined ? undefined : this.qualifier.deepClone(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
     );
@@ -6705,14 +5993,10 @@ export class ImportClause extends Node {
     return this.namedBindings !== undefined && v.visitNode(this.namedBindings);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ImportClause {
+  deepClone(): ImportClause {
     const node = new ImportClause(
       this.phaseModifier,
-      this.name === undefined ? undefined : this.name.copy(),
+      this.name === undefined ? undefined : this.name.deepClone(),
       this.namedBindings === undefined ? undefined : this.namedBindings.deepClone(),
     );
     node.flags = this.flags;
@@ -6744,15 +6028,11 @@ export class ImportSpecifier extends Node {
     return v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): ImportSpecifier {
+  deepClone(): ImportSpecifier {
     const node = new ImportSpecifier(
       this.isTypeOnly,
       this.propertyName === undefined ? undefined : this.propertyName.deepClone(),
-      this.name.copy(),
+      this.name.deepClone(),
     );
     node.flags = this.flags;
     node.pos = this.pos;
@@ -6773,11 +6053,7 @@ export class JSDocText extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocText {
+  deepClone(): JSDocText {
     const node = new JSDocText(this.text);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -6800,11 +6076,7 @@ export class JSDocLink extends Node {
     return this.name !== undefined && v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocLink {
+  deepClone(): JSDocLink {
     const node = new JSDocLink(this.name === undefined ? undefined : this.name.deepClone(), this.text);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -6827,11 +6099,7 @@ export class JSDocLinkPlain extends Node {
     return this.name !== undefined && v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocLinkPlain {
+  deepClone(): JSDocLinkPlain {
     const node = new JSDocLinkPlain(this.name === undefined ? undefined : this.name.deepClone(), this.text);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -6854,11 +6122,7 @@ export class JSDocLinkCode extends Node {
     return this.name !== undefined && v.visitNode(this.name);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocLinkCode {
+  deepClone(): JSDocLinkCode {
     const node = new JSDocLinkCode(this.name === undefined ? undefined : this.name.deepClone(), this.text);
     node.flags = this.flags;
     node.pos = this.pos;
@@ -6900,14 +6164,10 @@ export class TypeParameterDeclaration extends Node {
     return this.defaultType !== undefined && v.visitNode(this.defaultType);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): TypeParameterDeclaration {
+  deepClone(): TypeParameterDeclaration {
     const node = new TypeParameterDeclaration(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
-      this.name.copy(),
+      this.name.deepClone(),
       this.constraint === undefined ? undefined : this.constraint.deepClone(),
       this.expression === undefined ? undefined : this.expression.deepClone(),
       this.defaultType === undefined ? undefined : this.defaultType.deepClone(),
@@ -6934,11 +6194,7 @@ export class SyntheticReferenceExpression extends Node {
     return v.visitNode(this.thisArg);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): SyntheticReferenceExpression {
+  deepClone(): SyntheticReferenceExpression {
     const node = new SyntheticReferenceExpression(this.expression.deepClone(), this.thisArg.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
@@ -6966,11 +6222,7 @@ export class JSDocTypeLiteral extends Node {
     return false;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocTypeLiteral {
+  deepClone(): JSDocTypeLiteral {
     const node = new JSDocTypeLiteral(
       this.jsdocPropertyTags === undefined ? undefined : cloneNodes(this.jsdocPropertyTags),
       this.isArrayType,
@@ -7023,14 +6275,10 @@ export class JSDocParameterOrPropertyTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
-  copy(): JSDocParameterOrPropertyTag {
+  deepClone(): JSDocParameterOrPropertyTag {
     const node = new JSDocParameterOrPropertyTag(
       this.kind,
-      this.tagName.copy(),
+      this.tagName.deepClone(),
       this.name.deepClone(),
       this.isBracketed,
       this.typeExpression === undefined ? undefined : this.typeExpression.deepClone(),
@@ -7227,252 +6475,129 @@ function containsNonASCII(text: string): boolean {
 export function getName(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.VariableDeclaration:
-      if (node instanceof VariableDeclaration) {
-        const holder: VariableDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof VariableDeclaration) return node.name;
       break;
     case SyntaxKind.Parameter:
-      if (node instanceof ParameterDeclaration) {
-        const holder: ParameterDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof ParameterDeclaration) return node.name;
       break;
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const holder: BindingElement = node;
-        return holder.name;
-      }
+      if (node instanceof BindingElement) return node.name;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof FunctionDeclaration) return node.name;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof ClassDeclaration) return node.name;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const holder: ClassExpression = node;
-        return holder.name;
-      }
+      if (node instanceof ClassExpression) return node.name;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const holder: InterfaceDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof InterfaceDeclaration) return node.name;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const holder: TypeAliasDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof TypeAliasDeclaration) return node.name;
       break;
     case SyntaxKind.EnumMember:
-      if (node instanceof EnumMember) {
-        const holder: EnumMember = node;
-        return holder.name;
-      }
+      if (node instanceof EnumMember) return node.name;
       break;
     case SyntaxKind.EnumDeclaration:
-      if (node instanceof EnumDeclaration) {
-        const holder: EnumDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof EnumDeclaration) return node.name;
       break;
     case SyntaxKind.NamespaceImport:
-      if (node instanceof NamespaceImport) {
-        const holder: NamespaceImport = node;
-        return holder.name;
-      }
+      if (node instanceof NamespaceImport) return node.name;
       break;
     case SyntaxKind.NamespaceExportDeclaration:
-      if (node instanceof NamespaceExportDeclaration) {
-        const holder: NamespaceExportDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof NamespaceExportDeclaration) return node.name;
       break;
     case SyntaxKind.NamespaceExport:
-      if (node instanceof NamespaceExport) {
-        const holder: NamespaceExport = node;
-        return holder.name;
-      }
+      if (node instanceof NamespaceExport) return node.name;
       break;
     case SyntaxKind.ExportSpecifier:
-      if (node instanceof ExportSpecifier) {
-        const holder: ExportSpecifier = node;
-        return holder.name;
-      }
+      if (node instanceof ExportSpecifier) return node.name;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.name;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.name;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const holder: MethodSignatureDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof MethodSignatureDeclaration) return node.name;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof MethodDeclaration) return node.name;
       break;
     case SyntaxKind.PropertySignature:
-      if (node instanceof PropertySignatureDeclaration) {
-        const holder: PropertySignatureDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof PropertySignatureDeclaration) return node.name;
       break;
     case SyntaxKind.PropertyDeclaration:
-      if (node instanceof PropertyDeclaration) {
-        const holder: PropertyDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof PropertyDeclaration) return node.name;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.name;
-      }
+      if (node instanceof FunctionExpression) return node.name;
       break;
     case SyntaxKind.PropertyAccessExpression:
-      if (node instanceof PropertyAccessExpression) {
-        const holder: PropertyAccessExpression = node;
-        return holder.name;
-      }
+      if (node instanceof PropertyAccessExpression) return node.name;
       break;
     case SyntaxKind.MetaProperty:
-      if (node instanceof MetaProperty) {
-        const holder: MetaProperty = node;
-        return holder.name;
-      }
+      if (node instanceof MetaProperty) return node.name;
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const holder: PropertyAssignment = node;
-        return holder.name;
-      }
+      if (node instanceof PropertyAssignment) return node.name;
       break;
     case SyntaxKind.ShorthandPropertyAssignment:
-      if (node instanceof ShorthandPropertyAssignment) {
-        const holder: ShorthandPropertyAssignment = node;
-        return holder.name;
-      }
+      if (node instanceof ShorthandPropertyAssignment) return node.name;
       break;
     case SyntaxKind.ImportAttribute:
-      if (node instanceof ImportAttribute) {
-        const holder: ImportAttribute = node;
-        return holder.name;
-      }
+      if (node instanceof ImportAttribute) return node.name;
       break;
     case SyntaxKind.NamedTupleMember:
-      if (node instanceof NamedTupleMember) {
-        const holder: NamedTupleMember = node;
-        return holder.name;
-      }
+      if (node instanceof NamedTupleMember) return node.name;
       break;
     case SyntaxKind.JsxNamespacedName:
-      if (node instanceof JsxNamespacedName) {
-        const holder: JsxNamespacedName = node;
-        return holder.name;
-      }
+      if (node instanceof JsxNamespacedName) return node.name;
       break;
     case SyntaxKind.JsxAttribute:
-      if (node instanceof JsxAttribute) {
-        const holder: JsxAttribute = node;
-        return holder.name;
-      }
+      if (node instanceof JsxAttribute) return node.name;
       break;
     case SyntaxKind.JSDocCallbackTag:
-      if (node instanceof JSDocCallbackTag) {
-        const holder: JSDocCallbackTag = node;
-        return holder.name;
-      }
+      if (node instanceof JSDocCallbackTag) return node.name;
       break;
     case SyntaxKind.JSDocTypedefTag:
-      if (node instanceof JSDocTypedefTag) {
-        const holder: JSDocTypedefTag = node;
-        return holder.name;
-      }
+      if (node instanceof JSDocTypedefTag) return node.name;
       break;
     case SyntaxKind.JSDocNameReference:
-      if (node instanceof JSDocNameReference) {
-        const holder: JSDocNameReference = node;
-        return holder.name;
-      }
+      if (node instanceof JSDocNameReference) return node.name;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const holder: ModuleDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof ModuleDeclaration) return node.name;
       break;
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration) {
-        const holder: ImportEqualsDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof ImportEqualsDeclaration) return node.name;
       break;
     case SyntaxKind.ImportClause:
-      if (node instanceof ImportClause) {
-        const holder: ImportClause = node;
-        return holder.name;
-      }
+      if (node instanceof ImportClause) return node.name;
       break;
     case SyntaxKind.ImportSpecifier:
-      if (node instanceof ImportSpecifier) {
-        const holder: ImportSpecifier = node;
-        return holder.name;
-      }
+      if (node instanceof ImportSpecifier) return node.name;
       break;
     case SyntaxKind.JSDocLink:
-      if (node instanceof JSDocLink) {
-        const holder: JSDocLink = node;
-        return holder.name;
-      }
+      if (node instanceof JSDocLink) return node.name;
       break;
     case SyntaxKind.JSDocLinkPlain:
-      if (node instanceof JSDocLinkPlain) {
-        const holder: JSDocLinkPlain = node;
-        return holder.name;
-      }
+      if (node instanceof JSDocLinkPlain) return node.name;
       break;
     case SyntaxKind.JSDocLinkCode:
-      if (node instanceof JSDocLinkCode) {
-        const holder: JSDocLinkCode = node;
-        return holder.name;
-      }
+      if (node instanceof JSDocLinkCode) return node.name;
       break;
     case SyntaxKind.TypeParameter:
-      if (node instanceof TypeParameterDeclaration) {
-        const holder: TypeParameterDeclaration = node;
-        return holder.name;
-      }
+      if (node instanceof TypeParameterDeclaration) return node.name;
       break;
     case SyntaxKind.JSDocParameterTag:
     case SyntaxKind.JSDocPropertyTag:
-      if (node instanceof JSDocParameterOrPropertyTag) {
-        const holder: JSDocParameterOrPropertyTag = node;
-        return holder.name;
-      }
+      if (node instanceof JSDocParameterOrPropertyTag) return node.name;
       break;
   }
   return undefined;
@@ -7481,192 +6606,99 @@ export function getName(node: Node): Node | undefined {
 export function getModifiers(node: Node): ModifierList | undefined {
   switch (node.kind) {
     case SyntaxKind.VariableStatement:
-      if (node instanceof VariableStatement) {
-        const holder: VariableStatement = node;
-        return holder.modifiers;
-      }
+      if (node instanceof VariableStatement) return node.modifiers;
       break;
     case SyntaxKind.Parameter:
-      if (node instanceof ParameterDeclaration) {
-        const holder: ParameterDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ParameterDeclaration) return node.modifiers;
       break;
     case SyntaxKind.MissingDeclaration:
-      if (node instanceof MissingDeclaration) {
-        const holder: MissingDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof MissingDeclaration) return node.modifiers;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof FunctionDeclaration) return node.modifiers;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ClassDeclaration) return node.modifiers;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const holder: ClassExpression = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ClassExpression) return node.modifiers;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const holder: InterfaceDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof InterfaceDeclaration) return node.modifiers;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const holder: TypeAliasDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof TypeAliasDeclaration) return node.modifiers;
       break;
     case SyntaxKind.EnumDeclaration:
-      if (node instanceof EnumDeclaration) {
-        const holder: EnumDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof EnumDeclaration) return node.modifiers;
       break;
     case SyntaxKind.ImportDeclaration:
     case SyntaxKind.JSImportDeclaration:
-      if (node instanceof ImportDeclaration) {
-        const holder: ImportDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ImportDeclaration) return node.modifiers;
       break;
     case SyntaxKind.ExportAssignment:
-      if (node instanceof ExportAssignment) {
-        const holder: ExportAssignment = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ExportAssignment) return node.modifiers;
       break;
     case SyntaxKind.NamespaceExportDeclaration:
-      if (node instanceof NamespaceExportDeclaration) {
-        const holder: NamespaceExportDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof NamespaceExportDeclaration) return node.modifiers;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ConstructorDeclaration) return node.modifiers;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.modifiers;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.modifiers;
       break;
     case SyntaxKind.IndexSignature:
-      if (node instanceof IndexSignatureDeclaration) {
-        const holder: IndexSignatureDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof IndexSignatureDeclaration) return node.modifiers;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const holder: MethodSignatureDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof MethodSignatureDeclaration) return node.modifiers;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof MethodDeclaration) return node.modifiers;
       break;
     case SyntaxKind.PropertySignature:
-      if (node instanceof PropertySignatureDeclaration) {
-        const holder: PropertySignatureDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof PropertySignatureDeclaration) return node.modifiers;
       break;
     case SyntaxKind.PropertyDeclaration:
-      if (node instanceof PropertyDeclaration) {
-        const holder: PropertyDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof PropertyDeclaration) return node.modifiers;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const holder: ClassStaticBlockDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) return node.modifiers;
       break;
     case SyntaxKind.BinaryExpression:
-      if (node instanceof BinaryExpression) {
-        const holder: BinaryExpression = node;
-        return holder.modifiers;
-      }
+      if (node instanceof BinaryExpression) return node.modifiers;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ArrowFunction) return node.modifiers;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.modifiers;
-      }
+      if (node instanceof FunctionExpression) return node.modifiers;
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const holder: PropertyAssignment = node;
-        return holder.modifiers;
-      }
+      if (node instanceof PropertyAssignment) return node.modifiers;
       break;
     case SyntaxKind.ShorthandPropertyAssignment:
-      if (node instanceof ShorthandPropertyAssignment) {
-        const holder: ShorthandPropertyAssignment = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ShorthandPropertyAssignment) return node.modifiers;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const holder: ConstructorTypeNode = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ConstructorTypeNode) return node.modifiers;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const holder: ModuleDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ModuleDeclaration) return node.modifiers;
       break;
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration) {
-        const holder: ImportEqualsDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ImportEqualsDeclaration) return node.modifiers;
       break;
     case SyntaxKind.ExportDeclaration:
-      if (node instanceof ExportDeclaration) {
-        const holder: ExportDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof ExportDeclaration) return node.modifiers;
       break;
     case SyntaxKind.TypeParameter:
-      if (node instanceof TypeParameterDeclaration) {
-        const holder: TypeParameterDeclaration = node;
-        return holder.modifiers;
-      }
+      if (node instanceof TypeParameterDeclaration) return node.modifiers;
       break;
   }
   return undefined;
@@ -7675,113 +6707,59 @@ export function getModifiers(node: Node): ModifierList | undefined {
 export function getTypeParameters(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof FunctionDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof ClassDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const holder: ClassExpression = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof ClassExpression) return node.typeParameters;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const holder: InterfaceDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof InterfaceDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const holder: TypeAliasDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof TypeAliasDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.CallSignature:
-      if (node instanceof CallSignatureDeclaration) {
-        const holder: CallSignatureDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof CallSignatureDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.ConstructSignature:
-      if (node instanceof ConstructSignatureDeclaration) {
-        const holder: ConstructSignatureDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof ConstructSignatureDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof ConstructorDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const holder: MethodSignatureDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof MethodSignatureDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof MethodDeclaration) return node.typeParameters;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof ArrowFunction) return node.typeParameters;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof FunctionExpression) return node.typeParameters;
       break;
     case SyntaxKind.FunctionType:
-      if (node instanceof FunctionTypeNode) {
-        const holder: FunctionTypeNode = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof FunctionTypeNode) return node.typeParameters;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const holder: ConstructorTypeNode = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof ConstructorTypeNode) return node.typeParameters;
       break;
     case SyntaxKind.JSDocTemplateTag:
-      if (node instanceof JSDocTemplateTag) {
-        const holder: JSDocTemplateTag = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof JSDocTemplateTag) return node.typeParameters;
       break;
     case SyntaxKind.JSDocSignature:
-      if (node instanceof JSDocSignature) {
-        const holder: JSDocSignature = node;
-        return holder.typeParameters;
-      }
+      if (node instanceof JSDocSignature) return node.typeParameters;
       break;
   }
   return undefined;
@@ -7790,88 +6768,46 @@ export function getTypeParameters(node: Node): NodeList | undefined {
 export function getParameters(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.parameters;
-      }
+      if (node instanceof FunctionDeclaration) return node.parameters;
       break;
     case SyntaxKind.CallSignature:
-      if (node instanceof CallSignatureDeclaration) {
-        const holder: CallSignatureDeclaration = node;
-        return holder.parameters;
-      }
+      if (node instanceof CallSignatureDeclaration) return node.parameters;
       break;
     case SyntaxKind.ConstructSignature:
-      if (node instanceof ConstructSignatureDeclaration) {
-        const holder: ConstructSignatureDeclaration = node;
-        return holder.parameters;
-      }
+      if (node instanceof ConstructSignatureDeclaration) return node.parameters;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.parameters;
-      }
+      if (node instanceof ConstructorDeclaration) return node.parameters;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.parameters;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.parameters;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.parameters;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.parameters;
       break;
     case SyntaxKind.IndexSignature:
-      if (node instanceof IndexSignatureDeclaration) {
-        const holder: IndexSignatureDeclaration = node;
-        return holder.parameters;
-      }
+      if (node instanceof IndexSignatureDeclaration) return node.parameters;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const holder: MethodSignatureDeclaration = node;
-        return holder.parameters;
-      }
+      if (node instanceof MethodSignatureDeclaration) return node.parameters;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.parameters;
-      }
+      if (node instanceof MethodDeclaration) return node.parameters;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.parameters;
-      }
+      if (node instanceof ArrowFunction) return node.parameters;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.parameters;
-      }
+      if (node instanceof FunctionExpression) return node.parameters;
       break;
     case SyntaxKind.FunctionType:
-      if (node instanceof FunctionTypeNode) {
-        const holder: FunctionTypeNode = node;
-        return holder.parameters;
-      }
+      if (node instanceof FunctionTypeNode) return node.parameters;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const holder: ConstructorTypeNode = node;
-        return holder.parameters;
-      }
+      if (node instanceof ConstructorTypeNode) return node.parameters;
       break;
     case SyntaxKind.JSDocSignature:
-      if (node instanceof JSDocSignature) {
-        const holder: JSDocSignature = node;
-        return holder.parameters;
-      }
+      if (node instanceof JSDocSignature) return node.parameters;
       break;
   }
   return undefined;
@@ -7880,239 +6816,122 @@ export function getParameters(node: Node): NodeList | undefined {
 export function getType(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.VariableDeclaration:
-      if (node instanceof VariableDeclaration) {
-        const holder: VariableDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof VariableDeclaration) return node.type;
       break;
     case SyntaxKind.Parameter:
-      if (node instanceof ParameterDeclaration) {
-        const holder: ParameterDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof ParameterDeclaration) return node.type;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof FunctionDeclaration) return node.type;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const holder: TypeAliasDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof TypeAliasDeclaration) return node.type;
       break;
     case SyntaxKind.ExportAssignment:
-      if (node instanceof ExportAssignment) {
-        const holder: ExportAssignment = node;
-        return holder.type;
-      }
+      if (node instanceof ExportAssignment) return node.type;
       break;
     case SyntaxKind.CallSignature:
-      if (node instanceof CallSignatureDeclaration) {
-        const holder: CallSignatureDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof CallSignatureDeclaration) return node.type;
       break;
     case SyntaxKind.ConstructSignature:
-      if (node instanceof ConstructSignatureDeclaration) {
-        const holder: ConstructSignatureDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof ConstructSignatureDeclaration) return node.type;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof ConstructorDeclaration) return node.type;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.type;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.type;
       break;
     case SyntaxKind.IndexSignature:
-      if (node instanceof IndexSignatureDeclaration) {
-        const holder: IndexSignatureDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof IndexSignatureDeclaration) return node.type;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const holder: MethodSignatureDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof MethodSignatureDeclaration) return node.type;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof MethodDeclaration) return node.type;
       break;
     case SyntaxKind.PropertySignature:
-      if (node instanceof PropertySignatureDeclaration) {
-        const holder: PropertySignatureDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof PropertySignatureDeclaration) return node.type;
       break;
     case SyntaxKind.PropertyDeclaration:
-      if (node instanceof PropertyDeclaration) {
-        const holder: PropertyDeclaration = node;
-        return holder.type;
-      }
+      if (node instanceof PropertyDeclaration) return node.type;
       break;
     case SyntaxKind.BinaryExpression:
-      if (node instanceof BinaryExpression) {
-        const holder: BinaryExpression = node;
-        return holder.type;
-      }
+      if (node instanceof BinaryExpression) return node.type;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.type;
-      }
+      if (node instanceof ArrowFunction) return node.type;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.type;
-      }
+      if (node instanceof FunctionExpression) return node.type;
       break;
     case SyntaxKind.AsExpression:
-      if (node instanceof AsExpression) {
-        const holder: AsExpression = node;
-        return holder.type;
-      }
+      if (node instanceof AsExpression) return node.type;
       break;
     case SyntaxKind.SatisfiesExpression:
-      if (node instanceof SatisfiesExpression) {
-        const holder: SatisfiesExpression = node;
-        return holder.type;
-      }
+      if (node instanceof SatisfiesExpression) return node.type;
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const holder: PropertyAssignment = node;
-        return holder.type;
-      }
+      if (node instanceof PropertyAssignment) return node.type;
       break;
     case SyntaxKind.ShorthandPropertyAssignment:
-      if (node instanceof ShorthandPropertyAssignment) {
-        const holder: ShorthandPropertyAssignment = node;
-        return holder.type;
-      }
+      if (node instanceof ShorthandPropertyAssignment) return node.type;
       break;
     case SyntaxKind.TypeAssertionExpression:
-      if (node instanceof TypeAssertion) {
-        const holder: TypeAssertion = node;
-        return holder.type;
-      }
+      if (node instanceof TypeAssertion) return node.type;
       break;
     case SyntaxKind.TypeOperator:
-      if (node instanceof TypeOperatorNode) {
-        const holder: TypeOperatorNode = node;
-        return holder.type;
-      }
+      if (node instanceof TypeOperatorNode) return node.type;
       break;
     case SyntaxKind.TypePredicate:
-      if (node instanceof TypePredicateNode) {
-        const holder: TypePredicateNode = node;
-        return holder.type;
-      }
+      if (node instanceof TypePredicateNode) return node.type;
       break;
     case SyntaxKind.MappedType:
-      if (node instanceof MappedTypeNode) {
-        const holder: MappedTypeNode = node;
-        return holder.type;
-      }
+      if (node instanceof MappedTypeNode) return node.type;
       break;
     case SyntaxKind.NamedTupleMember:
-      if (node instanceof NamedTupleMember) {
-        const holder: NamedTupleMember = node;
-        return holder.type;
-      }
+      if (node instanceof NamedTupleMember) return node.type;
       break;
     case SyntaxKind.OptionalType:
-      if (node instanceof OptionalTypeNode) {
-        const holder: OptionalTypeNode = node;
-        return holder.type;
-      }
+      if (node instanceof OptionalTypeNode) return node.type;
       break;
     case SyntaxKind.RestType:
-      if (node instanceof RestTypeNode) {
-        const holder: RestTypeNode = node;
-        return holder.type;
-      }
+      if (node instanceof RestTypeNode) return node.type;
       break;
     case SyntaxKind.ParenthesizedType:
-      if (node instanceof ParenthesizedTypeNode) {
-        const holder: ParenthesizedTypeNode = node;
-        return holder.type;
-      }
+      if (node instanceof ParenthesizedTypeNode) return node.type;
       break;
     case SyntaxKind.FunctionType:
-      if (node instanceof FunctionTypeNode) {
-        const holder: FunctionTypeNode = node;
-        return holder.type;
-      }
+      if (node instanceof FunctionTypeNode) return node.type;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const holder: ConstructorTypeNode = node;
-        return holder.type;
-      }
+      if (node instanceof ConstructorTypeNode) return node.type;
       break;
     case SyntaxKind.TemplateLiteralTypeSpan:
-      if (node instanceof TemplateLiteralTypeSpan) {
-        const holder: TemplateLiteralTypeSpan = node;
-        return holder.type;
-      }
+      if (node instanceof TemplateLiteralTypeSpan) return node.type;
       break;
     case SyntaxKind.JSDocTypeExpression:
-      if (node instanceof JSDocTypeExpression) {
-        const holder: JSDocTypeExpression = node;
-        return holder.type;
-      }
+      if (node instanceof JSDocTypeExpression) return node.type;
       break;
     case SyntaxKind.JSDocNonNullableType:
-      if (node instanceof JSDocNonNullableType) {
-        const holder: JSDocNonNullableType = node;
-        return holder.type;
-      }
+      if (node instanceof JSDocNonNullableType) return node.type;
       break;
     case SyntaxKind.JSDocNullableType:
-      if (node instanceof JSDocNullableType) {
-        const holder: JSDocNullableType = node;
-        return holder.type;
-      }
+      if (node instanceof JSDocNullableType) return node.type;
       break;
     case SyntaxKind.JSDocVariadicType:
-      if (node instanceof JSDocVariadicType) {
-        const holder: JSDocVariadicType = node;
-        return holder.type;
-      }
+      if (node instanceof JSDocVariadicType) return node.type;
       break;
     case SyntaxKind.JSDocOptionalType:
-      if (node instanceof JSDocOptionalType) {
-        const holder: JSDocOptionalType = node;
-        return holder.type;
-      }
+      if (node instanceof JSDocOptionalType) return node.type;
       break;
     case SyntaxKind.JSDocSignature:
-      if (node instanceof JSDocSignature) {
-        const holder: JSDocSignature = node;
-        return holder.type;
-      }
+      if (node instanceof JSDocSignature) return node.type;
       break;
   }
   return undefined;
@@ -8121,58 +6940,31 @@ export function getType(node: Node): Node | undefined {
 export function getBody(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.body;
-      }
+      if (node instanceof FunctionDeclaration) return node.body;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.body;
-      }
+      if (node instanceof ConstructorDeclaration) return node.body;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.body;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.body;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.body;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.body;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.body;
-      }
+      if (node instanceof MethodDeclaration) return node.body;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const holder: ClassStaticBlockDeclaration = node;
-        return holder.body;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) return node.body;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.body;
-      }
+      if (node instanceof ArrowFunction) return node.body;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.body;
-      }
+      if (node instanceof FunctionExpression) return node.body;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const holder: ModuleDeclaration = node;
-        return holder.body;
-      }
+      if (node instanceof ModuleDeclaration) return node.body;
       break;
   }
   return undefined;
@@ -8181,216 +6973,117 @@ export function getBody(node: Node): Node | undefined {
 export function getExpression(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.ComputedPropertyName:
-      if (node instanceof ComputedPropertyName) {
-        const holder: ComputedPropertyName = node;
-        return holder.expression;
-      }
+      if (node instanceof ComputedPropertyName) return node.expression;
       break;
     case SyntaxKind.Decorator:
-      if (node instanceof Decorator) {
-        const holder: Decorator = node;
-        return holder.expression;
-      }
+      if (node instanceof Decorator) return node.expression;
       break;
     case SyntaxKind.IfStatement:
-      if (node instanceof IfStatement) {
-        const holder: IfStatement = node;
-        return holder.expression;
-      }
+      if (node instanceof IfStatement) return node.expression;
       break;
     case SyntaxKind.DoStatement:
-      if (node instanceof DoStatement) {
-        const holder: DoStatement = node;
-        return holder.expression;
-      }
+      if (node instanceof DoStatement) return node.expression;
       break;
     case SyntaxKind.WhileStatement:
-      if (node instanceof WhileStatement) {
-        const holder: WhileStatement = node;
-        return holder.expression;
-      }
+      if (node instanceof WhileStatement) return node.expression;
       break;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
-      if (node instanceof ForInOrOfStatement) {
-        const holder: ForInOrOfStatement = node;
-        return holder.expression;
-      }
+      if (node instanceof ForInOrOfStatement) return node.expression;
       break;
     case SyntaxKind.ReturnStatement:
-      if (node instanceof ReturnStatement) {
-        const holder: ReturnStatement = node;
-        return holder.expression;
-      }
+      if (node instanceof ReturnStatement) return node.expression;
       break;
     case SyntaxKind.WithStatement:
-      if (node instanceof WithStatement) {
-        const holder: WithStatement = node;
-        return holder.expression;
-      }
+      if (node instanceof WithStatement) return node.expression;
       break;
     case SyntaxKind.SwitchStatement:
-      if (node instanceof SwitchStatement) {
-        const holder: SwitchStatement = node;
-        return holder.expression;
-      }
+      if (node instanceof SwitchStatement) return node.expression;
       break;
     case SyntaxKind.CaseClause:
     case SyntaxKind.DefaultClause:
-      if (node instanceof CaseOrDefaultClause) {
-        const holder: CaseOrDefaultClause = node;
-        return holder.expression;
-      }
+      if (node instanceof CaseOrDefaultClause) return node.expression;
       break;
     case SyntaxKind.ThrowStatement:
-      if (node instanceof ThrowStatement) {
-        const holder: ThrowStatement = node;
-        return holder.expression;
-      }
+      if (node instanceof ThrowStatement) return node.expression;
       break;
     case SyntaxKind.ExpressionStatement:
-      if (node instanceof ExpressionStatement) {
-        const holder: ExpressionStatement = node;
-        return holder.expression;
-      }
+      if (node instanceof ExpressionStatement) return node.expression;
       break;
     case SyntaxKind.ExternalModuleReference:
-      if (node instanceof ExternalModuleReference) {
-        const holder: ExternalModuleReference = node;
-        return holder.expression;
-      }
+      if (node instanceof ExternalModuleReference) return node.expression;
       break;
     case SyntaxKind.ExportAssignment:
-      if (node instanceof ExportAssignment) {
-        const holder: ExportAssignment = node;
-        return holder.expression;
-      }
+      if (node instanceof ExportAssignment) return node.expression;
       break;
     case SyntaxKind.YieldExpression:
-      if (node instanceof YieldExpression) {
-        const holder: YieldExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof YieldExpression) return node.expression;
       break;
     case SyntaxKind.AsExpression:
-      if (node instanceof AsExpression) {
-        const holder: AsExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof AsExpression) return node.expression;
       break;
     case SyntaxKind.SatisfiesExpression:
-      if (node instanceof SatisfiesExpression) {
-        const holder: SatisfiesExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof SatisfiesExpression) return node.expression;
       break;
     case SyntaxKind.PropertyAccessExpression:
-      if (node instanceof PropertyAccessExpression) {
-        const holder: PropertyAccessExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof PropertyAccessExpression) return node.expression;
       break;
     case SyntaxKind.ElementAccessExpression:
-      if (node instanceof ElementAccessExpression) {
-        const holder: ElementAccessExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof ElementAccessExpression) return node.expression;
       break;
     case SyntaxKind.CallExpression:
-      if (node instanceof CallExpression) {
-        const holder: CallExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof CallExpression) return node.expression;
       break;
     case SyntaxKind.NewExpression:
-      if (node instanceof NewExpression) {
-        const holder: NewExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof NewExpression) return node.expression;
       break;
     case SyntaxKind.NonNullExpression:
-      if (node instanceof NonNullExpression) {
-        const holder: NonNullExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof NonNullExpression) return node.expression;
       break;
     case SyntaxKind.SpreadElement:
-      if (node instanceof SpreadElement) {
-        const holder: SpreadElement = node;
-        return holder.expression;
-      }
+      if (node instanceof SpreadElement) return node.expression;
       break;
     case SyntaxKind.TemplateSpan:
-      if (node instanceof TemplateSpan) {
-        const holder: TemplateSpan = node;
-        return holder.expression;
-      }
+      if (node instanceof TemplateSpan) return node.expression;
       break;
     case SyntaxKind.ParenthesizedExpression:
-      if (node instanceof ParenthesizedExpression) {
-        const holder: ParenthesizedExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof ParenthesizedExpression) return node.expression;
       break;
     case SyntaxKind.SpreadAssignment:
-      if (node instanceof SpreadAssignment) {
-        const holder: SpreadAssignment = node;
-        return holder.expression;
-      }
+      if (node instanceof SpreadAssignment) return node.expression;
       break;
     case SyntaxKind.DeleteExpression:
-      if (node instanceof DeleteExpression) {
-        const holder: DeleteExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof DeleteExpression) return node.expression;
       break;
     case SyntaxKind.TypeOfExpression:
-      if (node instanceof TypeOfExpression) {
-        const holder: TypeOfExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof TypeOfExpression) return node.expression;
       break;
     case SyntaxKind.VoidExpression:
-      if (node instanceof VoidExpression) {
-        const holder: VoidExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof VoidExpression) return node.expression;
       break;
     case SyntaxKind.AwaitExpression:
-      if (node instanceof AwaitExpression) {
-        const holder: AwaitExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof AwaitExpression) return node.expression;
       break;
     case SyntaxKind.TypeAssertionExpression:
-      if (node instanceof TypeAssertion) {
-        const holder: TypeAssertion = node;
-        return holder.expression;
-      }
+      if (node instanceof TypeAssertion) return node.expression;
       break;
     case SyntaxKind.ExpressionWithTypeArguments:
-      if (node instanceof ExpressionWithTypeArguments) {
-        const holder: ExpressionWithTypeArguments = node;
-        return holder.expression;
-      }
+      if (node instanceof ExpressionWithTypeArguments) return node.expression;
+      break;
+    case SyntaxKind.PartiallyEmittedExpression:
+      if (node instanceof PartiallyEmittedExpression) return node.expression;
       break;
     case SyntaxKind.JsxSpreadAttribute:
-      if (node instanceof JsxSpreadAttribute) {
-        const holder: JsxSpreadAttribute = node;
-        return holder.expression;
-      }
+      if (node instanceof JsxSpreadAttribute) return node.expression;
       break;
     case SyntaxKind.JsxExpression:
-      if (node instanceof JsxExpression) {
-        const holder: JsxExpression = node;
-        return holder.expression;
-      }
+      if (node instanceof JsxExpression) return node.expression;
       break;
     case SyntaxKind.TypeParameter:
-      if (node instanceof TypeParameterDeclaration) {
-        const holder: TypeParameterDeclaration = node;
-        return holder.expression;
-      }
+      if (node instanceof TypeParameterDeclaration) return node.expression;
+      break;
+    case SyntaxKind.SyntheticReferenceExpression:
+      if (node instanceof SyntheticReferenceExpression) return node.expression;
       break;
   }
   return undefined;
@@ -8399,65 +7092,35 @@ export function getExpression(node: Node): Node | undefined {
 export function getInitializer(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.ForStatement:
-      if (node instanceof ForStatement) {
-        const holder: ForStatement = node;
-        return holder.initializer;
-      }
+      if (node instanceof ForStatement) return node.initializer;
       break;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
-      if (node instanceof ForInOrOfStatement) {
-        const holder: ForInOrOfStatement = node;
-        return holder.initializer;
-      }
+      if (node instanceof ForInOrOfStatement) return node.initializer;
       break;
     case SyntaxKind.VariableDeclaration:
-      if (node instanceof VariableDeclaration) {
-        const holder: VariableDeclaration = node;
-        return holder.initializer;
-      }
+      if (node instanceof VariableDeclaration) return node.initializer;
       break;
     case SyntaxKind.Parameter:
-      if (node instanceof ParameterDeclaration) {
-        const holder: ParameterDeclaration = node;
-        return holder.initializer;
-      }
+      if (node instanceof ParameterDeclaration) return node.initializer;
       break;
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const holder: BindingElement = node;
-        return holder.initializer;
-      }
+      if (node instanceof BindingElement) return node.initializer;
       break;
     case SyntaxKind.EnumMember:
-      if (node instanceof EnumMember) {
-        const holder: EnumMember = node;
-        return holder.initializer;
-      }
+      if (node instanceof EnumMember) return node.initializer;
       break;
     case SyntaxKind.PropertySignature:
-      if (node instanceof PropertySignatureDeclaration) {
-        const holder: PropertySignatureDeclaration = node;
-        return holder.initializer;
-      }
+      if (node instanceof PropertySignatureDeclaration) return node.initializer;
       break;
     case SyntaxKind.PropertyDeclaration:
-      if (node instanceof PropertyDeclaration) {
-        const holder: PropertyDeclaration = node;
-        return holder.initializer;
-      }
+      if (node instanceof PropertyDeclaration) return node.initializer;
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const holder: PropertyAssignment = node;
-        return holder.initializer;
-      }
+      if (node instanceof PropertyAssignment) return node.initializer;
       break;
     case SyntaxKind.JsxAttribute:
-      if (node instanceof JsxAttribute) {
-        const holder: JsxAttribute = node;
-        return holder.initializer;
-      }
+      if (node instanceof JsxAttribute) return node.initializer;
       break;
   }
   return undefined;
@@ -8466,40 +7129,22 @@ export function getInitializer(node: Node): Node | undefined {
 export function getPostfixToken(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const holder: MethodSignatureDeclaration = node;
-        return holder.postfixToken;
-      }
+      if (node instanceof MethodSignatureDeclaration) return node.postfixToken;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.postfixToken;
-      }
+      if (node instanceof MethodDeclaration) return node.postfixToken;
       break;
     case SyntaxKind.PropertySignature:
-      if (node instanceof PropertySignatureDeclaration) {
-        const holder: PropertySignatureDeclaration = node;
-        return holder.postfixToken;
-      }
+      if (node instanceof PropertySignatureDeclaration) return node.postfixToken;
       break;
     case SyntaxKind.PropertyDeclaration:
-      if (node instanceof PropertyDeclaration) {
-        const holder: PropertyDeclaration = node;
-        return holder.postfixToken;
-      }
+      if (node instanceof PropertyDeclaration) return node.postfixToken;
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const holder: PropertyAssignment = node;
-        return holder.postfixToken;
-      }
+      if (node instanceof PropertyAssignment) return node.postfixToken;
       break;
     case SyntaxKind.ShorthandPropertyAssignment:
-      if (node instanceof ShorthandPropertyAssignment) {
-        const holder: ShorthandPropertyAssignment = node;
-        return holder.postfixToken;
-      }
+      if (node instanceof ShorthandPropertyAssignment) return node.postfixToken;
       break;
   }
   return undefined;
@@ -8508,58 +7153,31 @@ export function getPostfixToken(node: Node): Node | undefined {
 export function getTypeArguments(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.CallExpression:
-      if (node instanceof CallExpression) {
-        const holder: CallExpression = node;
-        return holder.typeArguments;
-      }
+      if (node instanceof CallExpression) return node.typeArguments;
       break;
     case SyntaxKind.NewExpression:
-      if (node instanceof NewExpression) {
-        const holder: NewExpression = node;
-        return holder.typeArguments;
-      }
+      if (node instanceof NewExpression) return node.typeArguments;
       break;
     case SyntaxKind.TaggedTemplateExpression:
-      if (node instanceof TaggedTemplateExpression) {
-        const holder: TaggedTemplateExpression = node;
-        return holder.typeArguments;
-      }
+      if (node instanceof TaggedTemplateExpression) return node.typeArguments;
       break;
     case SyntaxKind.TypeReference:
-      if (node instanceof TypeReferenceNode) {
-        const holder: TypeReferenceNode = node;
-        return holder.typeArguments;
-      }
+      if (node instanceof TypeReferenceNode) return node.typeArguments;
       break;
     case SyntaxKind.ExpressionWithTypeArguments:
-      if (node instanceof ExpressionWithTypeArguments) {
-        const holder: ExpressionWithTypeArguments = node;
-        return holder.typeArguments;
-      }
+      if (node instanceof ExpressionWithTypeArguments) return node.typeArguments;
       break;
     case SyntaxKind.TypeQuery:
-      if (node instanceof TypeQueryNode) {
-        const holder: TypeQueryNode = node;
-        return holder.typeArguments;
-      }
+      if (node instanceof TypeQueryNode) return node.typeArguments;
       break;
     case SyntaxKind.JsxOpeningElement:
-      if (node instanceof JsxOpeningElement) {
-        const holder: JsxOpeningElement = node;
-        return holder.typeArguments;
-      }
+      if (node instanceof JsxOpeningElement) return node.typeArguments;
       break;
     case SyntaxKind.JsxSelfClosingElement:
-      if (node instanceof JsxSelfClosingElement) {
-        const holder: JsxSelfClosingElement = node;
-        return holder.typeArguments;
-      }
+      if (node instanceof JsxSelfClosingElement) return node.typeArguments;
       break;
     case SyntaxKind.ImportType:
-      if (node instanceof ImportTypeNode) {
-        const holder: ImportTypeNode = node;
-        return holder.typeArguments;
-      }
+      if (node instanceof ImportTypeNode) return node.typeArguments;
       break;
   }
   return undefined;
@@ -8568,16 +7186,10 @@ export function getTypeArguments(node: Node): NodeList | undefined {
 export function getArguments(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.CallExpression:
-      if (node instanceof CallExpression) {
-        const holder: CallExpression = node;
-        return holder.arguments;
-      }
+      if (node instanceof CallExpression) return node.arguments;
       break;
     case SyntaxKind.NewExpression:
-      if (node instanceof NewExpression) {
-        const holder: NewExpression = node;
-        return holder.arguments;
-      }
+      if (node instanceof NewExpression) return node.arguments;
       break;
   }
   return undefined;
@@ -8586,40 +7198,22 @@ export function getArguments(node: Node): NodeList | undefined {
 export function getMembers(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.members;
-      }
+      if (node instanceof ClassDeclaration) return node.members;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const holder: ClassExpression = node;
-        return holder.members;
-      }
+      if (node instanceof ClassExpression) return node.members;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const holder: InterfaceDeclaration = node;
-        return holder.members;
-      }
+      if (node instanceof InterfaceDeclaration) return node.members;
       break;
     case SyntaxKind.EnumDeclaration:
-      if (node instanceof EnumDeclaration) {
-        const holder: EnumDeclaration = node;
-        return holder.members;
-      }
+      if (node instanceof EnumDeclaration) return node.members;
       break;
     case SyntaxKind.MappedType:
-      if (node instanceof MappedTypeNode) {
-        const holder: MappedTypeNode = node;
-        return holder.members;
-      }
+      if (node instanceof MappedTypeNode) return node.members;
       break;
     case SyntaxKind.TypeLiteral:
-      if (node instanceof TypeLiteralNode) {
-        const holder: TypeLiteralNode = node;
-        return holder.members;
-      }
+      if (node instanceof TypeLiteralNode) return node.members;
       break;
   }
   return undefined;
@@ -8629,28 +7223,16 @@ export function getStatements(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.CaseClause:
     case SyntaxKind.DefaultClause:
-      if (node instanceof CaseOrDefaultClause) {
-        const holder: CaseOrDefaultClause = node;
-        return holder.statements;
-      }
+      if (node instanceof CaseOrDefaultClause) return node.statements;
       break;
     case SyntaxKind.Block:
-      if (node instanceof Block) {
-        const holder: Block = node;
-        return holder.statements;
-      }
+      if (node instanceof Block) return node.statements;
       break;
     case SyntaxKind.ModuleBlock:
-      if (node instanceof ModuleBlock) {
-        const holder: ModuleBlock = node;
-        return holder.statements;
-      }
+      if (node instanceof ModuleBlock) return node.statements;
       break;
     case SyntaxKind.SourceFile:
-      if (node instanceof SourceFile) {
-        const holder: SourceFile = node;
-        return holder.statements;
-      }
+      if (node instanceof SourceFile) return node.statements;
       break;
   }
   return undefined;
@@ -8660,34 +7242,19 @@ export function getElements(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.ObjectBindingPattern:
     case SyntaxKind.ArrayBindingPattern:
-      if (node instanceof BindingPattern) {
-        const holder: BindingPattern = node;
-        return holder.elements;
-      }
+      if (node instanceof BindingPattern) return node.elements;
       break;
     case SyntaxKind.NamedImports:
-      if (node instanceof NamedImports) {
-        const holder: NamedImports = node;
-        return holder.elements;
-      }
+      if (node instanceof NamedImports) return node.elements;
       break;
     case SyntaxKind.NamedExports:
-      if (node instanceof NamedExports) {
-        const holder: NamedExports = node;
-        return holder.elements;
-      }
+      if (node instanceof NamedExports) return node.elements;
       break;
     case SyntaxKind.ArrayLiteralExpression:
-      if (node instanceof ArrayLiteralExpression) {
-        const holder: ArrayLiteralExpression = node;
-        return holder.elements;
-      }
+      if (node instanceof ArrayLiteralExpression) return node.elements;
       break;
     case SyntaxKind.TupleType:
-      if (node instanceof TupleTypeNode) {
-        const holder: TupleTypeNode = node;
-        return holder.elements;
-      }
+      if (node instanceof TupleTypeNode) return node.elements;
       break;
   }
   return undefined;
@@ -8696,16 +7263,10 @@ export function getElements(node: Node): NodeList | undefined {
 export function getProperties(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.ObjectLiteralExpression:
-      if (node instanceof ObjectLiteralExpression) {
-        const holder: ObjectLiteralExpression = node;
-        return holder.properties;
-      }
+      if (node instanceof ObjectLiteralExpression) return node.properties;
       break;
     case SyntaxKind.JsxAttributes:
-      if (node instanceof JsxAttributes) {
-        const holder: JsxAttributes = node;
-        return holder.properties;
-      }
+      if (node instanceof JsxAttributes) return node.properties;
       break;
   }
   return undefined;
@@ -8714,59 +7275,32 @@ export function getProperties(node: Node): NodeList | undefined {
 export function getTypeExpression(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.JSDocTypeTag:
-      if (node instanceof JSDocTypeTag) {
-        const holder: JSDocTypeTag = node;
-        return holder.typeExpression;
-      }
+      if (node instanceof JSDocTypeTag) return node.typeExpression;
       break;
     case SyntaxKind.JSDocReturnTag:
-      if (node instanceof JSDocReturnTag) {
-        const holder: JSDocReturnTag = node;
-        return holder.typeExpression;
-      }
+      if (node instanceof JSDocReturnTag) return node.typeExpression;
       break;
     case SyntaxKind.JSDocSatisfiesTag:
-      if (node instanceof JSDocSatisfiesTag) {
-        const holder: JSDocSatisfiesTag = node;
-        return holder.typeExpression;
-      }
+      if (node instanceof JSDocSatisfiesTag) return node.typeExpression;
       break;
     case SyntaxKind.JSDocThrowsTag:
-      if (node instanceof JSDocThrowsTag) {
-        const holder: JSDocThrowsTag = node;
-        return holder.typeExpression;
-      }
+      if (node instanceof JSDocThrowsTag) return node.typeExpression;
       break;
     case SyntaxKind.JSDocThisTag:
-      if (node instanceof JSDocThisTag) {
-        const holder: JSDocThisTag = node;
-        return holder.typeExpression;
-      }
+      if (node instanceof JSDocThisTag) return node.typeExpression;
       break;
     case SyntaxKind.JSDocCallbackTag:
-      if (node instanceof JSDocCallbackTag) {
-        const holder: JSDocCallbackTag = node;
-        return holder.typeExpression;
-      }
+      if (node instanceof JSDocCallbackTag) return node.typeExpression;
       break;
     case SyntaxKind.JSDocOverloadTag:
-      if (node instanceof JSDocOverloadTag) {
-        const holder: JSDocOverloadTag = node;
-        return holder.typeExpression;
-      }
+      if (node instanceof JSDocOverloadTag) return node.typeExpression;
       break;
     case SyntaxKind.JSDocTypedefTag:
-      if (node instanceof JSDocTypedefTag) {
-        const holder: JSDocTypedefTag = node;
-        return holder.typeExpression;
-      }
+      if (node instanceof JSDocTypedefTag) return node.typeExpression;
       break;
     case SyntaxKind.JSDocParameterTag:
     case SyntaxKind.JSDocPropertyTag:
-      if (node instanceof JSDocParameterOrPropertyTag) {
-        const holder: JSDocParameterOrPropertyTag = node;
-        return holder.typeExpression;
-      }
+      if (node instanceof JSDocParameterOrPropertyTag) return node.typeExpression;
       break;
   }
   return undefined;
@@ -8775,149 +7309,77 @@ export function getTypeExpression(node: Node): Node | undefined {
 export function getTagName(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.JsxOpeningElement:
-      if (node instanceof JsxOpeningElement) {
-        const holder: JsxOpeningElement = node;
-        return holder.tagName;
-      }
+      if (node instanceof JsxOpeningElement) return node.tagName;
       break;
     case SyntaxKind.JsxSelfClosingElement:
-      if (node instanceof JsxSelfClosingElement) {
-        const holder: JsxSelfClosingElement = node;
-        return holder.tagName;
-      }
+      if (node instanceof JsxSelfClosingElement) return node.tagName;
       break;
     case SyntaxKind.JsxClosingElement:
-      if (node instanceof JsxClosingElement) {
-        const holder: JsxClosingElement = node;
-        return holder.tagName;
-      }
+      if (node instanceof JsxClosingElement) return node.tagName;
       break;
     case SyntaxKind.JSDocTypeTag:
-      if (node instanceof JSDocTypeTag) {
-        const holder: JSDocTypeTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocTypeTag) return node.tagName;
       break;
     case SyntaxKind.JSDocUnknownTag:
-      if (node instanceof JSDocUnknownTag) {
-        const holder: JSDocUnknownTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocUnknownTag) return node.tagName;
       break;
     case SyntaxKind.JSDocTemplateTag:
-      if (node instanceof JSDocTemplateTag) {
-        const holder: JSDocTemplateTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocTemplateTag) return node.tagName;
       break;
     case SyntaxKind.JSDocReturnTag:
-      if (node instanceof JSDocReturnTag) {
-        const holder: JSDocReturnTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocReturnTag) return node.tagName;
       break;
     case SyntaxKind.JSDocPublicTag:
-      if (node instanceof JSDocPublicTag) {
-        const holder: JSDocPublicTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocPublicTag) return node.tagName;
       break;
     case SyntaxKind.JSDocPrivateTag:
-      if (node instanceof JSDocPrivateTag) {
-        const holder: JSDocPrivateTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocPrivateTag) return node.tagName;
       break;
     case SyntaxKind.JSDocProtectedTag:
-      if (node instanceof JSDocProtectedTag) {
-        const holder: JSDocProtectedTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocProtectedTag) return node.tagName;
       break;
     case SyntaxKind.JSDocReadonlyTag:
-      if (node instanceof JSDocReadonlyTag) {
-        const holder: JSDocReadonlyTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocReadonlyTag) return node.tagName;
       break;
     case SyntaxKind.JSDocOverrideTag:
-      if (node instanceof JSDocOverrideTag) {
-        const holder: JSDocOverrideTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocOverrideTag) return node.tagName;
       break;
     case SyntaxKind.JSDocDeprecatedTag:
-      if (node instanceof JSDocDeprecatedTag) {
-        const holder: JSDocDeprecatedTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocDeprecatedTag) return node.tagName;
       break;
     case SyntaxKind.JSDocSeeTag:
-      if (node instanceof JSDocSeeTag) {
-        const holder: JSDocSeeTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocSeeTag) return node.tagName;
       break;
     case SyntaxKind.JSDocImplementsTag:
-      if (node instanceof JSDocImplementsTag) {
-        const holder: JSDocImplementsTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocImplementsTag) return node.tagName;
       break;
     case SyntaxKind.JSDocAugmentsTag:
-      if (node instanceof JSDocAugmentsTag) {
-        const holder: JSDocAugmentsTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocAugmentsTag) return node.tagName;
       break;
     case SyntaxKind.JSDocSatisfiesTag:
-      if (node instanceof JSDocSatisfiesTag) {
-        const holder: JSDocSatisfiesTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocSatisfiesTag) return node.tagName;
       break;
     case SyntaxKind.JSDocThrowsTag:
-      if (node instanceof JSDocThrowsTag) {
-        const holder: JSDocThrowsTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocThrowsTag) return node.tagName;
       break;
     case SyntaxKind.JSDocThisTag:
-      if (node instanceof JSDocThisTag) {
-        const holder: JSDocThisTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocThisTag) return node.tagName;
       break;
     case SyntaxKind.JSDocImportTag:
-      if (node instanceof JSDocImportTag) {
-        const holder: JSDocImportTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocImportTag) return node.tagName;
       break;
     case SyntaxKind.JSDocCallbackTag:
-      if (node instanceof JSDocCallbackTag) {
-        const holder: JSDocCallbackTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocCallbackTag) return node.tagName;
       break;
     case SyntaxKind.JSDocOverloadTag:
-      if (node instanceof JSDocOverloadTag) {
-        const holder: JSDocOverloadTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocOverloadTag) return node.tagName;
       break;
     case SyntaxKind.JSDocTypedefTag:
-      if (node instanceof JSDocTypedefTag) {
-        const holder: JSDocTypedefTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocTypedefTag) return node.tagName;
       break;
     case SyntaxKind.JSDocParameterTag:
     case SyntaxKind.JSDocPropertyTag:
-      if (node instanceof JSDocParameterOrPropertyTag) {
-        const holder: JSDocParameterOrPropertyTag = node;
-        return holder.tagName;
-      }
+      if (node instanceof JSDocParameterOrPropertyTag) return node.tagName;
       break;
   }
   return undefined;
@@ -8926,137 +7388,71 @@ export function getTagName(node: Node): Node | undefined {
 export function getComment(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.JSDoc:
-      if (node instanceof JSDoc) {
-        const holder: JSDoc = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDoc) return node.comment;
       break;
     case SyntaxKind.JSDocTypeTag:
-      if (node instanceof JSDocTypeTag) {
-        const holder: JSDocTypeTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocTypeTag) return node.comment;
       break;
     case SyntaxKind.JSDocUnknownTag:
-      if (node instanceof JSDocUnknownTag) {
-        const holder: JSDocUnknownTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocUnknownTag) return node.comment;
       break;
     case SyntaxKind.JSDocTemplateTag:
-      if (node instanceof JSDocTemplateTag) {
-        const holder: JSDocTemplateTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocTemplateTag) return node.comment;
       break;
     case SyntaxKind.JSDocReturnTag:
-      if (node instanceof JSDocReturnTag) {
-        const holder: JSDocReturnTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocReturnTag) return node.comment;
       break;
     case SyntaxKind.JSDocPublicTag:
-      if (node instanceof JSDocPublicTag) {
-        const holder: JSDocPublicTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocPublicTag) return node.comment;
       break;
     case SyntaxKind.JSDocPrivateTag:
-      if (node instanceof JSDocPrivateTag) {
-        const holder: JSDocPrivateTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocPrivateTag) return node.comment;
       break;
     case SyntaxKind.JSDocProtectedTag:
-      if (node instanceof JSDocProtectedTag) {
-        const holder: JSDocProtectedTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocProtectedTag) return node.comment;
       break;
     case SyntaxKind.JSDocReadonlyTag:
-      if (node instanceof JSDocReadonlyTag) {
-        const holder: JSDocReadonlyTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocReadonlyTag) return node.comment;
       break;
     case SyntaxKind.JSDocOverrideTag:
-      if (node instanceof JSDocOverrideTag) {
-        const holder: JSDocOverrideTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocOverrideTag) return node.comment;
       break;
     case SyntaxKind.JSDocDeprecatedTag:
-      if (node instanceof JSDocDeprecatedTag) {
-        const holder: JSDocDeprecatedTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocDeprecatedTag) return node.comment;
       break;
     case SyntaxKind.JSDocSeeTag:
-      if (node instanceof JSDocSeeTag) {
-        const holder: JSDocSeeTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocSeeTag) return node.comment;
       break;
     case SyntaxKind.JSDocImplementsTag:
-      if (node instanceof JSDocImplementsTag) {
-        const holder: JSDocImplementsTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocImplementsTag) return node.comment;
       break;
     case SyntaxKind.JSDocAugmentsTag:
-      if (node instanceof JSDocAugmentsTag) {
-        const holder: JSDocAugmentsTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocAugmentsTag) return node.comment;
       break;
     case SyntaxKind.JSDocSatisfiesTag:
-      if (node instanceof JSDocSatisfiesTag) {
-        const holder: JSDocSatisfiesTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocSatisfiesTag) return node.comment;
       break;
     case SyntaxKind.JSDocThrowsTag:
-      if (node instanceof JSDocThrowsTag) {
-        const holder: JSDocThrowsTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocThrowsTag) return node.comment;
       break;
     case SyntaxKind.JSDocThisTag:
-      if (node instanceof JSDocThisTag) {
-        const holder: JSDocThisTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocThisTag) return node.comment;
       break;
     case SyntaxKind.JSDocImportTag:
-      if (node instanceof JSDocImportTag) {
-        const holder: JSDocImportTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocImportTag) return node.comment;
       break;
     case SyntaxKind.JSDocCallbackTag:
-      if (node instanceof JSDocCallbackTag) {
-        const holder: JSDocCallbackTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocCallbackTag) return node.comment;
       break;
     case SyntaxKind.JSDocOverloadTag:
-      if (node instanceof JSDocOverloadTag) {
-        const holder: JSDocOverloadTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocOverloadTag) return node.comment;
       break;
     case SyntaxKind.JSDocTypedefTag:
-      if (node instanceof JSDocTypedefTag) {
-        const holder: JSDocTypedefTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocTypedefTag) return node.comment;
       break;
     case SyntaxKind.JSDocParameterTag:
     case SyntaxKind.JSDocPropertyTag:
-      if (node instanceof JSDocParameterOrPropertyTag) {
-        const holder: JSDocParameterOrPropertyTag = node;
-        return holder.comment;
-      }
+      if (node instanceof JSDocParameterOrPropertyTag) return node.comment;
       break;
   }
   return undefined;
@@ -9065,28 +7461,16 @@ export function getComment(node: Node): NodeList | undefined {
 export function getIsTypeOnly(node: Node): boolean {
   switch (node.kind) {
     case SyntaxKind.ExportSpecifier:
-      if (node instanceof ExportSpecifier) {
-        const holder: ExportSpecifier = node;
-        return holder.isTypeOnly;
-      }
+      if (node instanceof ExportSpecifier) return node.isTypeOnly;
       break;
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration) {
-        const holder: ImportEqualsDeclaration = node;
-        return holder.isTypeOnly;
-      }
+      if (node instanceof ImportEqualsDeclaration) return node.isTypeOnly;
       break;
     case SyntaxKind.ExportDeclaration:
-      if (node instanceof ExportDeclaration) {
-        const holder: ExportDeclaration = node;
-        return holder.isTypeOnly;
-      }
+      if (node instanceof ExportDeclaration) return node.isTypeOnly;
       break;
     case SyntaxKind.ImportSpecifier:
-      if (node instanceof ImportSpecifier) {
-        const holder: ImportSpecifier = node;
-        return holder.isTypeOnly;
-      }
+      if (node instanceof ImportSpecifier) return node.isTypeOnly;
       break;
   }
   return false;
@@ -9096,16 +7480,10 @@ export function getImportClause(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.ImportDeclaration:
     case SyntaxKind.JSImportDeclaration:
-      if (node instanceof ImportDeclaration) {
-        const holder: ImportDeclaration = node;
-        return holder.importClause;
-      }
+      if (node instanceof ImportDeclaration) return node.importClause;
       break;
     case SyntaxKind.JSDocImportTag:
-      if (node instanceof JSDocImportTag) {
-        const holder: JSDocImportTag = node;
-        return holder.importClause;
-      }
+      if (node instanceof JSDocImportTag) return node.importClause;
       break;
   }
   return undefined;
@@ -9115,22 +7493,13 @@ export function getModuleSpecifier(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.ImportDeclaration:
     case SyntaxKind.JSImportDeclaration:
-      if (node instanceof ImportDeclaration) {
-        const holder: ImportDeclaration = node;
-        return holder.moduleSpecifier;
-      }
+      if (node instanceof ImportDeclaration) return node.moduleSpecifier;
       break;
     case SyntaxKind.JSDocImportTag:
-      if (node instanceof JSDocImportTag) {
-        const holder: JSDocImportTag = node;
-        return holder.moduleSpecifier;
-      }
+      if (node instanceof JSDocImportTag) return node.moduleSpecifier;
       break;
     case SyntaxKind.ExportDeclaration:
-      if (node instanceof ExportDeclaration) {
-        const holder: ExportDeclaration = node;
-        return holder.moduleSpecifier;
-      }
+      if (node instanceof ExportDeclaration) return node.moduleSpecifier;
       break;
   }
   return undefined;
@@ -9139,28 +7508,16 @@ export function getModuleSpecifier(node: Node): Node | undefined {
 export function getDotDotDotToken(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.Parameter:
-      if (node instanceof ParameterDeclaration) {
-        const holder: ParameterDeclaration = node;
-        return holder.dotDotDotToken;
-      }
+      if (node instanceof ParameterDeclaration) return node.dotDotDotToken;
       break;
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const holder: BindingElement = node;
-        return holder.dotDotDotToken;
-      }
+      if (node instanceof BindingElement) return node.dotDotDotToken;
       break;
     case SyntaxKind.NamedTupleMember:
-      if (node instanceof NamedTupleMember) {
-        const holder: NamedTupleMember = node;
-        return holder.dotDotDotToken;
-      }
+      if (node instanceof NamedTupleMember) return node.dotDotDotToken;
       break;
     case SyntaxKind.JsxExpression:
-      if (node instanceof JsxExpression) {
-        const holder: JsxExpression = node;
-        return holder.dotDotDotToken;
-      }
+      if (node instanceof JsxExpression) return node.dotDotDotToken;
       break;
   }
   return undefined;
@@ -9169,28 +7526,16 @@ export function getDotDotDotToken(node: Node): Node | undefined {
 export function getAsteriskToken(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.asteriskToken;
-      }
+      if (node instanceof FunctionDeclaration) return node.asteriskToken;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.asteriskToken;
-      }
+      if (node instanceof MethodDeclaration) return node.asteriskToken;
       break;
     case SyntaxKind.YieldExpression:
-      if (node instanceof YieldExpression) {
-        const holder: YieldExpression = node;
-        return holder.asteriskToken;
-      }
+      if (node instanceof YieldExpression) return node.asteriskToken;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.asteriskToken;
-      }
+      if (node instanceof FunctionExpression) return node.asteriskToken;
       break;
   }
   return undefined;
@@ -9199,28 +7544,16 @@ export function getAsteriskToken(node: Node): Node | undefined {
 export function getQuestionToken(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.Parameter:
-      if (node instanceof ParameterDeclaration) {
-        const holder: ParameterDeclaration = node;
-        return holder.questionToken;
-      }
+      if (node instanceof ParameterDeclaration) return node.questionToken;
       break;
     case SyntaxKind.ConditionalExpression:
-      if (node instanceof ConditionalExpression) {
-        const holder: ConditionalExpression = node;
-        return holder.questionToken;
-      }
+      if (node instanceof ConditionalExpression) return node.questionToken;
       break;
     case SyntaxKind.MappedType:
-      if (node instanceof MappedTypeNode) {
-        const holder: MappedTypeNode = node;
-        return holder.questionToken;
-      }
+      if (node instanceof MappedTypeNode) return node.questionToken;
       break;
     case SyntaxKind.NamedTupleMember:
-      if (node instanceof NamedTupleMember) {
-        const holder: NamedTupleMember = node;
-        return holder.questionToken;
-      }
+      if (node instanceof NamedTupleMember) return node.questionToken;
       break;
   }
   return undefined;
@@ -9229,94 +7562,49 @@ export function getQuestionToken(node: Node): Node | undefined {
 export function getText(node: Node): string {
   switch (node.kind) {
     case SyntaxKind.Identifier:
-      if (node instanceof Identifier) {
-        const holder: Identifier = node;
-        return holder.text;
-      }
+      if (node instanceof Identifier) return node.text;
       break;
     case SyntaxKind.PrivateIdentifier:
-      if (node instanceof PrivateIdentifier) {
-        const holder: PrivateIdentifier = node;
-        return holder.text;
-      }
+      if (node instanceof PrivateIdentifier) return node.text;
       break;
     case SyntaxKind.StringLiteral:
-      if (node instanceof StringLiteral) {
-        const holder: StringLiteral = node;
-        return holder.text;
-      }
+      if (node instanceof StringLiteral) return node.text;
       break;
     case SyntaxKind.NumericLiteral:
-      if (node instanceof NumericLiteral) {
-        const holder: NumericLiteral = node;
-        return holder.text;
-      }
+      if (node instanceof NumericLiteral) return node.text;
       break;
     case SyntaxKind.BigIntLiteral:
-      if (node instanceof BigIntLiteral) {
-        const holder: BigIntLiteral = node;
-        return holder.text;
-      }
+      if (node instanceof BigIntLiteral) return node.text;
       break;
     case SyntaxKind.RegularExpressionLiteral:
-      if (node instanceof RegularExpressionLiteral) {
-        const holder: RegularExpressionLiteral = node;
-        return holder.text;
-      }
+      if (node instanceof RegularExpressionLiteral) return node.text;
       break;
     case SyntaxKind.NoSubstitutionTemplateLiteral:
-      if (node instanceof NoSubstitutionTemplateLiteral) {
-        const holder: NoSubstitutionTemplateLiteral = node;
-        return holder.text;
-      }
+      if (node instanceof NoSubstitutionTemplateLiteral) return node.text;
       break;
     case SyntaxKind.TemplateHead:
-      if (node instanceof TemplateHead) {
-        const holder: TemplateHead = node;
-        return holder.text;
-      }
+      if (node instanceof TemplateHead) return node.text;
       break;
     case SyntaxKind.TemplateMiddle:
-      if (node instanceof TemplateMiddle) {
-        const holder: TemplateMiddle = node;
-        return holder.text;
-      }
+      if (node instanceof TemplateMiddle) return node.text;
       break;
     case SyntaxKind.TemplateTail:
-      if (node instanceof TemplateTail) {
-        const holder: TemplateTail = node;
-        return holder.text;
-      }
+      if (node instanceof TemplateTail) return node.text;
       break;
     case SyntaxKind.JsxText:
-      if (node instanceof JsxText) {
-        const holder: JsxText = node;
-        return holder.text;
-      }
+      if (node instanceof JsxText) return node.text;
       break;
     case SyntaxKind.JSDocText:
-      if (node instanceof JSDocText) {
-        const holder: JSDocText = node;
-        return holder.text;
-      }
+      if (node instanceof JSDocText) return node.text;
       break;
     case SyntaxKind.JSDocLink:
-      if (node instanceof JSDocLink) {
-        const holder: JSDocLink = node;
-        return holder.text;
-      }
+      if (node instanceof JSDocLink) return node.text;
       break;
     case SyntaxKind.JSDocLinkPlain:
-      if (node instanceof JSDocLinkPlain) {
-        const holder: JSDocLinkPlain = node;
-        return holder.text;
-      }
+      if (node instanceof JSDocLinkPlain) return node.text;
       break;
     case SyntaxKind.JSDocLinkCode:
-      if (node instanceof JSDocLinkCode) {
-        const holder: JSDocLinkCode = node;
-        return holder.text;
-      }
+      if (node instanceof JSDocLinkCode) return node.text;
       break;
   }
   return '';
@@ -9325,22 +7613,13 @@ export function getText(node: Node): string {
 export function getHeritageClauses(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.heritageClauses;
-      }
+      if (node instanceof ClassDeclaration) return node.heritageClauses;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const holder: ClassExpression = node;
-        return holder.heritageClauses;
-      }
+      if (node instanceof ClassExpression) return node.heritageClauses;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const holder: InterfaceDeclaration = node;
-        return holder.heritageClauses;
-      }
+      if (node instanceof InterfaceDeclaration) return node.heritageClauses;
       break;
   }
   return undefined;
@@ -9349,22 +7628,13 @@ export function getHeritageClauses(node: Node): NodeList | undefined {
 export function getLabel(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.BreakStatement:
-      if (node instanceof BreakStatement) {
-        const holder: BreakStatement = node;
-        return holder.label;
-      }
+      if (node instanceof BreakStatement) return node.label;
       break;
     case SyntaxKind.ContinueStatement:
-      if (node instanceof ContinueStatement) {
-        const holder: ContinueStatement = node;
-        return holder.label;
-      }
+      if (node instanceof ContinueStatement) return node.label;
       break;
     case SyntaxKind.LabeledStatement:
-      if (node instanceof LabeledStatement) {
-        const holder: LabeledStatement = node;
-        return holder.label;
-      }
+      if (node instanceof LabeledStatement) return node.label;
       break;
   }
   return undefined;
@@ -9373,41 +7643,23 @@ export function getLabel(node: Node): Node | undefined {
 export function getStatement(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.DoStatement:
-      if (node instanceof DoStatement) {
-        const holder: DoStatement = node;
-        return holder.statement;
-      }
+      if (node instanceof DoStatement) return node.statement;
       break;
     case SyntaxKind.WhileStatement:
-      if (node instanceof WhileStatement) {
-        const holder: WhileStatement = node;
-        return holder.statement;
-      }
+      if (node instanceof WhileStatement) return node.statement;
       break;
     case SyntaxKind.ForStatement:
-      if (node instanceof ForStatement) {
-        const holder: ForStatement = node;
-        return holder.statement;
-      }
+      if (node instanceof ForStatement) return node.statement;
       break;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
-      if (node instanceof ForInOrOfStatement) {
-        const holder: ForInOrOfStatement = node;
-        return holder.statement;
-      }
+      if (node instanceof ForInOrOfStatement) return node.statement;
       break;
     case SyntaxKind.WithStatement:
-      if (node instanceof WithStatement) {
-        const holder: WithStatement = node;
-        return holder.statement;
-      }
+      if (node instanceof WithStatement) return node.statement;
       break;
     case SyntaxKind.LabeledStatement:
-      if (node instanceof LabeledStatement) {
-        const holder: LabeledStatement = node;
-        return holder.statement;
-      }
+      if (node instanceof LabeledStatement) return node.statement;
       break;
   }
   return undefined;
@@ -9416,22 +7668,13 @@ export function getStatement(node: Node): Node | undefined {
 export function getLiteral(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.TemplateSpan:
-      if (node instanceof TemplateSpan) {
-        const holder: TemplateSpan = node;
-        return holder.literal;
-      }
+      if (node instanceof TemplateSpan) return node.literal;
       break;
     case SyntaxKind.LiteralType:
-      if (node instanceof LiteralTypeNode) {
-        const holder: LiteralTypeNode = node;
-        return holder.literal;
-      }
+      if (node instanceof LiteralTypeNode) return node.literal;
       break;
     case SyntaxKind.TemplateLiteralTypeSpan:
-      if (node instanceof TemplateLiteralTypeSpan) {
-        const holder: TemplateLiteralTypeSpan = node;
-        return holder.literal;
-      }
+      if (node instanceof TemplateLiteralTypeSpan) return node.literal;
       break;
   }
   return undefined;
@@ -9440,22 +7683,13 @@ export function getLiteral(node: Node): Node | undefined {
 export function getPropertyName(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const holder: BindingElement = node;
-        return holder.propertyName;
-      }
+      if (node instanceof BindingElement) return node.propertyName;
       break;
     case SyntaxKind.ExportSpecifier:
-      if (node instanceof ExportSpecifier) {
-        const holder: ExportSpecifier = node;
-        return holder.propertyName;
-      }
+      if (node instanceof ExportSpecifier) return node.propertyName;
       break;
     case SyntaxKind.ImportSpecifier:
-      if (node instanceof ImportSpecifier) {
-        const holder: ImportSpecifier = node;
-        return holder.propertyName;
-      }
+      if (node instanceof ImportSpecifier) return node.propertyName;
       break;
   }
   return undefined;
@@ -9563,330 +7797,168 @@ export function isLocalsContainer(node: Node): boolean {
 export function getSymbol(node: Node): Symbol | undefined {
   switch (node.kind) {
     case SyntaxKind.VariableDeclaration:
-      if (node instanceof VariableDeclaration) {
-        const holder: VariableDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof VariableDeclaration) return node.symbol;
       break;
     case SyntaxKind.Parameter:
-      if (node instanceof ParameterDeclaration) {
-        const holder: ParameterDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof ParameterDeclaration) return node.symbol;
       break;
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const holder: BindingElement = node;
-        return holder.symbol;
-      }
+      if (node instanceof BindingElement) return node.symbol;
       break;
     case SyntaxKind.MissingDeclaration:
-      if (node instanceof MissingDeclaration) {
-        const holder: MissingDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof MissingDeclaration) return node.symbol;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof FunctionDeclaration) return node.symbol;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof ClassDeclaration) return node.symbol;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const holder: ClassExpression = node;
-        return holder.symbol;
-      }
+      if (node instanceof ClassExpression) return node.symbol;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const holder: InterfaceDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof InterfaceDeclaration) return node.symbol;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const holder: TypeAliasDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof TypeAliasDeclaration) return node.symbol;
       break;
     case SyntaxKind.EnumMember:
-      if (node instanceof EnumMember) {
-        const holder: EnumMember = node;
-        return holder.symbol;
-      }
+      if (node instanceof EnumMember) return node.symbol;
       break;
     case SyntaxKind.EnumDeclaration:
-      if (node instanceof EnumDeclaration) {
-        const holder: EnumDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof EnumDeclaration) return node.symbol;
       break;
     case SyntaxKind.ImportDeclaration:
     case SyntaxKind.JSImportDeclaration:
-      if (node instanceof ImportDeclaration) {
-        const holder: ImportDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof ImportDeclaration) return node.symbol;
       break;
     case SyntaxKind.NamespaceImport:
-      if (node instanceof NamespaceImport) {
-        const holder: NamespaceImport = node;
-        return holder.symbol;
-      }
+      if (node instanceof NamespaceImport) return node.symbol;
       break;
     case SyntaxKind.ExportAssignment:
-      if (node instanceof ExportAssignment) {
-        const holder: ExportAssignment = node;
-        return holder.symbol;
-      }
+      if (node instanceof ExportAssignment) return node.symbol;
       break;
     case SyntaxKind.NamespaceExportDeclaration:
-      if (node instanceof NamespaceExportDeclaration) {
-        const holder: NamespaceExportDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof NamespaceExportDeclaration) return node.symbol;
       break;
     case SyntaxKind.NamespaceExport:
-      if (node instanceof NamespaceExport) {
-        const holder: NamespaceExport = node;
-        return holder.symbol;
-      }
+      if (node instanceof NamespaceExport) return node.symbol;
       break;
     case SyntaxKind.ExportSpecifier:
-      if (node instanceof ExportSpecifier) {
-        const holder: ExportSpecifier = node;
-        return holder.symbol;
-      }
+      if (node instanceof ExportSpecifier) return node.symbol;
       break;
     case SyntaxKind.CallSignature:
-      if (node instanceof CallSignatureDeclaration) {
-        const holder: CallSignatureDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof CallSignatureDeclaration) return node.symbol;
       break;
     case SyntaxKind.ConstructSignature:
-      if (node instanceof ConstructSignatureDeclaration) {
-        const holder: ConstructSignatureDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof ConstructSignatureDeclaration) return node.symbol;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof ConstructorDeclaration) return node.symbol;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.symbol;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.symbol;
       break;
     case SyntaxKind.IndexSignature:
-      if (node instanceof IndexSignatureDeclaration) {
-        const holder: IndexSignatureDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof IndexSignatureDeclaration) return node.symbol;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const holder: MethodSignatureDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof MethodSignatureDeclaration) return node.symbol;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof MethodDeclaration) return node.symbol;
       break;
     case SyntaxKind.PropertySignature:
-      if (node instanceof PropertySignatureDeclaration) {
-        const holder: PropertySignatureDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof PropertySignatureDeclaration) return node.symbol;
       break;
     case SyntaxKind.PropertyDeclaration:
-      if (node instanceof PropertyDeclaration) {
-        const holder: PropertyDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof PropertyDeclaration) return node.symbol;
       break;
     case SyntaxKind.SemicolonClassElement:
-      if (node instanceof SemicolonClassElement) {
-        const holder: SemicolonClassElement = node;
-        return holder.symbol;
-      }
+      if (node instanceof SemicolonClassElement) return node.symbol;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const holder: ClassStaticBlockDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) return node.symbol;
       break;
     case SyntaxKind.NoSubstitutionTemplateLiteral:
-      if (node instanceof NoSubstitutionTemplateLiteral) {
-        const holder: NoSubstitutionTemplateLiteral = node;
-        return holder.symbol;
-      }
+      if (node instanceof NoSubstitutionTemplateLiteral) return node.symbol;
       break;
     case SyntaxKind.BinaryExpression:
-      if (node instanceof BinaryExpression) {
-        const holder: BinaryExpression = node;
-        return holder.symbol;
-      }
+      if (node instanceof BinaryExpression) return node.symbol;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.symbol;
-      }
+      if (node instanceof ArrowFunction) return node.symbol;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.symbol;
-      }
+      if (node instanceof FunctionExpression) return node.symbol;
       break;
     case SyntaxKind.CallExpression:
-      if (node instanceof CallExpression) {
-        const holder: CallExpression = node;
-        return holder.symbol;
-      }
+      if (node instanceof CallExpression) return node.symbol;
       break;
     case SyntaxKind.ObjectLiteralExpression:
-      if (node instanceof ObjectLiteralExpression) {
-        const holder: ObjectLiteralExpression = node;
-        return holder.symbol;
-      }
+      if (node instanceof ObjectLiteralExpression) return node.symbol;
       break;
     case SyntaxKind.SpreadAssignment:
-      if (node instanceof SpreadAssignment) {
-        const holder: SpreadAssignment = node;
-        return holder.symbol;
-      }
+      if (node instanceof SpreadAssignment) return node.symbol;
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const holder: PropertyAssignment = node;
-        return holder.symbol;
-      }
+      if (node instanceof PropertyAssignment) return node.symbol;
       break;
     case SyntaxKind.ShorthandPropertyAssignment:
-      if (node instanceof ShorthandPropertyAssignment) {
-        const holder: ShorthandPropertyAssignment = node;
-        return holder.symbol;
-      }
+      if (node instanceof ShorthandPropertyAssignment) return node.symbol;
       break;
     case SyntaxKind.MappedType:
-      if (node instanceof MappedTypeNode) {
-        const holder: MappedTypeNode = node;
-        return holder.symbol;
-      }
+      if (node instanceof MappedTypeNode) return node.symbol;
       break;
     case SyntaxKind.TypeLiteral:
-      if (node instanceof TypeLiteralNode) {
-        const holder: TypeLiteralNode = node;
-        return holder.symbol;
-      }
+      if (node instanceof TypeLiteralNode) return node.symbol;
       break;
     case SyntaxKind.NamedTupleMember:
-      if (node instanceof NamedTupleMember) {
-        const holder: NamedTupleMember = node;
-        return holder.symbol;
-      }
+      if (node instanceof NamedTupleMember) return node.symbol;
       break;
     case SyntaxKind.FunctionType:
-      if (node instanceof FunctionTypeNode) {
-        const holder: FunctionTypeNode = node;
-        return holder.symbol;
-      }
+      if (node instanceof FunctionTypeNode) return node.symbol;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const holder: ConstructorTypeNode = node;
-        return holder.symbol;
-      }
+      if (node instanceof ConstructorTypeNode) return node.symbol;
       break;
     case SyntaxKind.JsxAttributes:
-      if (node instanceof JsxAttributes) {
-        const holder: JsxAttributes = node;
-        return holder.symbol;
-      }
+      if (node instanceof JsxAttributes) return node.symbol;
       break;
     case SyntaxKind.JsxAttribute:
-      if (node instanceof JsxAttribute) {
-        const holder: JsxAttribute = node;
-        return holder.symbol;
-      }
+      if (node instanceof JsxAttribute) return node.symbol;
       break;
     case SyntaxKind.JSDocSignature:
-      if (node instanceof JSDocSignature) {
-        const holder: JSDocSignature = node;
-        return holder.symbol;
-      }
+      if (node instanceof JSDocSignature) return node.symbol;
       break;
     case SyntaxKind.SourceFile:
-      if (node instanceof SourceFile) {
-        const holder: SourceFile = node;
-        return holder.symbol;
-      }
+      if (node instanceof SourceFile) return node.symbol;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const holder: ModuleDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof ModuleDeclaration) return node.symbol;
       break;
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration) {
-        const holder: ImportEqualsDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof ImportEqualsDeclaration) return node.symbol;
       break;
     case SyntaxKind.ExportDeclaration:
-      if (node instanceof ExportDeclaration) {
-        const holder: ExportDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof ExportDeclaration) return node.symbol;
       break;
     case SyntaxKind.ImportClause:
-      if (node instanceof ImportClause) {
-        const holder: ImportClause = node;
-        return holder.symbol;
-      }
+      if (node instanceof ImportClause) return node.symbol;
       break;
     case SyntaxKind.ImportSpecifier:
-      if (node instanceof ImportSpecifier) {
-        const holder: ImportSpecifier = node;
-        return holder.symbol;
-      }
+      if (node instanceof ImportSpecifier) return node.symbol;
       break;
     case SyntaxKind.TypeParameter:
-      if (node instanceof TypeParameterDeclaration) {
-        const holder: TypeParameterDeclaration = node;
-        return holder.symbol;
-      }
+      if (node instanceof TypeParameterDeclaration) return node.symbol;
       break;
     case SyntaxKind.JSDocTypeLiteral:
-      if (node instanceof JSDocTypeLiteral) {
-        const holder: JSDocTypeLiteral = node;
-        return holder.symbol;
-      }
+      if (node instanceof JSDocTypeLiteral) return node.symbol;
       break;
   }
   return undefined;
@@ -9895,330 +7967,168 @@ export function getSymbol(node: Node): Symbol | undefined {
 export function setSymbol(node: Node, value: Symbol | undefined): void {
   switch (node.kind) {
     case SyntaxKind.VariableDeclaration:
-      if (node instanceof VariableDeclaration) {
-        const target: VariableDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof VariableDeclaration) node.symbol = value;
       break;
     case SyntaxKind.Parameter:
-      if (node instanceof ParameterDeclaration) {
-        const target: ParameterDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof ParameterDeclaration) node.symbol = value;
       break;
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const target: BindingElement = node;
-        target.symbol = value;
-      }
+      if (node instanceof BindingElement) node.symbol = value;
       break;
     case SyntaxKind.MissingDeclaration:
-      if (node instanceof MissingDeclaration) {
-        const target: MissingDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof MissingDeclaration) node.symbol = value;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const target: FunctionDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof FunctionDeclaration) node.symbol = value;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const target: ClassDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof ClassDeclaration) node.symbol = value;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const target: ClassExpression = node;
-        target.symbol = value;
-      }
+      if (node instanceof ClassExpression) node.symbol = value;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const target: InterfaceDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof InterfaceDeclaration) node.symbol = value;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const target: TypeAliasDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof TypeAliasDeclaration) node.symbol = value;
       break;
     case SyntaxKind.EnumMember:
-      if (node instanceof EnumMember) {
-        const target: EnumMember = node;
-        target.symbol = value;
-      }
+      if (node instanceof EnumMember) node.symbol = value;
       break;
     case SyntaxKind.EnumDeclaration:
-      if (node instanceof EnumDeclaration) {
-        const target: EnumDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof EnumDeclaration) node.symbol = value;
       break;
     case SyntaxKind.ImportDeclaration:
     case SyntaxKind.JSImportDeclaration:
-      if (node instanceof ImportDeclaration) {
-        const target: ImportDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof ImportDeclaration) node.symbol = value;
       break;
     case SyntaxKind.NamespaceImport:
-      if (node instanceof NamespaceImport) {
-        const target: NamespaceImport = node;
-        target.symbol = value;
-      }
+      if (node instanceof NamespaceImport) node.symbol = value;
       break;
     case SyntaxKind.ExportAssignment:
-      if (node instanceof ExportAssignment) {
-        const target: ExportAssignment = node;
-        target.symbol = value;
-      }
+      if (node instanceof ExportAssignment) node.symbol = value;
       break;
     case SyntaxKind.NamespaceExportDeclaration:
-      if (node instanceof NamespaceExportDeclaration) {
-        const target: NamespaceExportDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof NamespaceExportDeclaration) node.symbol = value;
       break;
     case SyntaxKind.NamespaceExport:
-      if (node instanceof NamespaceExport) {
-        const target: NamespaceExport = node;
-        target.symbol = value;
-      }
+      if (node instanceof NamespaceExport) node.symbol = value;
       break;
     case SyntaxKind.ExportSpecifier:
-      if (node instanceof ExportSpecifier) {
-        const target: ExportSpecifier = node;
-        target.symbol = value;
-      }
+      if (node instanceof ExportSpecifier) node.symbol = value;
       break;
     case SyntaxKind.CallSignature:
-      if (node instanceof CallSignatureDeclaration) {
-        const target: CallSignatureDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof CallSignatureDeclaration) node.symbol = value;
       break;
     case SyntaxKind.ConstructSignature:
-      if (node instanceof ConstructSignatureDeclaration) {
-        const target: ConstructSignatureDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof ConstructSignatureDeclaration) node.symbol = value;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const target: ConstructorDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof ConstructorDeclaration) node.symbol = value;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const target: GetAccessorDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof GetAccessorDeclaration) node.symbol = value;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const target: SetAccessorDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof SetAccessorDeclaration) node.symbol = value;
       break;
     case SyntaxKind.IndexSignature:
-      if (node instanceof IndexSignatureDeclaration) {
-        const target: IndexSignatureDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof IndexSignatureDeclaration) node.symbol = value;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const target: MethodSignatureDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof MethodSignatureDeclaration) node.symbol = value;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const target: MethodDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof MethodDeclaration) node.symbol = value;
       break;
     case SyntaxKind.PropertySignature:
-      if (node instanceof PropertySignatureDeclaration) {
-        const target: PropertySignatureDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof PropertySignatureDeclaration) node.symbol = value;
       break;
     case SyntaxKind.PropertyDeclaration:
-      if (node instanceof PropertyDeclaration) {
-        const target: PropertyDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof PropertyDeclaration) node.symbol = value;
       break;
     case SyntaxKind.SemicolonClassElement:
-      if (node instanceof SemicolonClassElement) {
-        const target: SemicolonClassElement = node;
-        target.symbol = value;
-      }
+      if (node instanceof SemicolonClassElement) node.symbol = value;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const target: ClassStaticBlockDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) node.symbol = value;
       break;
     case SyntaxKind.NoSubstitutionTemplateLiteral:
-      if (node instanceof NoSubstitutionTemplateLiteral) {
-        const target: NoSubstitutionTemplateLiteral = node;
-        target.symbol = value;
-      }
+      if (node instanceof NoSubstitutionTemplateLiteral) node.symbol = value;
       break;
     case SyntaxKind.BinaryExpression:
-      if (node instanceof BinaryExpression) {
-        const target: BinaryExpression = node;
-        target.symbol = value;
-      }
+      if (node instanceof BinaryExpression) node.symbol = value;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const target: ArrowFunction = node;
-        target.symbol = value;
-      }
+      if (node instanceof ArrowFunction) node.symbol = value;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const target: FunctionExpression = node;
-        target.symbol = value;
-      }
+      if (node instanceof FunctionExpression) node.symbol = value;
       break;
     case SyntaxKind.CallExpression:
-      if (node instanceof CallExpression) {
-        const target: CallExpression = node;
-        target.symbol = value;
-      }
+      if (node instanceof CallExpression) node.symbol = value;
       break;
     case SyntaxKind.ObjectLiteralExpression:
-      if (node instanceof ObjectLiteralExpression) {
-        const target: ObjectLiteralExpression = node;
-        target.symbol = value;
-      }
+      if (node instanceof ObjectLiteralExpression) node.symbol = value;
       break;
     case SyntaxKind.SpreadAssignment:
-      if (node instanceof SpreadAssignment) {
-        const target: SpreadAssignment = node;
-        target.symbol = value;
-      }
+      if (node instanceof SpreadAssignment) node.symbol = value;
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const target: PropertyAssignment = node;
-        target.symbol = value;
-      }
+      if (node instanceof PropertyAssignment) node.symbol = value;
       break;
     case SyntaxKind.ShorthandPropertyAssignment:
-      if (node instanceof ShorthandPropertyAssignment) {
-        const target: ShorthandPropertyAssignment = node;
-        target.symbol = value;
-      }
+      if (node instanceof ShorthandPropertyAssignment) node.symbol = value;
       break;
     case SyntaxKind.MappedType:
-      if (node instanceof MappedTypeNode) {
-        const target: MappedTypeNode = node;
-        target.symbol = value;
-      }
+      if (node instanceof MappedTypeNode) node.symbol = value;
       break;
     case SyntaxKind.TypeLiteral:
-      if (node instanceof TypeLiteralNode) {
-        const target: TypeLiteralNode = node;
-        target.symbol = value;
-      }
+      if (node instanceof TypeLiteralNode) node.symbol = value;
       break;
     case SyntaxKind.NamedTupleMember:
-      if (node instanceof NamedTupleMember) {
-        const target: NamedTupleMember = node;
-        target.symbol = value;
-      }
+      if (node instanceof NamedTupleMember) node.symbol = value;
       break;
     case SyntaxKind.FunctionType:
-      if (node instanceof FunctionTypeNode) {
-        const target: FunctionTypeNode = node;
-        target.symbol = value;
-      }
+      if (node instanceof FunctionTypeNode) node.symbol = value;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const target: ConstructorTypeNode = node;
-        target.symbol = value;
-      }
+      if (node instanceof ConstructorTypeNode) node.symbol = value;
       break;
     case SyntaxKind.JsxAttributes:
-      if (node instanceof JsxAttributes) {
-        const target: JsxAttributes = node;
-        target.symbol = value;
-      }
+      if (node instanceof JsxAttributes) node.symbol = value;
       break;
     case SyntaxKind.JsxAttribute:
-      if (node instanceof JsxAttribute) {
-        const target: JsxAttribute = node;
-        target.symbol = value;
-      }
+      if (node instanceof JsxAttribute) node.symbol = value;
       break;
     case SyntaxKind.JSDocSignature:
-      if (node instanceof JSDocSignature) {
-        const target: JSDocSignature = node;
-        target.symbol = value;
-      }
+      if (node instanceof JSDocSignature) node.symbol = value;
       break;
     case SyntaxKind.SourceFile:
-      if (node instanceof SourceFile) {
-        const target: SourceFile = node;
-        target.symbol = value;
-      }
+      if (node instanceof SourceFile) node.symbol = value;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const target: ModuleDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof ModuleDeclaration) node.symbol = value;
       break;
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration) {
-        const target: ImportEqualsDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof ImportEqualsDeclaration) node.symbol = value;
       break;
     case SyntaxKind.ExportDeclaration:
-      if (node instanceof ExportDeclaration) {
-        const target: ExportDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof ExportDeclaration) node.symbol = value;
       break;
     case SyntaxKind.ImportClause:
-      if (node instanceof ImportClause) {
-        const target: ImportClause = node;
-        target.symbol = value;
-      }
+      if (node instanceof ImportClause) node.symbol = value;
       break;
     case SyntaxKind.ImportSpecifier:
-      if (node instanceof ImportSpecifier) {
-        const target: ImportSpecifier = node;
-        target.symbol = value;
-      }
+      if (node instanceof ImportSpecifier) node.symbol = value;
       break;
     case SyntaxKind.TypeParameter:
-      if (node instanceof TypeParameterDeclaration) {
-        const target: TypeParameterDeclaration = node;
-        target.symbol = value;
-      }
+      if (node instanceof TypeParameterDeclaration) node.symbol = value;
       break;
     case SyntaxKind.JSDocTypeLiteral:
-      if (node instanceof JSDocTypeLiteral) {
-        const target: JSDocTypeLiteral = node;
-        target.symbol = value;
-      }
+      if (node instanceof JSDocTypeLiteral) node.symbol = value;
       break;
   }
 }
@@ -10226,89 +8136,47 @@ export function setSymbol(node: Node, value: Symbol | undefined): void {
 export function getLocalSymbol(node: Node): Symbol | undefined {
   switch (node.kind) {
     case SyntaxKind.VariableDeclaration:
-      if (node instanceof VariableDeclaration) {
-        const holder: VariableDeclaration = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof VariableDeclaration) return node.localSymbol;
       break;
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const holder: BindingElement = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof BindingElement) return node.localSymbol;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof FunctionDeclaration) return node.localSymbol;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof ClassDeclaration) return node.localSymbol;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const holder: ClassExpression = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof ClassExpression) return node.localSymbol;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const holder: InterfaceDeclaration = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof InterfaceDeclaration) return node.localSymbol;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const holder: TypeAliasDeclaration = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof TypeAliasDeclaration) return node.localSymbol;
       break;
     case SyntaxKind.EnumDeclaration:
-      if (node instanceof EnumDeclaration) {
-        const holder: EnumDeclaration = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof EnumDeclaration) return node.localSymbol;
       break;
     case SyntaxKind.NamespaceImport:
-      if (node instanceof NamespaceImport) {
-        const holder: NamespaceImport = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof NamespaceImport) return node.localSymbol;
       break;
     case SyntaxKind.ExportSpecifier:
-      if (node instanceof ExportSpecifier) {
-        const holder: ExportSpecifier = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof ExportSpecifier) return node.localSymbol;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const holder: ModuleDeclaration = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof ModuleDeclaration) return node.localSymbol;
       break;
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration) {
-        const holder: ImportEqualsDeclaration = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof ImportEqualsDeclaration) return node.localSymbol;
       break;
     case SyntaxKind.ImportClause:
-      if (node instanceof ImportClause) {
-        const holder: ImportClause = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof ImportClause) return node.localSymbol;
       break;
     case SyntaxKind.ImportSpecifier:
-      if (node instanceof ImportSpecifier) {
-        const holder: ImportSpecifier = node;
-        return holder.localSymbol;
-      }
+      if (node instanceof ImportSpecifier) return node.localSymbol;
       break;
   }
   return undefined;
@@ -10317,89 +8185,47 @@ export function getLocalSymbol(node: Node): Symbol | undefined {
 export function setLocalSymbol(node: Node, value: Symbol | undefined): void {
   switch (node.kind) {
     case SyntaxKind.VariableDeclaration:
-      if (node instanceof VariableDeclaration) {
-        const target: VariableDeclaration = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof VariableDeclaration) node.localSymbol = value;
       break;
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const target: BindingElement = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof BindingElement) node.localSymbol = value;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const target: FunctionDeclaration = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof FunctionDeclaration) node.localSymbol = value;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const target: ClassDeclaration = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof ClassDeclaration) node.localSymbol = value;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const target: ClassExpression = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof ClassExpression) node.localSymbol = value;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const target: InterfaceDeclaration = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof InterfaceDeclaration) node.localSymbol = value;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const target: TypeAliasDeclaration = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof TypeAliasDeclaration) node.localSymbol = value;
       break;
     case SyntaxKind.EnumDeclaration:
-      if (node instanceof EnumDeclaration) {
-        const target: EnumDeclaration = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof EnumDeclaration) node.localSymbol = value;
       break;
     case SyntaxKind.NamespaceImport:
-      if (node instanceof NamespaceImport) {
-        const target: NamespaceImport = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof NamespaceImport) node.localSymbol = value;
       break;
     case SyntaxKind.ExportSpecifier:
-      if (node instanceof ExportSpecifier) {
-        const target: ExportSpecifier = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof ExportSpecifier) node.localSymbol = value;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const target: ModuleDeclaration = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof ModuleDeclaration) node.localSymbol = value;
       break;
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration) {
-        const target: ImportEqualsDeclaration = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof ImportEqualsDeclaration) node.localSymbol = value;
       break;
     case SyntaxKind.ImportClause:
-      if (node instanceof ImportClause) {
-        const target: ImportClause = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof ImportClause) node.localSymbol = value;
       break;
     case SyntaxKind.ImportSpecifier:
-      if (node instanceof ImportSpecifier) {
-        const target: ImportSpecifier = node;
-        target.localSymbol = value;
-      }
+      if (node instanceof ImportSpecifier) node.localSymbol = value;
       break;
   }
 }
@@ -10407,168 +8233,87 @@ export function setLocalSymbol(node: Node, value: Symbol | undefined): void {
 export function getLocals(node: Node): SymbolTable | undefined {
   switch (node.kind) {
     case SyntaxKind.ForStatement:
-      if (node instanceof ForStatement) {
-        const holder: ForStatement = node;
-        return holder.locals;
-      }
+      if (node instanceof ForStatement) return node.locals;
       break;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
-      if (node instanceof ForInOrOfStatement) {
-        const holder: ForInOrOfStatement = node;
-        return holder.locals;
-      }
+      if (node instanceof ForInOrOfStatement) return node.locals;
       break;
     case SyntaxKind.CaseBlock:
-      if (node instanceof CaseBlock) {
-        const holder: CaseBlock = node;
-        return holder.locals;
-      }
+      if (node instanceof CaseBlock) return node.locals;
       break;
     case SyntaxKind.CatchClause:
-      if (node instanceof CatchClause) {
-        const holder: CatchClause = node;
-        return holder.locals;
-      }
+      if (node instanceof CatchClause) return node.locals;
       break;
     case SyntaxKind.Block:
-      if (node instanceof Block) {
-        const holder: Block = node;
-        return holder.locals;
-      }
+      if (node instanceof Block) return node.locals;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof FunctionDeclaration) return node.locals;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof ClassDeclaration) return node.locals;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const holder: ClassExpression = node;
-        return holder.locals;
-      }
+      if (node instanceof ClassExpression) return node.locals;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const holder: TypeAliasDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof TypeAliasDeclaration) return node.locals;
       break;
     case SyntaxKind.CallSignature:
-      if (node instanceof CallSignatureDeclaration) {
-        const holder: CallSignatureDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof CallSignatureDeclaration) return node.locals;
       break;
     case SyntaxKind.ConstructSignature:
-      if (node instanceof ConstructSignatureDeclaration) {
-        const holder: ConstructSignatureDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof ConstructSignatureDeclaration) return node.locals;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof ConstructorDeclaration) return node.locals;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.locals;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.locals;
       break;
     case SyntaxKind.IndexSignature:
-      if (node instanceof IndexSignatureDeclaration) {
-        const holder: IndexSignatureDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof IndexSignatureDeclaration) return node.locals;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const holder: MethodSignatureDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof MethodSignatureDeclaration) return node.locals;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof MethodDeclaration) return node.locals;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const holder: ClassStaticBlockDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) return node.locals;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.locals;
-      }
+      if (node instanceof ArrowFunction) return node.locals;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.locals;
-      }
+      if (node instanceof FunctionExpression) return node.locals;
       break;
     case SyntaxKind.ConditionalType:
-      if (node instanceof ConditionalTypeNode) {
-        const holder: ConditionalTypeNode = node;
-        return holder.locals;
-      }
+      if (node instanceof ConditionalTypeNode) return node.locals;
       break;
     case SyntaxKind.MappedType:
-      if (node instanceof MappedTypeNode) {
-        const holder: MappedTypeNode = node;
-        return holder.locals;
-      }
+      if (node instanceof MappedTypeNode) return node.locals;
       break;
     case SyntaxKind.FunctionType:
-      if (node instanceof FunctionTypeNode) {
-        const holder: FunctionTypeNode = node;
-        return holder.locals;
-      }
+      if (node instanceof FunctionTypeNode) return node.locals;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const holder: ConstructorTypeNode = node;
-        return holder.locals;
-      }
+      if (node instanceof ConstructorTypeNode) return node.locals;
       break;
     case SyntaxKind.JSDocSignature:
-      if (node instanceof JSDocSignature) {
-        const holder: JSDocSignature = node;
-        return holder.locals;
-      }
+      if (node instanceof JSDocSignature) return node.locals;
       break;
     case SyntaxKind.SourceFile:
-      if (node instanceof SourceFile) {
-        const holder: SourceFile = node;
-        return holder.locals;
-      }
+      if (node instanceof SourceFile) return node.locals;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const holder: ModuleDeclaration = node;
-        return holder.locals;
-      }
+      if (node instanceof ModuleDeclaration) return node.locals;
       break;
   }
   return undefined;
@@ -10577,168 +8322,87 @@ export function getLocals(node: Node): SymbolTable | undefined {
 export function setLocals(node: Node, value: SymbolTable | undefined): void {
   switch (node.kind) {
     case SyntaxKind.ForStatement:
-      if (node instanceof ForStatement) {
-        const target: ForStatement = node;
-        target.locals = value;
-      }
+      if (node instanceof ForStatement) node.locals = value;
       break;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
-      if (node instanceof ForInOrOfStatement) {
-        const target: ForInOrOfStatement = node;
-        target.locals = value;
-      }
+      if (node instanceof ForInOrOfStatement) node.locals = value;
       break;
     case SyntaxKind.CaseBlock:
-      if (node instanceof CaseBlock) {
-        const target: CaseBlock = node;
-        target.locals = value;
-      }
+      if (node instanceof CaseBlock) node.locals = value;
       break;
     case SyntaxKind.CatchClause:
-      if (node instanceof CatchClause) {
-        const target: CatchClause = node;
-        target.locals = value;
-      }
+      if (node instanceof CatchClause) node.locals = value;
       break;
     case SyntaxKind.Block:
-      if (node instanceof Block) {
-        const target: Block = node;
-        target.locals = value;
-      }
+      if (node instanceof Block) node.locals = value;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const target: FunctionDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof FunctionDeclaration) node.locals = value;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const target: ClassDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof ClassDeclaration) node.locals = value;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const target: ClassExpression = node;
-        target.locals = value;
-      }
+      if (node instanceof ClassExpression) node.locals = value;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const target: TypeAliasDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof TypeAliasDeclaration) node.locals = value;
       break;
     case SyntaxKind.CallSignature:
-      if (node instanceof CallSignatureDeclaration) {
-        const target: CallSignatureDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof CallSignatureDeclaration) node.locals = value;
       break;
     case SyntaxKind.ConstructSignature:
-      if (node instanceof ConstructSignatureDeclaration) {
-        const target: ConstructSignatureDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof ConstructSignatureDeclaration) node.locals = value;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const target: ConstructorDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof ConstructorDeclaration) node.locals = value;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const target: GetAccessorDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof GetAccessorDeclaration) node.locals = value;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const target: SetAccessorDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof SetAccessorDeclaration) node.locals = value;
       break;
     case SyntaxKind.IndexSignature:
-      if (node instanceof IndexSignatureDeclaration) {
-        const target: IndexSignatureDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof IndexSignatureDeclaration) node.locals = value;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const target: MethodSignatureDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof MethodSignatureDeclaration) node.locals = value;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const target: MethodDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof MethodDeclaration) node.locals = value;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const target: ClassStaticBlockDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) node.locals = value;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const target: ArrowFunction = node;
-        target.locals = value;
-      }
+      if (node instanceof ArrowFunction) node.locals = value;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const target: FunctionExpression = node;
-        target.locals = value;
-      }
+      if (node instanceof FunctionExpression) node.locals = value;
       break;
     case SyntaxKind.ConditionalType:
-      if (node instanceof ConditionalTypeNode) {
-        const target: ConditionalTypeNode = node;
-        target.locals = value;
-      }
+      if (node instanceof ConditionalTypeNode) node.locals = value;
       break;
     case SyntaxKind.MappedType:
-      if (node instanceof MappedTypeNode) {
-        const target: MappedTypeNode = node;
-        target.locals = value;
-      }
+      if (node instanceof MappedTypeNode) node.locals = value;
       break;
     case SyntaxKind.FunctionType:
-      if (node instanceof FunctionTypeNode) {
-        const target: FunctionTypeNode = node;
-        target.locals = value;
-      }
+      if (node instanceof FunctionTypeNode) node.locals = value;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const target: ConstructorTypeNode = node;
-        target.locals = value;
-      }
+      if (node instanceof ConstructorTypeNode) node.locals = value;
       break;
     case SyntaxKind.JSDocSignature:
-      if (node instanceof JSDocSignature) {
-        const target: JSDocSignature = node;
-        target.locals = value;
-      }
+      if (node instanceof JSDocSignature) node.locals = value;
       break;
     case SyntaxKind.SourceFile:
-      if (node instanceof SourceFile) {
-        const target: SourceFile = node;
-        target.locals = value;
-      }
+      if (node instanceof SourceFile) node.locals = value;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const target: ModuleDeclaration = node;
-        target.locals = value;
-      }
+      if (node instanceof ModuleDeclaration) node.locals = value;
       break;
   }
 }
@@ -10746,168 +8410,87 @@ export function setLocals(node: Node, value: SymbolTable | undefined): void {
 export function getNextContainer(node: Node): Node | undefined {
   switch (node.kind) {
     case SyntaxKind.ForStatement:
-      if (node instanceof ForStatement) {
-        const holder: ForStatement = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ForStatement) return node.nextContainer;
       break;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
-      if (node instanceof ForInOrOfStatement) {
-        const holder: ForInOrOfStatement = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ForInOrOfStatement) return node.nextContainer;
       break;
     case SyntaxKind.CaseBlock:
-      if (node instanceof CaseBlock) {
-        const holder: CaseBlock = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof CaseBlock) return node.nextContainer;
       break;
     case SyntaxKind.CatchClause:
-      if (node instanceof CatchClause) {
-        const holder: CatchClause = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof CatchClause) return node.nextContainer;
       break;
     case SyntaxKind.Block:
-      if (node instanceof Block) {
-        const holder: Block = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof Block) return node.nextContainer;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof FunctionDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ClassDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const holder: ClassExpression = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ClassExpression) return node.nextContainer;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const holder: TypeAliasDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof TypeAliasDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.CallSignature:
-      if (node instanceof CallSignatureDeclaration) {
-        const holder: CallSignatureDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof CallSignatureDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.ConstructSignature:
-      if (node instanceof ConstructSignatureDeclaration) {
-        const holder: ConstructSignatureDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ConstructSignatureDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ConstructorDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.IndexSignature:
-      if (node instanceof IndexSignatureDeclaration) {
-        const holder: IndexSignatureDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof IndexSignatureDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const holder: MethodSignatureDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof MethodSignatureDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof MethodDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const holder: ClassStaticBlockDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) return node.nextContainer;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ArrowFunction) return node.nextContainer;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof FunctionExpression) return node.nextContainer;
       break;
     case SyntaxKind.ConditionalType:
-      if (node instanceof ConditionalTypeNode) {
-        const holder: ConditionalTypeNode = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ConditionalTypeNode) return node.nextContainer;
       break;
     case SyntaxKind.MappedType:
-      if (node instanceof MappedTypeNode) {
-        const holder: MappedTypeNode = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof MappedTypeNode) return node.nextContainer;
       break;
     case SyntaxKind.FunctionType:
-      if (node instanceof FunctionTypeNode) {
-        const holder: FunctionTypeNode = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof FunctionTypeNode) return node.nextContainer;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const holder: ConstructorTypeNode = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ConstructorTypeNode) return node.nextContainer;
       break;
     case SyntaxKind.JSDocSignature:
-      if (node instanceof JSDocSignature) {
-        const holder: JSDocSignature = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof JSDocSignature) return node.nextContainer;
       break;
     case SyntaxKind.SourceFile:
-      if (node instanceof SourceFile) {
-        const holder: SourceFile = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof SourceFile) return node.nextContainer;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const holder: ModuleDeclaration = node;
-        return holder.nextContainer;
-      }
+      if (node instanceof ModuleDeclaration) return node.nextContainer;
       break;
   }
   return undefined;
@@ -10916,168 +8499,87 @@ export function getNextContainer(node: Node): Node | undefined {
 export function setNextContainer(node: Node, value: Node | undefined): void {
   switch (node.kind) {
     case SyntaxKind.ForStatement:
-      if (node instanceof ForStatement) {
-        const target: ForStatement = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ForStatement) node.nextContainer = value;
       break;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
-      if (node instanceof ForInOrOfStatement) {
-        const target: ForInOrOfStatement = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ForInOrOfStatement) node.nextContainer = value;
       break;
     case SyntaxKind.CaseBlock:
-      if (node instanceof CaseBlock) {
-        const target: CaseBlock = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof CaseBlock) node.nextContainer = value;
       break;
     case SyntaxKind.CatchClause:
-      if (node instanceof CatchClause) {
-        const target: CatchClause = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof CatchClause) node.nextContainer = value;
       break;
     case SyntaxKind.Block:
-      if (node instanceof Block) {
-        const target: Block = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof Block) node.nextContainer = value;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const target: FunctionDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof FunctionDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const target: ClassDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ClassDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.ClassExpression:
-      if (node instanceof ClassExpression) {
-        const target: ClassExpression = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ClassExpression) node.nextContainer = value;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const target: TypeAliasDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof TypeAliasDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.CallSignature:
-      if (node instanceof CallSignatureDeclaration) {
-        const target: CallSignatureDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof CallSignatureDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.ConstructSignature:
-      if (node instanceof ConstructSignatureDeclaration) {
-        const target: ConstructSignatureDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ConstructSignatureDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const target: ConstructorDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ConstructorDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const target: GetAccessorDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof GetAccessorDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const target: SetAccessorDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof SetAccessorDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.IndexSignature:
-      if (node instanceof IndexSignatureDeclaration) {
-        const target: IndexSignatureDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof IndexSignatureDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.MethodSignature:
-      if (node instanceof MethodSignatureDeclaration) {
-        const target: MethodSignatureDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof MethodSignatureDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const target: MethodDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof MethodDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const target: ClassStaticBlockDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) node.nextContainer = value;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const target: ArrowFunction = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ArrowFunction) node.nextContainer = value;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const target: FunctionExpression = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof FunctionExpression) node.nextContainer = value;
       break;
     case SyntaxKind.ConditionalType:
-      if (node instanceof ConditionalTypeNode) {
-        const target: ConditionalTypeNode = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ConditionalTypeNode) node.nextContainer = value;
       break;
     case SyntaxKind.MappedType:
-      if (node instanceof MappedTypeNode) {
-        const target: MappedTypeNode = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof MappedTypeNode) node.nextContainer = value;
       break;
     case SyntaxKind.FunctionType:
-      if (node instanceof FunctionTypeNode) {
-        const target: FunctionTypeNode = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof FunctionTypeNode) node.nextContainer = value;
       break;
     case SyntaxKind.ConstructorType:
-      if (node instanceof ConstructorTypeNode) {
-        const target: ConstructorTypeNode = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ConstructorTypeNode) node.nextContainer = value;
       break;
     case SyntaxKind.JSDocSignature:
-      if (node instanceof JSDocSignature) {
-        const target: JSDocSignature = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof JSDocSignature) node.nextContainer = value;
       break;
     case SyntaxKind.SourceFile:
-      if (node instanceof SourceFile) {
-        const target: SourceFile = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof SourceFile) node.nextContainer = value;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const target: ModuleDeclaration = node;
-        target.nextContainer = value;
-      }
+      if (node instanceof ModuleDeclaration) node.nextContainer = value;
       break;
   }
 }
@@ -11085,211 +8587,112 @@ export function setNextContainer(node: Node, value: Node | undefined): void {
 export function getFlowNode(node: Node): FlowNode | undefined {
   switch (node.kind) {
     case SyntaxKind.Identifier:
-      if (node instanceof Identifier) {
-        const holder: Identifier = node;
-        return holder.flowNode;
-      }
+      if (node instanceof Identifier) return node.flowNode;
       break;
     case SyntaxKind.QualifiedName:
-      if (node instanceof QualifiedName) {
-        const holder: QualifiedName = node;
-        return holder.flowNode;
-      }
+      if (node instanceof QualifiedName) return node.flowNode;
       break;
     case SyntaxKind.EmptyStatement:
-      if (node instanceof EmptyStatement) {
-        const holder: EmptyStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof EmptyStatement) return node.flowNode;
       break;
     case SyntaxKind.IfStatement:
-      if (node instanceof IfStatement) {
-        const holder: IfStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof IfStatement) return node.flowNode;
       break;
     case SyntaxKind.DoStatement:
-      if (node instanceof DoStatement) {
-        const holder: DoStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof DoStatement) return node.flowNode;
       break;
     case SyntaxKind.WhileStatement:
-      if (node instanceof WhileStatement) {
-        const holder: WhileStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof WhileStatement) return node.flowNode;
       break;
     case SyntaxKind.ForStatement:
-      if (node instanceof ForStatement) {
-        const holder: ForStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ForStatement) return node.flowNode;
       break;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
-      if (node instanceof ForInOrOfStatement) {
-        const holder: ForInOrOfStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ForInOrOfStatement) return node.flowNode;
       break;
     case SyntaxKind.BreakStatement:
-      if (node instanceof BreakStatement) {
-        const holder: BreakStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof BreakStatement) return node.flowNode;
       break;
     case SyntaxKind.ContinueStatement:
-      if (node instanceof ContinueStatement) {
-        const holder: ContinueStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ContinueStatement) return node.flowNode;
       break;
     case SyntaxKind.ReturnStatement:
-      if (node instanceof ReturnStatement) {
-        const holder: ReturnStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ReturnStatement) return node.flowNode;
       break;
     case SyntaxKind.WithStatement:
-      if (node instanceof WithStatement) {
-        const holder: WithStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof WithStatement) return node.flowNode;
       break;
     case SyntaxKind.SwitchStatement:
-      if (node instanceof SwitchStatement) {
-        const holder: SwitchStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof SwitchStatement) return node.flowNode;
       break;
     case SyntaxKind.ThrowStatement:
-      if (node instanceof ThrowStatement) {
-        const holder: ThrowStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ThrowStatement) return node.flowNode;
       break;
     case SyntaxKind.TryStatement:
-      if (node instanceof TryStatement) {
-        const holder: TryStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof TryStatement) return node.flowNode;
       break;
     case SyntaxKind.DebuggerStatement:
-      if (node instanceof DebuggerStatement) {
-        const holder: DebuggerStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof DebuggerStatement) return node.flowNode;
       break;
     case SyntaxKind.LabeledStatement:
-      if (node instanceof LabeledStatement) {
-        const holder: LabeledStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof LabeledStatement) return node.flowNode;
       break;
     case SyntaxKind.ExpressionStatement:
-      if (node instanceof ExpressionStatement) {
-        const holder: ExpressionStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ExpressionStatement) return node.flowNode;
       break;
     case SyntaxKind.Block:
-      if (node instanceof Block) {
-        const holder: Block = node;
-        return holder.flowNode;
-      }
+      if (node instanceof Block) return node.flowNode;
       break;
     case SyntaxKind.VariableStatement:
-      if (node instanceof VariableStatement) {
-        const holder: VariableStatement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof VariableStatement) return node.flowNode;
       break;
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const holder: BindingElement = node;
-        return holder.flowNode;
-      }
+      if (node instanceof BindingElement) return node.flowNode;
       break;
     case SyntaxKind.MissingDeclaration:
-      if (node instanceof MissingDeclaration) {
-        const holder: MissingDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof MissingDeclaration) return node.flowNode;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof FunctionDeclaration) return node.flowNode;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const holder: ClassDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ClassDeclaration) return node.flowNode;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const holder: InterfaceDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof InterfaceDeclaration) return node.flowNode;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const holder: TypeAliasDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof TypeAliasDeclaration) return node.flowNode;
       break;
     case SyntaxKind.EnumDeclaration:
-      if (node instanceof EnumDeclaration) {
-        const holder: EnumDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof EnumDeclaration) return node.flowNode;
       break;
     case SyntaxKind.ModuleBlock:
-      if (node instanceof ModuleBlock) {
-        const holder: ModuleBlock = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ModuleBlock) return node.flowNode;
+      break;
+    case SyntaxKind.NotEmittedStatement:
+      if (node instanceof NotEmittedStatement) return node.flowNode;
       break;
     case SyntaxKind.ImportDeclaration:
     case SyntaxKind.JSImportDeclaration:
-      if (node instanceof ImportDeclaration) {
-        const holder: ImportDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ImportDeclaration) return node.flowNode;
       break;
     case SyntaxKind.ExportAssignment:
-      if (node instanceof ExportAssignment) {
-        const holder: ExportAssignment = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ExportAssignment) return node.flowNode;
       break;
     case SyntaxKind.NamespaceExportDeclaration:
-      if (node instanceof NamespaceExportDeclaration) {
-        const holder: NamespaceExportDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof NamespaceExportDeclaration) return node.flowNode;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.flowNode;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.flowNode;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof MethodDeclaration) return node.flowNode;
       break;
     case SyntaxKind.NullKeyword:
     case SyntaxKind.TrueKeyword:
@@ -11297,58 +8700,31 @@ export function getFlowNode(node: Node): FlowNode | undefined {
     case SyntaxKind.ThisKeyword:
     case SyntaxKind.SuperKeyword:
     case SyntaxKind.ImportKeyword:
-      if (node instanceof KeywordExpression) {
-        const holder: KeywordExpression = node;
-        return holder.flowNode;
-      }
+      if (node instanceof KeywordExpression) return node.flowNode;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ArrowFunction) return node.flowNode;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.flowNode;
-      }
+      if (node instanceof FunctionExpression) return node.flowNode;
       break;
     case SyntaxKind.PropertyAccessExpression:
-      if (node instanceof PropertyAccessExpression) {
-        const holder: PropertyAccessExpression = node;
-        return holder.flowNode;
-      }
+      if (node instanceof PropertyAccessExpression) return node.flowNode;
       break;
     case SyntaxKind.ElementAccessExpression:
-      if (node instanceof ElementAccessExpression) {
-        const holder: ElementAccessExpression = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ElementAccessExpression) return node.flowNode;
       break;
     case SyntaxKind.MetaProperty:
-      if (node instanceof MetaProperty) {
-        const holder: MetaProperty = node;
-        return holder.flowNode;
-      }
+      if (node instanceof MetaProperty) return node.flowNode;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const holder: ModuleDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ModuleDeclaration) return node.flowNode;
       break;
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration) {
-        const holder: ImportEqualsDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ImportEqualsDeclaration) return node.flowNode;
       break;
     case SyntaxKind.ExportDeclaration:
-      if (node instanceof ExportDeclaration) {
-        const holder: ExportDeclaration = node;
-        return holder.flowNode;
-      }
+      if (node instanceof ExportDeclaration) return node.flowNode;
       break;
   }
   return undefined;
@@ -11357,211 +8733,112 @@ export function getFlowNode(node: Node): FlowNode | undefined {
 export function setFlowNode(node: Node, value: FlowNode | undefined): void {
   switch (node.kind) {
     case SyntaxKind.Identifier:
-      if (node instanceof Identifier) {
-        const target: Identifier = node;
-        target.flowNode = value;
-      }
+      if (node instanceof Identifier) node.flowNode = value;
       break;
     case SyntaxKind.QualifiedName:
-      if (node instanceof QualifiedName) {
-        const target: QualifiedName = node;
-        target.flowNode = value;
-      }
+      if (node instanceof QualifiedName) node.flowNode = value;
       break;
     case SyntaxKind.EmptyStatement:
-      if (node instanceof EmptyStatement) {
-        const target: EmptyStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof EmptyStatement) node.flowNode = value;
       break;
     case SyntaxKind.IfStatement:
-      if (node instanceof IfStatement) {
-        const target: IfStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof IfStatement) node.flowNode = value;
       break;
     case SyntaxKind.DoStatement:
-      if (node instanceof DoStatement) {
-        const target: DoStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof DoStatement) node.flowNode = value;
       break;
     case SyntaxKind.WhileStatement:
-      if (node instanceof WhileStatement) {
-        const target: WhileStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof WhileStatement) node.flowNode = value;
       break;
     case SyntaxKind.ForStatement:
-      if (node instanceof ForStatement) {
-        const target: ForStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ForStatement) node.flowNode = value;
       break;
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
-      if (node instanceof ForInOrOfStatement) {
-        const target: ForInOrOfStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ForInOrOfStatement) node.flowNode = value;
       break;
     case SyntaxKind.BreakStatement:
-      if (node instanceof BreakStatement) {
-        const target: BreakStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof BreakStatement) node.flowNode = value;
       break;
     case SyntaxKind.ContinueStatement:
-      if (node instanceof ContinueStatement) {
-        const target: ContinueStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ContinueStatement) node.flowNode = value;
       break;
     case SyntaxKind.ReturnStatement:
-      if (node instanceof ReturnStatement) {
-        const target: ReturnStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ReturnStatement) node.flowNode = value;
       break;
     case SyntaxKind.WithStatement:
-      if (node instanceof WithStatement) {
-        const target: WithStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof WithStatement) node.flowNode = value;
       break;
     case SyntaxKind.SwitchStatement:
-      if (node instanceof SwitchStatement) {
-        const target: SwitchStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof SwitchStatement) node.flowNode = value;
       break;
     case SyntaxKind.ThrowStatement:
-      if (node instanceof ThrowStatement) {
-        const target: ThrowStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ThrowStatement) node.flowNode = value;
       break;
     case SyntaxKind.TryStatement:
-      if (node instanceof TryStatement) {
-        const target: TryStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof TryStatement) node.flowNode = value;
       break;
     case SyntaxKind.DebuggerStatement:
-      if (node instanceof DebuggerStatement) {
-        const target: DebuggerStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof DebuggerStatement) node.flowNode = value;
       break;
     case SyntaxKind.LabeledStatement:
-      if (node instanceof LabeledStatement) {
-        const target: LabeledStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof LabeledStatement) node.flowNode = value;
       break;
     case SyntaxKind.ExpressionStatement:
-      if (node instanceof ExpressionStatement) {
-        const target: ExpressionStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ExpressionStatement) node.flowNode = value;
       break;
     case SyntaxKind.Block:
-      if (node instanceof Block) {
-        const target: Block = node;
-        target.flowNode = value;
-      }
+      if (node instanceof Block) node.flowNode = value;
       break;
     case SyntaxKind.VariableStatement:
-      if (node instanceof VariableStatement) {
-        const target: VariableStatement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof VariableStatement) node.flowNode = value;
       break;
     case SyntaxKind.BindingElement:
-      if (node instanceof BindingElement) {
-        const target: BindingElement = node;
-        target.flowNode = value;
-      }
+      if (node instanceof BindingElement) node.flowNode = value;
       break;
     case SyntaxKind.MissingDeclaration:
-      if (node instanceof MissingDeclaration) {
-        const target: MissingDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof MissingDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const target: FunctionDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof FunctionDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.ClassDeclaration:
-      if (node instanceof ClassDeclaration) {
-        const target: ClassDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ClassDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.InterfaceDeclaration:
-      if (node instanceof InterfaceDeclaration) {
-        const target: InterfaceDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof InterfaceDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.TypeAliasDeclaration:
     case SyntaxKind.JSTypeAliasDeclaration:
-      if (node instanceof TypeAliasDeclaration) {
-        const target: TypeAliasDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof TypeAliasDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.EnumDeclaration:
-      if (node instanceof EnumDeclaration) {
-        const target: EnumDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof EnumDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.ModuleBlock:
-      if (node instanceof ModuleBlock) {
-        const target: ModuleBlock = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ModuleBlock) node.flowNode = value;
+      break;
+    case SyntaxKind.NotEmittedStatement:
+      if (node instanceof NotEmittedStatement) node.flowNode = value;
       break;
     case SyntaxKind.ImportDeclaration:
     case SyntaxKind.JSImportDeclaration:
-      if (node instanceof ImportDeclaration) {
-        const target: ImportDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ImportDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.ExportAssignment:
-      if (node instanceof ExportAssignment) {
-        const target: ExportAssignment = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ExportAssignment) node.flowNode = value;
       break;
     case SyntaxKind.NamespaceExportDeclaration:
-      if (node instanceof NamespaceExportDeclaration) {
-        const target: NamespaceExportDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof NamespaceExportDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const target: GetAccessorDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof GetAccessorDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const target: SetAccessorDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof SetAccessorDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const target: MethodDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof MethodDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.NullKeyword:
     case SyntaxKind.TrueKeyword:
@@ -11569,58 +8846,31 @@ export function setFlowNode(node: Node, value: FlowNode | undefined): void {
     case SyntaxKind.ThisKeyword:
     case SyntaxKind.SuperKeyword:
     case SyntaxKind.ImportKeyword:
-      if (node instanceof KeywordExpression) {
-        const target: KeywordExpression = node;
-        target.flowNode = value;
-      }
+      if (node instanceof KeywordExpression) node.flowNode = value;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const target: ArrowFunction = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ArrowFunction) node.flowNode = value;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const target: FunctionExpression = node;
-        target.flowNode = value;
-      }
+      if (node instanceof FunctionExpression) node.flowNode = value;
       break;
     case SyntaxKind.PropertyAccessExpression:
-      if (node instanceof PropertyAccessExpression) {
-        const target: PropertyAccessExpression = node;
-        target.flowNode = value;
-      }
+      if (node instanceof PropertyAccessExpression) node.flowNode = value;
       break;
     case SyntaxKind.ElementAccessExpression:
-      if (node instanceof ElementAccessExpression) {
-        const target: ElementAccessExpression = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ElementAccessExpression) node.flowNode = value;
       break;
     case SyntaxKind.MetaProperty:
-      if (node instanceof MetaProperty) {
-        const target: MetaProperty = node;
-        target.flowNode = value;
-      }
+      if (node instanceof MetaProperty) node.flowNode = value;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const target: ModuleDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ModuleDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.ImportEqualsDeclaration:
-      if (node instanceof ImportEqualsDeclaration) {
-        const target: ImportEqualsDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ImportEqualsDeclaration) node.flowNode = value;
       break;
     case SyntaxKind.ExportDeclaration:
-      if (node instanceof ExportDeclaration) {
-        const target: ExportDeclaration = node;
-        target.flowNode = value;
-      }
+      if (node instanceof ExportDeclaration) node.flowNode = value;
       break;
   }
 }
@@ -11628,52 +8878,28 @@ export function setFlowNode(node: Node, value: FlowNode | undefined): void {
 export function getEndFlowNode(node: Node): FlowNode | undefined {
   switch (node.kind) {
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.endFlowNode;
-      }
+      if (node instanceof FunctionDeclaration) return node.endFlowNode;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.endFlowNode;
-      }
+      if (node instanceof ConstructorDeclaration) return node.endFlowNode;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const holder: GetAccessorDeclaration = node;
-        return holder.endFlowNode;
-      }
+      if (node instanceof GetAccessorDeclaration) return node.endFlowNode;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const holder: SetAccessorDeclaration = node;
-        return holder.endFlowNode;
-      }
+      if (node instanceof SetAccessorDeclaration) return node.endFlowNode;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const holder: MethodDeclaration = node;
-        return holder.endFlowNode;
-      }
+      if (node instanceof MethodDeclaration) return node.endFlowNode;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const holder: ArrowFunction = node;
-        return holder.endFlowNode;
-      }
+      if (node instanceof ArrowFunction) return node.endFlowNode;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.endFlowNode;
-      }
+      if (node instanceof FunctionExpression) return node.endFlowNode;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const holder: ModuleDeclaration = node;
-        return holder.endFlowNode;
-      }
+      if (node instanceof ModuleDeclaration) return node.endFlowNode;
       break;
   }
   return undefined;
@@ -11682,52 +8908,28 @@ export function getEndFlowNode(node: Node): FlowNode | undefined {
 export function setEndFlowNode(node: Node, value: FlowNode | undefined): void {
   switch (node.kind) {
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const target: FunctionDeclaration = node;
-        target.endFlowNode = value;
-      }
+      if (node instanceof FunctionDeclaration) node.endFlowNode = value;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const target: ConstructorDeclaration = node;
-        target.endFlowNode = value;
-      }
+      if (node instanceof ConstructorDeclaration) node.endFlowNode = value;
       break;
     case SyntaxKind.GetAccessor:
-      if (node instanceof GetAccessorDeclaration) {
-        const target: GetAccessorDeclaration = node;
-        target.endFlowNode = value;
-      }
+      if (node instanceof GetAccessorDeclaration) node.endFlowNode = value;
       break;
     case SyntaxKind.SetAccessor:
-      if (node instanceof SetAccessorDeclaration) {
-        const target: SetAccessorDeclaration = node;
-        target.endFlowNode = value;
-      }
+      if (node instanceof SetAccessorDeclaration) node.endFlowNode = value;
       break;
     case SyntaxKind.MethodDeclaration:
-      if (node instanceof MethodDeclaration) {
-        const target: MethodDeclaration = node;
-        target.endFlowNode = value;
-      }
+      if (node instanceof MethodDeclaration) node.endFlowNode = value;
       break;
     case SyntaxKind.ArrowFunction:
-      if (node instanceof ArrowFunction) {
-        const target: ArrowFunction = node;
-        target.endFlowNode = value;
-      }
+      if (node instanceof ArrowFunction) node.endFlowNode = value;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const target: FunctionExpression = node;
-        target.endFlowNode = value;
-      }
+      if (node instanceof FunctionExpression) node.endFlowNode = value;
       break;
     case SyntaxKind.ModuleDeclaration:
-      if (node instanceof ModuleDeclaration) {
-        const target: ModuleDeclaration = node;
-        target.endFlowNode = value;
-      }
+      if (node instanceof ModuleDeclaration) node.endFlowNode = value;
       break;
   }
 }
@@ -11735,28 +8937,16 @@ export function setEndFlowNode(node: Node, value: FlowNode | undefined): void {
 export function getReturnFlowNode(node: Node): FlowNode | undefined {
   switch (node.kind) {
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const holder: FunctionDeclaration = node;
-        return holder.returnFlowNode;
-      }
+      if (node instanceof FunctionDeclaration) return node.returnFlowNode;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const holder: ConstructorDeclaration = node;
-        return holder.returnFlowNode;
-      }
+      if (node instanceof ConstructorDeclaration) return node.returnFlowNode;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const holder: ClassStaticBlockDeclaration = node;
-        return holder.returnFlowNode;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) return node.returnFlowNode;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const holder: FunctionExpression = node;
-        return holder.returnFlowNode;
-      }
+      if (node instanceof FunctionExpression) return node.returnFlowNode;
       break;
   }
   return undefined;
@@ -11765,28 +8955,16 @@ export function getReturnFlowNode(node: Node): FlowNode | undefined {
 export function setReturnFlowNode(node: Node, value: FlowNode | undefined): void {
   switch (node.kind) {
     case SyntaxKind.FunctionDeclaration:
-      if (node instanceof FunctionDeclaration) {
-        const target: FunctionDeclaration = node;
-        target.returnFlowNode = value;
-      }
+      if (node instanceof FunctionDeclaration) node.returnFlowNode = value;
       break;
     case SyntaxKind.Constructor:
-      if (node instanceof ConstructorDeclaration) {
-        const target: ConstructorDeclaration = node;
-        target.returnFlowNode = value;
-      }
+      if (node instanceof ConstructorDeclaration) node.returnFlowNode = value;
       break;
     case SyntaxKind.ClassStaticBlockDeclaration:
-      if (node instanceof ClassStaticBlockDeclaration) {
-        const target: ClassStaticBlockDeclaration = node;
-        target.returnFlowNode = value;
-      }
+      if (node instanceof ClassStaticBlockDeclaration) node.returnFlowNode = value;
       break;
     case SyntaxKind.FunctionExpression:
-      if (node instanceof FunctionExpression) {
-        const target: FunctionExpression = node;
-        target.returnFlowNode = value;
-      }
+      if (node instanceof FunctionExpression) node.returnFlowNode = value;
       break;
   }
 }

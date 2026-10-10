@@ -28,7 +28,6 @@ import { NameResolver } from '../compiler/name-resolver.js';
 import { parseSourceFile } from '../compiler/parser.js';
 import { type Symbol, SymbolFlags, type SymbolTable } from '../compiler/symbol.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
-import './lowering.js';
 
 const out: string[] = [];
 

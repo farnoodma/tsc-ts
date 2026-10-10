@@ -159,7 +159,7 @@ export class Reparser {
   }
 
   addDeepCloneReparseIdentifier(node: Identifier): Identifier {
-    const clone = node.copy();
+    const clone = node.deepClone();
     this.finishClone(clone);
     this.p.reparsedClones.push(clone);
     return clone;
@@ -253,7 +253,7 @@ export class Reparser {
     if (tag instanceof JSDocImportTag) {
       const tagImportClause = tag.importClause;
       if (tagImportClause === undefined) return false;
-      const importClause = tagImportClause.copy();
+      const importClause = tagImportClause.deepClone();
       this.finishClone(importClause);
       p.reparsedClones.push(importClause);
       importClause.phaseModifier = SyntaxKind.TypeKeyword;
@@ -261,7 +261,7 @@ export class Reparser {
       const tagAttributes = tag.attributes;
       let attributes: ImportAttributes | undefined;
       if (tagAttributes !== undefined) {
-        const copy = tagAttributes.copy();
+        const copy = tagAttributes.deepClone();
         this.finishClone(copy);
         p.reparsedClones.push(copy);
         attributes = copy;
@@ -321,7 +321,7 @@ export class Reparser {
       const name = fun.name;
       if (name !== undefined) {
         this.checkNonIdentifierName(name);
-        functionName = name.copy();
+        functionName = name.deepClone();
         this.finishClone(functionName);
       }
     } else if (fun instanceof MethodDeclaration) {

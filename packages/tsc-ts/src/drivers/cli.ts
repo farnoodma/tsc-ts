@@ -5,7 +5,6 @@
 import { dirname } from 'node:path';
 import { ExitStatus, executeCommandLine } from '../compiler/tsc-cli.js';
 import { createNodeSystem } from './node-system.js';
-import './lowering.js';
 
 const bundledLibs = process.env.TSC_TS_BUNDLED_LIBS ?? '';
 const libraryPath =

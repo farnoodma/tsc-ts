@@ -2,7 +2,6 @@
 import { dirname } from 'node:path';
 import { runServer } from './api/server.js';
 import { runTsc, watching } from './drivers/node-system.js';
-import './drivers/lowering.js';
 
 // Lib files come from TSC_TS_LIB_DIR, or the executable's directory as in tsc.
 const defaultLibraryPath =

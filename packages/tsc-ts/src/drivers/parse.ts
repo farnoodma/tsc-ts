@@ -18,7 +18,6 @@ import {
 import { type Diagnostic, Locale } from '../compiler/diagnostics.js';
 import { encodeSourceFile } from '../compiler/encoder.js';
 import { getJSDoc, parseSourceFile } from '../compiler/parser.js';
-import './lowering.js';
 
 const out: string[] = [];
 

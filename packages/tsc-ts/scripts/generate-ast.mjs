@@ -41,15 +41,6 @@ const nullable = new Set([
 const skipNodes = new Set(['SyntheticExpression']);
 // Hand-written in ast.ts.
 const handWritten = new Set(['SourceFile', 'JSDocParameterOrPropertyTag']);
-// Created only by transforms. scriptc can't narrow to a class a program never constructs, so the
-// accessors leave these out until the transforms exist.
-const transformOnly = new Set([
-  'PartiallyEmittedExpression',
-  'SyntheticReferenceExpression',
-  'NotEmittedStatement',
-  'NotEmittedTypeElement',
-  'SyntaxList',
-]);
 // Kinds sharing one class, which the schema leaves implicit.
 const multiKinds = {
   ForInOrOfStatement: ['ForInStatement', 'ForOfStatement'],
@@ -69,25 +60,6 @@ const flagMasks = {
   TemplateMiddle: 'TemplateLiteralLikeFlags',
   TemplateTail: 'TemplateLiteralLikeFlags',
 };
-// Member types that are always one class; other node-valued members are typed by category (`Node` aliases).
-const classTypes = new Set([
-  'Identifier',
-  'Block',
-  'CaseBlock',
-  'CatchClause',
-  'VariableDeclaration',
-  'VariableDeclarationList',
-  'ImportClause',
-  'ImportAttributes',
-  'JsxAttributes',
-  'JsxOpeningElement',
-  'JsxClosingElement',
-  'JsxOpeningFragment',
-  'JsxClosingFragment',
-  'TemplateHead',
-  'TypeParameterDeclaration',
-  'ExpressionWithTypeArguments',
-]);
 const tokenTypes = new Set([
   'AssertsKeyword',
   'AsteriskToken',
@@ -285,8 +257,7 @@ function emitClass(c) {
   if (children.length === 0) lines.push('    return false;');
   lines.push('  }');
   lines.push('');
-  // deepClone/copy: `copy` keeps the class type for class-typed members (scriptc can't override
-  // with a narrower return type).
+  // deepClone keeps the class type, so class-typed members clone to their own class.
   const args = [];
   if (!kindLiteral) args.push('this.kind');
   for (const m of c.members) {
@@ -296,18 +267,13 @@ function emitClass(c) {
     }
     const f = `this.${m.name}`;
     const orUndefined = (expr) => (m.optional ? `${f} === undefined ? undefined : ${expr}` : expr);
-    if (m.child === 'node')
-      args.push(orUndefined(`${f}.${m.type === 'Token' || classTypes.has(m.type) ? 'copy' : 'deepClone'}()`));
+    if (m.child === 'node') args.push(orUndefined(`${f}.deepClone()`));
     else if (m.child === 'list') args.push(orUndefined(`cloneList(${f})`));
     else if (m.child === 'modifiers') args.push(`${f} === undefined ? undefined : cloneModifiers(${f})`);
     else if (m.child === 'raw') args.push(orUndefined(`cloneNodes(${f})`));
     else args.push(f);
   }
-  lines.push('  deepClone(): Node {');
-  lines.push('    return this.copy();');
-  lines.push('  }');
-  lines.push('');
-  lines.push(`  copy(): ${c.name} {`);
+  lines.push(`  deepClone(): ${c.name} {`);
   lines.push(`    const node = new ${c.name}(${args.join(', ')});`);
   lines.push('    node.flags = this.flags;');
   lines.push('    node.pos = this.pos;');
@@ -358,7 +324,6 @@ function emitAccessors(classes) {
   for (const field of accessorFields) {
     const holders = [];
     for (const c of classes) {
-      if (transformOnly.has(c.name)) continue;
       const m = c.members.find((f) => f.name === field);
       if (m !== undefined) holders.push(c);
     }
@@ -377,13 +342,7 @@ function emitAccessors(classes) {
     const lines = [`export function ${fn}(node: Node): ${ret} {`, '  switch (node.kind) {'];
     for (const c of holders) {
       for (const k of c.kinds) lines.push(`    case SyntaxKind.${k}:`);
-      lines.push(
-        `      if (node instanceof ${c.name}) {`,
-        `        const holder: ${c.name} = node;`,
-        `        return holder.${field};`,
-        '      }',
-      );
-      lines.push('      break;');
+      lines.push(`      if (node instanceof ${c.name}) return node.${field};`, '      break;');
     }
     lines.push('  }', `  return ${fallback};`, '}');
     result.push(lines.join('\n'));
@@ -403,8 +362,7 @@ function replaceRegion(text, name, body) {
 /** Getters and setters for the binder fields, and predicates for the classes that have them. */
 function emitBinderAccessors(classes) {
   const result = [];
-  const holdersOf = (field) =>
-    classes.filter((c) => !transformOnly.has(c.name) && c.binder.some((f) => f.name === field));
+  const holdersOf = (field) => classes.filter((c) => c.binder.some((f) => f.name === field));
   const caseLines = (holders) => holders.flatMap((c) => c.kinds.map((k) => `    case SyntaxKind.${k}:`));
   const predicates = { isDeclarationNode: 'symbol', isLocalsContainer: 'locals' };
   for (const [fn, field] of Object.entries(predicates)) {
@@ -435,21 +393,8 @@ function emitBinderAccessors(classes) {
         getter.push(`    case SyntaxKind.${k}:`);
         setter.push(`    case SyntaxKind.${k}:`);
       }
-      // Through typed locals: scriptc reads and writes fields of a narrowed parameter dynamically.
-      getter.push(
-        `      if (node instanceof ${c.name}) {`,
-        `        const holder: ${c.name} = node;`,
-        `        return holder.${field};`,
-        '      }',
-        '      break;',
-      );
-      setter.push(
-        `      if (node instanceof ${c.name}) {`,
-        `        const target: ${c.name} = node;`,
-        `        target.${field} = value;`,
-        '      }',
-        '      break;',
-      );
+      getter.push(`      if (node instanceof ${c.name}) return node.${field};`, '      break;');
+      setter.push(`      if (node instanceof ${c.name}) node.${field} = value;`, '      break;');
     }
     getter.push('  }', '  return undefined;', '}');
     setter.push('  }', '}');
