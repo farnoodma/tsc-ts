@@ -180,16 +180,18 @@ export class DiagnosticFile {
         const lengths = this.nonASCIILengths;
         const extraBytes = this.extraBytes;
         let extra = 0;
+        // The encoding is valid UTF-8, so stepping over continuation bytes
+        // (0x80–0xBF) lands on the next character, and the counter is only
+        // ever incremented, which native builds compile to an integer loop.
         for (let i = 0; i < bytes.length; i++) {
           const b = bytes[i]!;
-          if (b < 0x80) continue;
+          if (b < 0xc0) continue;
           // A lone surrogate is encoded as U+FFFD, in 3 bytes.
           const length = b >= 0xf0 ? 4 : b >= 0xe0 ? 3 : 2;
           starts.push(i - extra);
           lengths.push(length);
           extra += length === 4 ? 2 : length - 1;
           extraBytes.push(extra);
-          i += length - 1;
         }
       }
       this.nonASCIIStarts = starts;
