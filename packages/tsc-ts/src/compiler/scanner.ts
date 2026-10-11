@@ -443,30 +443,28 @@ function toCodeUnits(text: string): Uint16Array {
   return chars;
 }
 
-// The two loops below scan long runs. Indexing a zero-based view up to its length
-// compiles to much tighter native code than indexing `chars` from `pos`.
+// The two loops below scan long runs. They index `chars` from `pos` directly:
+// native builds run such a loop on an integer counter, without allocating a view.
 
 /** The position of the next `` ` ``, `$`, `\\` or CR at or after `pos`, or `end`. */
 function skipTemplateText(chars: Uint16Array, pos: number, end: number): number {
-  const view = chars.subarray(pos, end);
-  for (let i = 0; i < view.length; i++) {
-    const c = view[i];
+  for (let i = pos; i < end; i++) {
+    const c = chars[i];
     if (
       c === CharacterCodes.backtick ||
       c === CharacterCodes.$ ||
       c === CharacterCodes.backslash ||
       c === CharacterCodes.carriageReturn
     )
-      return pos + i;
+      return i;
   }
   return end;
 }
 
 /** The position of the next `*`, `@`, line break or non-ASCII unit at or after `pos`, or `end`. */
 function skipCommentText(chars: Uint16Array, pos: number, end: number): number {
-  const view = chars.subarray(pos, end);
-  for (let i = 0; i < view.length; i++) {
-    const c = view[i];
+  for (let i = pos; i < end; i++) {
+    const c = chars[i];
     if (
       c === CharacterCodes.asterisk ||
       c === CharacterCodes.at ||
@@ -474,7 +472,7 @@ function skipCommentText(chars: Uint16Array, pos: number, end: number): number {
       c === CharacterCodes.carriageReturn ||
       c > CharacterCodes.maxAsciiCharacter
     )
-      return pos + i;
+      return i;
   }
   return end;
 }
