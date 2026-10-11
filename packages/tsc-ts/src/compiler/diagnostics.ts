@@ -738,7 +738,7 @@ export function formatErrorSummary(diagnostics: readonly Diagnostic[], options: 
     let maxErrors = 0;
     for (const entry of sorted) maxErrors = Math.max(maxErrors, entry.errors.length);
     const headerRow = localizeMessage(locale, Diagnostics.Errors_Files, []);
-    const leftColumnHeadingLength = utf8Length(headerRow.split(' ')[0]!);
+    const leftColumnHeadingLength = utf8Length(headerRow.split(' ')[0] ?? '');
     const lengthOfBiggestErrorCount = String(maxErrors).length;
     const leftPaddingGoal = Math.max(leftColumnHeadingLength, lengthOfBiggestErrorCount);
     const headerPadding = Math.max(lengthOfBiggestErrorCount - leftColumnHeadingLength, 0);

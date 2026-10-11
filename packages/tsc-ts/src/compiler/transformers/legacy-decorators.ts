@@ -262,8 +262,8 @@ export class LegacyDecorators extends Transformer {
     if (updated !== node) {
       this.context.setCommentRange(updated, node.pos, node.end);
       const range = moveRangePastModifiers(node);
-      updated.pos = range.pos;
-      updated.end = range.end;
+      updated.pos = range.pos | 0;
+      updated.end = range.end | 0;
       this.context.setSourceMapRange(updated, range.pos, range.end);
       if (updated instanceof ParameterDeclaration)
         this.context.setEmitFlags(updated.name, EmitFlags.NoTrailingSourceMap);
@@ -395,8 +395,8 @@ export class LegacyDecorators extends Transformer {
       new ClassExpression(modifiers, expressionName, undefined, heritageClauses, members),
     );
     context.setOriginal(classExpression, node);
-    classExpression.pos = location.pos;
-    classExpression.end = location.end;
+    classExpression.pos = location.pos | 0;
+    classExpression.end = location.end | 0;
 
     const initializer =
       classAlias !== undefined && !assignClassAliasInStaticBlock
@@ -409,8 +409,8 @@ export class LegacyDecorators extends Transformer {
       factory.createVariableDeclarationList(factory.createNodeList([declaration]), NodeFlags.Let),
     );
     context.setOriginal(statement, node);
-    statement.pos = location.pos;
-    statement.end = location.end;
+    statement.pos = location.pos | 0;
+    statement.end = location.end | 0;
     context.setCommentRange(statement, node.pos, node.end);
 
     const statements: Node[] = [statement];

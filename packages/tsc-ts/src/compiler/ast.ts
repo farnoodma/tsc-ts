@@ -1,3 +1,4 @@
+import type { Int32 } from '@scriptc/types';
 // The syntax tree: one class per node shape, with tsgo's kinds, fields, flags and child order.
 //
 // Every node extends `Node`. Child fields are typed by category (`Expression`, `TypeNode`, …),
@@ -10,7 +11,7 @@ import type { FlowNode } from './flow.js';
 import type { Symbol, SymbolTable } from './symbol.js';
 
 /** The id of the most recently constructed node. */
-let lastNodeId = 0;
+let lastNodeId: Int32 = 0;
 
 export const enum NodeFlags {
   None = 0,
@@ -171,14 +172,14 @@ export abstract class Node {
   readonly kind: SyntaxKind;
   flags: NodeFlags;
   /** Start including leading trivia, as a UTF-16 offset. */
-  pos: number;
-  end: number;
+  pos: Int32;
+  end: Int32;
   parent: Node | undefined;
   /** JSDoc comments attached by the parser (eagerly in JS files, on demand in TS files). */
   /** `JSDoc` nodes. */
   jsDoc: Node[] | undefined;
   /** A program-wide id, unique among all nodes, in construction order. */
-  readonly id: number;
+  readonly id: Int32;
 
   constructor(kind: SyntaxKind) {
     this.kind = kind;
@@ -187,7 +188,7 @@ export abstract class Node {
     this.end = -1;
     this.parent = undefined;
     this.jsDoc = undefined;
-    this.id = ++lastNodeId;
+    this.id = lastNodeId = (lastNodeId + 1) | 0;
   }
 
   /** Calls `visitor` for each child in order; returns `true` if the visitor stopped. */
@@ -204,15 +205,15 @@ export function getNodeId(node: Node): number {
 
 /** A list of child nodes with its own text range. */
 export class NodeList {
-  pos: number;
-  end: number;
+  pos: Int32;
+  end: Int32;
   nodes: Node[];
   /** Created where the list's opening token was missing. */
   isMissingList: boolean;
 
   constructor(pos: number, end: number, nodes: Node[]) {
-    this.pos = pos;
-    this.end = end;
+    this.pos = pos | 0;
+    this.end = end | 0;
     this.nodes = nodes;
     this.isMissingList = false;
   }

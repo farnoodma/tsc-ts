@@ -1,3 +1,4 @@
+import type { Int32 } from '@scriptc/types';
 // The checker's type model: types, signatures, index infos, mappers and the links the checker
 // caches per symbol and node. Flag values match tsgo, because union ordering depends on them.
 import type { Node } from './ast.js';
@@ -385,7 +386,7 @@ export class TypeAlias {
 export class Type {
   flags: TypeFlags;
   objectFlags: ObjectFlags;
-  readonly id: number;
+  readonly id: Int32;
   symbol: Symbol | undefined;
   alias: TypeAlias | undefined;
   /** For types with a computed base constraint (type variables, structured types, …). */
@@ -394,7 +395,7 @@ export class Type {
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     this.flags = flags;
     this.objectFlags = objectFlags;
-    this.id = id;
+    this.id = id | 0;
     this.symbol = symbol;
     this.alias = undefined;
     this.resolvedBaseConstraint = undefined;
@@ -840,7 +841,7 @@ export class CompositeSignature {
 }
 
 export class Signature {
-  readonly id: number;
+  readonly id: Int32;
   flags: SignatureFlags;
   minArgumentCount: number;
   /** -1 until computed. */
@@ -873,7 +874,7 @@ export class Signature {
     resolvedTypePredicate: TypePredicate | undefined,
     minArgumentCount: number,
   ) {
-    this.id = id;
+    this.id = id | 0;
     this.flags = flags;
     this.minArgumentCount = minArgumentCount;
     this.resolvedMinArgumentCount = -1;

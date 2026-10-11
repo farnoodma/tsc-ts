@@ -1,3 +1,4 @@
+import type { Immutable, NoThrow } from '@scriptc/types';
 import {
   CharacterCodes,
   charSize,
@@ -36,7 +37,7 @@ import {
 export { isIdentifierPart, isIdentifierStart } from './character-codes.js';
 export { EscapeSequenceScanningFlags, EscapeValue } from './regexp-checker.js';
 
-const textToKeyword: Map<string, SyntaxKind> = new Map<string, SyntaxKind>([
+const textToKeyword: Immutable<Map<string, SyntaxKind>> = new Map<string, SyntaxKind>([
   ['abstract', SyntaxKind.AbstractKeyword],
   ['accessor', SyntaxKind.AccessorKeyword],
   ['any', SyntaxKind.AnyKeyword],
@@ -124,7 +125,7 @@ const textToKeyword: Map<string, SyntaxKind> = new Map<string, SyntaxKind>([
   ['of', SyntaxKind.OfKeyword],
 ]);
 
-const textToToken: Map<string, SyntaxKind> = new Map<string, SyntaxKind>([
+const textToToken: Immutable<Map<string, SyntaxKind>> = new Map<string, SyntaxKind>([
   ['{', SyntaxKind.OpenBraceToken],
   ['}', SyntaxKind.CloseBraceToken],
   ['(', SyntaxKind.OpenParenToken],
@@ -209,12 +210,12 @@ const keywordCodeUnits = new Uint16Array(textToKeyword.size * 12);
   }
 }
 
-function keywordBucket(text: string): number {
+function keywordBucket(text: string): NoThrow<number> {
   return (text.charCodeAt(0) - CharacterCodes.a) * 13 + text.length;
 }
 
 /** The keyword kind of the code units `chars[start, end)`, or `Identifier`. */
-function keywordKindAt(chars: Uint16Array, start: number, end: number): SyntaxKind {
+function keywordKindAt(chars: Uint16Array, start: number, end: number): NoThrow<SyntaxKind> {
   const length = end - start;
   if (length < 2 || length > 12) return SyntaxKind.Identifier;
   const first = chars[start];
@@ -229,7 +230,7 @@ function keywordKindAt(chars: Uint16Array, start: number, end: number): SyntaxKi
 }
 
 /** The keyword kind of `text`, or `Identifier`. */
-export function getIdentifierToken(text: string): SyntaxKind {
+export function getIdentifierToken(text: string): NoThrow<SyntaxKind> {
   if (text.length < 2 || text.length > 12) return SyntaxKind.Identifier;
   const first = text.charCodeAt(0);
   if (first < CharacterCodes.a || first > CharacterCodes.z) return SyntaxKind.Identifier;
@@ -257,7 +258,7 @@ export function getViableKeywordSuggestions(): string[] {
   return result;
 }
 
-export function tokenIsIdentifierOrKeyword(token: SyntaxKind): boolean {
+export function tokenIsIdentifierOrKeyword(token: SyntaxKind): NoThrow<boolean> {
   return token >= SyntaxKind.Identifier;
 }
 
@@ -332,7 +333,7 @@ export class ScannerState {
 }
 
 /** FNV-1a over a range's code units. */
-function rangeHash(chars: Uint16Array, start: number, end: number): number {
+function rangeHash(chars: Uint16Array, start: number, end: number): NoThrow<number> {
   let hash = 0x811c9dc5 | 0;
   for (let i = start; i < end; i++) hash = Math.imul(hash ^ chars[i], 0x01000193);
   return hash ^ (hash >>> 15);
@@ -448,7 +449,7 @@ function toCodeUnits(text: string): Uint16Array {
 // compiles to much tighter native code than indexing `chars` from `pos`.
 
 /** The position of the next `` ` ``, `$`, `\\` or CR at or after `pos`, or `end`. */
-function skipTemplateText(chars: Uint16Array, pos: number, end: number): number {
+function skipTemplateText(chars: Uint16Array, pos: number, end: number): NoThrow<number> {
   const view = chars.subarray(pos, end);
   for (let i = 0; i < view.length; i++) {
     const c = view[i];
@@ -464,7 +465,7 @@ function skipTemplateText(chars: Uint16Array, pos: number, end: number): number 
 }
 
 /** The position of the next `*`, `@`, line break or non-ASCII unit at or after `pos`, or `end`. */
-function skipCommentText(chars: Uint16Array, pos: number, end: number): number {
+function skipCommentText(chars: Uint16Array, pos: number, end: number): NoThrow<number> {
   const view = chars.subarray(pos, end);
   for (let i = 0; i < view.length; i++) {
     const c = view[i];
@@ -480,7 +481,7 @@ function skipCommentText(chars: Uint16Array, pos: number, end: number): number {
   return end;
 }
 
-function hasPrefixAt(text: string, pos: number, prefix: string): boolean {
+function hasPrefixAt(text: string, pos: number, prefix: string): NoThrow<boolean> {
   if (pos + prefix.length > text.length) return false;
   for (let i = 0; i < prefix.length; i++) if (text.charCodeAt(pos + i) !== prefix.charCodeAt(i)) return false;
   return true;
@@ -2386,14 +2387,14 @@ export class Scanner {
 
 const mergeConflictMarkerLength = 7;
 
-function utf8Length(ch: number): number {
+function utf8Length(ch: number): NoThrow<number> {
   return ch < 0x80 ? 1 : ch < 0x800 ? 2 : ch >= 0xd800 && ch <= 0xdfff ? 4 : 3;
 }
 
 // Whether a conflict marker at `pos` is at a line start, as TypeScript 7 decides it:
 // after a CR or LF, or after a line terminator followed by two bytes of UTF-8
 // (two ASCII characters or one two-byte character).
-function isConflictMarkerLineStart(text: string, pos: number): boolean {
+function isConflictMarkerLineStart(text: string, pos: number): NoThrow<boolean> {
   if (pos === 0) return true;
   const previous = text.charCodeAt(pos - 1);
   if (previous === CharacterCodes.lineFeed || previous === CharacterCodes.carriageReturn) return true;
@@ -2454,7 +2455,7 @@ export function getShebang(text: string): string {
 }
 
 /** Whether trivia could start at `pos`; a fast pre-check for `skipTrivia`. */
-export function couldStartTrivia(text: string, pos: number): boolean {
+export function couldStartTrivia(text: string, pos: number): NoThrow<boolean> {
   const ch = text.charCodeAt(pos);
   switch (ch) {
     case CharacterCodes.carriageReturn:

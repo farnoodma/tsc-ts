@@ -166,8 +166,8 @@ function createToken(kind: SyntaxKind, pos: number, end: number, parent: Node): 
   const cached = byRange.get(key);
   if (cached !== undefined && cached.kind === kind) return cached;
   const token = new Token(kind);
-  token.pos = pos;
-  token.end = end;
+  token.pos = pos | 0;
+  token.end = end | 0;
   token.parent = parent;
   byRange.set(key, token);
   return token;

@@ -1,3 +1,4 @@
+import type { NoThrow } from '@scriptc/types';
 import { LanguageVariant } from './types.js';
 import { identifierPartRanges, identifierStartRanges } from './unicode-identifiers.js';
 
@@ -142,7 +143,7 @@ export const enum CharacterCodes {
 }
 
 /** ECMAScript line terminators: LF, CR, LS and PS. */
-export function isLineBreak(ch: number): boolean {
+export function isLineBreak(ch: number): NoThrow<boolean> {
   return (
     ch === CharacterCodes.lineFeed ||
     ch === CharacterCodes.carriageReturn ||
@@ -152,7 +153,7 @@ export function isLineBreak(ch: number): boolean {
 }
 
 /** Whitespace other than line terminators. NEL (U+0085) counts as whitespace. */
-export function isWhiteSpaceSingleLine(ch: number): boolean {
+export function isWhiteSpaceSingleLine(ch: number): NoThrow<boolean> {
   if (ch < 0x80) {
     return (
       ch === CharacterCodes.space ||
@@ -173,12 +174,12 @@ export function isWhiteSpaceSingleLine(ch: number): boolean {
   );
 }
 
-export function isWhiteSpaceLike(ch: number): boolean {
+export function isWhiteSpaceLike(ch: number): NoThrow<boolean> {
   return isWhiteSpaceSingleLine(ch) || isLineBreak(ch);
 }
 
 /** Unicode White_Space, as Go's `unicode.IsSpace` defines it. Unlike `isWhiteSpaceLike`, excludes ZWSP and BOM. */
-export function isUnicodeWhiteSpace(ch: number): boolean {
+export function isUnicodeWhiteSpace(ch: number): NoThrow<boolean> {
   return (
     (ch >= CharacterCodes.tab && ch <= CharacterCodes.carriageReturn) ||
     ch === CharacterCodes.space ||
@@ -194,15 +195,15 @@ export function isUnicodeWhiteSpace(ch: number): boolean {
   );
 }
 
-export function isDigit(ch: number): boolean {
+export function isDigit(ch: number): NoThrow<boolean> {
   return ch >= CharacterCodes._0 && ch <= CharacterCodes._9;
 }
 
-export function isOctalDigit(ch: number): boolean {
+export function isOctalDigit(ch: number): NoThrow<boolean> {
   return ch >= CharacterCodes._0 && ch <= CharacterCodes._7;
 }
 
-export function isHexDigit(ch: number): boolean {
+export function isHexDigit(ch: number): NoThrow<boolean> {
   return (
     (ch >= CharacterCodes._0 && ch <= CharacterCodes._9) ||
     (ch >= CharacterCodes.A && ch <= CharacterCodes.F) ||
@@ -210,30 +211,30 @@ export function isHexDigit(ch: number): boolean {
   );
 }
 
-export function isASCIILetter(ch: number): boolean {
+export function isASCIILetter(ch: number): NoThrow<boolean> {
   return (ch >= CharacterCodes.A && ch <= CharacterCodes.Z) || (ch >= CharacterCodes.a && ch <= CharacterCodes.z);
 }
 
 /** `[A-Za-z0-9_]`. */
-export function isWordCharacter(ch: number): boolean {
+export function isWordCharacter(ch: number): NoThrow<boolean> {
   return isASCIILetter(ch) || isDigit(ch) || ch === CharacterCodes._;
 }
 
-export function isHighSurrogate(ch: number): boolean {
+export function isHighSurrogate(ch: number): NoThrow<boolean> {
   return ch >= 0xd800 && ch <= 0xdbff;
 }
 
-export function isLowSurrogate(ch: number): boolean {
+export function isLowSurrogate(ch: number): NoThrow<boolean> {
   return ch >= 0xdc00 && ch <= 0xdfff;
 }
 
 /** Number of UTF-16 code units of a code point. */
-export function charSize(codePoint: number): number {
+export function charSize(codePoint: number): NoThrow<number> {
   return codePoint >= 0x10000 ? 2 : 1;
 }
 
 /** The code point at `pos`, combining a surrogate pair; -1 at or past `end`. */
-export function codePointAt(text: string, pos: number, end: number): number {
+export function codePointAt(text: string, pos: number, end: number): NoThrow<number> {
   if (pos >= end) return CharacterCodes.EOF;
   const ch = text.charCodeAt(pos);
   if (ch >= 0xd800 && ch <= 0xdbff && pos + 1 < end) {
@@ -244,7 +245,7 @@ export function codePointAt(text: string, pos: number, end: number): number {
 }
 
 /** Length of `text` in UTF-8 bytes. A lone surrogate counts as U+FFFD. */
-export function utf8Length(text: string): number {
+export function utf8Length(text: string): NoThrow<number> {
   let length = 0;
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
@@ -259,7 +260,7 @@ export function utf8Length(text: string): number {
 }
 
 /** The code point ending just before `pos`, combining a surrogate pair; -1 at the start. */
-export function codePointBefore(text: string, pos: number): number {
+export function codePointBefore(text: string, pos: number): NoThrow<number> {
   if (pos <= 0) return CharacterCodes.EOF;
   const ch = text.charCodeAt(pos - 1);
   if (ch >= 0xdc00 && ch <= 0xdfff && pos >= 2) {
@@ -282,16 +283,16 @@ function inRanges(ranges: Int32Array, codePoint: number): boolean {
 }
 
 /** Unicode ID_Start. */
-export function isUnicodeIdentifierStart(codePoint: number): boolean {
+export function isUnicodeIdentifierStart(codePoint: number): NoThrow<boolean> {
   return inRanges(identifierStartRanges, codePoint);
 }
 
 /** Unicode ID_Continue. */
-export function isUnicodeIdentifierPart(codePoint: number): boolean {
+export function isUnicodeIdentifierPart(codePoint: number): NoThrow<boolean> {
   return inRanges(identifierPartRanges, codePoint);
 }
 
-export function isIdentifierStart(codePoint: number): boolean {
+export function isIdentifierStart(codePoint: number): NoThrow<boolean> {
   return (
     isASCIILetter(codePoint) ||
     codePoint === CharacterCodes._ ||
@@ -300,7 +301,7 @@ export function isIdentifierStart(codePoint: number): boolean {
   );
 }
 
-export function isIdentifierPart(codePoint: number, languageVariant = LanguageVariant.Standard): boolean {
+export function isIdentifierPart(codePoint: number, languageVariant = LanguageVariant.Standard): NoThrow<boolean> {
   return (
     isWordCharacter(codePoint) ||
     codePoint === CharacterCodes.$ ||

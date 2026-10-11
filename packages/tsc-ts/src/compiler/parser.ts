@@ -745,8 +745,8 @@ export class Parser extends ScannerErrorReporter {
   }
 
   finishNodeWithEnd(node: Node, pos: number, end: number): Node {
-    node.pos = pos;
-    node.end = end;
+    node.pos = pos | 0;
+    node.end = end | 0;
     node.flags |= this.contextFlags;
     if (this.hasParseError) {
       node.flags |= NodeFlags.ThisNodeHasError;
@@ -2614,8 +2614,8 @@ export class Parser extends ScannerErrorReporter {
     let body: Node;
     if (this.parseOptional(SyntaxKind.DotToken)) {
       const implicitExport = new Token(SyntaxKind.ExportKeyword);
-      implicitExport.pos = this.nodePos();
-      implicitExport.end = this.nodePos();
+      implicitExport.pos = this.nodePos() | 0;
+      implicitExport.end = this.nodePos() | 0;
       implicitExport.flags = NodeFlags.Reparsed;
       const implicitModifiers = this.newModifierList(this.nodePos(), this.nodePos(), [implicitExport]);
       body = this.parseModuleOrNamespaceDeclaration(

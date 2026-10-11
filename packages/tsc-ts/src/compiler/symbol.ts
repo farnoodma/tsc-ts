@@ -1,3 +1,4 @@
+import type { Int32 } from '@scriptc/types';
 // Symbols: what the binder declares for each named entity, and the tables that hold them.
 import type { Node } from './ast.js';
 
@@ -161,7 +162,7 @@ export class Symbol {
   /** For the local symbol of an exported declaration, the exported symbol. */
   exportSymbol: Symbol | undefined;
   /** Assigned on first use by `getSymbolId`; 0 until then. */
-  id: number;
+  id: Int32;
 
   constructor(flags: SymbolFlags, name: string) {
     this.flags = flags;
@@ -190,7 +191,7 @@ export class Symbol {
 
 export type SymbolTable = Map<string, Symbol>;
 
-let nextSymbolId = 0;
+let nextSymbolId: Int32 = 0;
 
 /** Appends `node` to the declarations of `symbol`, which may still share the empty `noDeclarations`. */
 export function addDeclaration(symbol: Symbol, node: Node): void {
@@ -202,8 +203,8 @@ export function addDeclaration(symbol: Symbol, node: Node): void {
 export function getSymbolId(symbol: Symbol): number {
   let id = symbol.id;
   if (id === 0) {
-    id = ++nextSymbolId;
-    symbol.id = id;
+    id = nextSymbolId = (nextSymbolId + 1) | 0;
+    symbol.id = id | 0;
   }
   return id;
 }

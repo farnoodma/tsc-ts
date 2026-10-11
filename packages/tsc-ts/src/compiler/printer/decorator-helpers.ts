@@ -160,8 +160,8 @@ export function createParamHelper(
     factory.createNumericLiteral(String(parameterOffset)),
     expression,
   ]);
-  helper.pos = pos;
-  helper.end = end;
+  helper.pos = pos | 0;
+  helper.end = end | 0;
   return helper;
 }
 
