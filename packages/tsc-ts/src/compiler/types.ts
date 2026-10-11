@@ -94,8 +94,8 @@ export class CommentDirective {
   readonly kind: CommentDirectiveKind;
 
   constructor(pos: number, end: number, kind: CommentDirectiveKind) {
-    this.pos = pos;
-    this.end = end;
+    this.pos = pos | 0;
+    this.end = end | 0;
     this.kind = kind;
   }
 }
@@ -107,8 +107,8 @@ export class CommentRange {
   readonly hasTrailingNewLine: boolean;
 
   constructor(pos: number, end: number, kind: SyntaxKind, hasTrailingNewLine: boolean) {
-    this.pos = pos;
-    this.end = end;
+    this.pos = pos | 0;
+    this.end = end | 0;
     this.kind = kind;
     this.hasTrailingNewLine = hasTrailingNewLine;
   }

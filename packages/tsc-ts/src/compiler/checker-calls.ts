@@ -686,6 +686,8 @@ export class SyntheticExpression extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return new SyntheticExpression(this.parent!, this.type, this.isSpread, this.tupleNameSource);
   }

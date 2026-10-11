@@ -1815,7 +1815,7 @@ export class ESDecorators extends Transformer {
       // Source maps start past the modifiers, but comments cover the original range.
       context.setCommentRange(updated, node.pos, node.end);
       const pos = moveRangePastModifiers(node).pos;
-      updated.pos = pos;
+      updated.pos = pos | 0;
       updated.end = node.end;
       context.setSourceMapRange(updated, pos, node.end);
       context.setEmitFlags(updated.name, EmitFlags.NoTrailingSourceMap);

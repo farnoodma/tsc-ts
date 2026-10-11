@@ -544,7 +544,7 @@ class RegularExpressionChecker {
 
   private scanGroupName(isReference: boolean): void {
     const scanner = this.scanner;
-    scanner.tokenStart = this.scanner.pos;
+    scanner.tokenStart = this.scanner.pos | 0;
     scanner.scanIdentifier(0);
     const start = scanner.tokenStart;
     if (this.scanner.pos === start) {

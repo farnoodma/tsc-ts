@@ -33,8 +33,8 @@ export function findChildTokenOfKind(node: Node, kind: SyntaxKind, file: SourceF
     while (scanner.getTokenFullStart() < end && scanner.getTokenEnd() <= end) {
       if (scanner.getToken() === kind) {
         const token = new Token(kind);
-        token.pos = scanner.getTokenFullStart();
-        token.end = scanner.getTokenEnd();
+        token.pos = scanner.getTokenFullStart() | 0;
+        token.end = scanner.getTokenEnd() | 0;
         token.parent = node;
         return token;
       }

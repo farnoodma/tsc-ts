@@ -190,7 +190,8 @@ let nextSymbolId = 0;
 export function getSymbolId(symbol: Symbol): number {
   let id = symbol.id;
   if (id === 0) {
-    id = ++nextSymbolId;
+    // `| 0`: ids stay far below 2^31, and native builds then store `id` as an int32.
+    id = ++nextSymbolId | 0;
     symbol.id = id;
   }
   return id;

@@ -285,6 +285,19 @@ function emitClass(c) {
   if (children.length === 0) lines.push('    return false;');
   lines.push('  }');
   lines.push('');
+  lines.push('  setParentOfChildren(): void {');
+  for (const m of children) {
+    const f = `this.${m.name}`;
+    const set =
+      m.child === 'node'
+        ? `${f}.parent = this;`
+        : m.child === 'raw'
+          ? `setParents(${f}, this);`
+          : `setParents(${f}.nodes, this);`;
+    lines.push(m.optional || m.child === 'modifiers' ? `    if (${f} !== undefined) ${set}` : `    ${set}`);
+  }
+  lines.push('  }');
+  lines.push('');
   // deepClone/copy: `copy` keeps the class type for class-typed members (scriptc can't override
   // with a narrower return type).
   const args = [];

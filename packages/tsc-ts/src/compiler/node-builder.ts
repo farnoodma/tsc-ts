@@ -2334,8 +2334,8 @@ export class NodeBuilder {
         for (const m of original.nodes) {
           if (!isModifierKind(m.kind)) continue;
           const clone = m.deepClone();
-          clone.pos = utf8Offset(text, m.pos);
-          clone.end = utf8Offset(text, m.end);
+          clone.pos = utf8Offset(text, m.pos) | 0;
+          clone.end = utf8Offset(text, m.end) | 0;
           clones.push(clone);
         }
         modifiers = this.modifierList(clones);

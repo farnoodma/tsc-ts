@@ -167,6 +167,9 @@ export abstract class NodeVisitor {
   }
 }
 
+// Native builds store `pos`, `end` and `id` as 32-bit integers when every write provably stores an
+// int32, so writes of values the compiler can't bound (parameters, the id counter) are coerced
+// with `| 0`; the values are always int32.
 export abstract class Node {
   readonly kind: SyntaxKind;
   flags: NodeFlags;
@@ -187,11 +190,18 @@ export abstract class Node {
     this.end = -1;
     this.parent = undefined;
     this.jsDoc = undefined;
-    this.id = ++lastNodeId;
+    this.id = ++lastNodeId | 0;
   }
 
   /** Calls `visitor` for each child in order; returns `true` if the visitor stopped. */
   abstract forEachChild(visitor: NodeVisitor): boolean;
+
+  /**
+   * Makes this node the parent of each child that `forEachChild` visits. Natively, storing
+   * `this` only retains it, where a visitor holding the parent in a field would release each
+   * previous parent, making every finished node a cycle-collector candidate.
+   */
+  abstract setParentOfChildren(): void;
 
   /** A copy of this subtree with the same positions and flags; parents are not set. */
   abstract deepClone(): Node;
@@ -211,8 +221,8 @@ export class NodeList {
   isMissingList: boolean;
 
   constructor(pos: number, end: number, nodes: Node[]) {
-    this.pos = pos;
-    this.end = end;
+    this.pos = pos | 0;
+    this.end = end | 0;
     this.nodes = nodes;
     this.isMissingList = false;
   }
@@ -230,6 +240,11 @@ export class ModifierList extends NodeList {
     super(pos, end, nodes);
     this.modifierFlags = modifierFlags;
   }
+}
+
+/** Makes `parent` the parent of each of `nodes`. */
+function setParents(nodes: readonly Node[], parent: Node): void {
+  for (let i = 0; i < nodes.length; i++) nodes[i]!.parent = parent;
 }
 
 function cloneNodes(nodes: Node[]): Node[] {
@@ -370,6 +385,8 @@ export class Token extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -398,6 +415,8 @@ export class Identifier extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -422,6 +441,8 @@ export class PrivateIdentifier extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -454,6 +475,11 @@ export class QualifiedName extends Node {
     return v.visitNode(this.right);
   }
 
+  setParentOfChildren(): void {
+    this.left.parent = this;
+    this.right.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -477,6 +503,10 @@ export class ComputedPropertyName extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -504,6 +534,10 @@ export class Decorator extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -529,6 +563,8 @@ export class EmptyStatement extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -562,6 +598,12 @@ export class IfStatement extends Node {
     if (v.visitNode(this.expression)) return true;
     if (v.visitNode(this.thenStatement)) return true;
     return this.elseStatement !== undefined && v.visitNode(this.elseStatement);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    this.thenStatement.parent = this;
+    if (this.elseStatement !== undefined) this.elseStatement.parent = this;
   }
 
   deepClone(): Node {
@@ -599,6 +641,11 @@ export class DoStatement extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    this.statement.parent = this;
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -628,6 +675,11 @@ export class WhileStatement extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.expression)) return true;
     return v.visitNode(this.statement);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    this.statement.parent = this;
   }
 
   deepClone(): Node {
@@ -674,6 +726,13 @@ export class ForStatement extends Node {
     if (this.condition !== undefined && v.visitNode(this.condition)) return true;
     if (this.incrementor !== undefined && v.visitNode(this.incrementor)) return true;
     return v.visitNode(this.statement);
+  }
+
+  setParentOfChildren(): void {
+    if (this.initializer !== undefined) this.initializer.parent = this;
+    if (this.condition !== undefined) this.condition.parent = this;
+    if (this.incrementor !== undefined) this.incrementor.parent = this;
+    this.statement.parent = this;
   }
 
   deepClone(): Node {
@@ -728,6 +787,13 @@ export class ForInOrOfStatement extends Node {
     return v.visitNode(this.statement);
   }
 
+  setParentOfChildren(): void {
+    if (this.awaitModifier !== undefined) this.awaitModifier.parent = this;
+    this.initializer.parent = this;
+    this.expression.parent = this;
+    this.statement.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -762,6 +828,10 @@ export class BreakStatement extends Node {
     return this.label !== undefined && v.visitNode(this.label);
   }
 
+  setParentOfChildren(): void {
+    if (this.label !== undefined) this.label.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -790,6 +860,10 @@ export class ContinueStatement extends Node {
     return this.label !== undefined && v.visitNode(this.label);
   }
 
+  setParentOfChildren(): void {
+    if (this.label !== undefined) this.label.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -816,6 +890,10 @@ export class ReturnStatement extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return this.expression !== undefined && v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    if (this.expression !== undefined) this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -849,6 +927,11 @@ export class WithStatement extends Node {
     return v.visitNode(this.statement);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    this.statement.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -878,6 +961,11 @@ export class SwitchStatement extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.expression)) return true;
     return v.visitNode(this.caseBlock);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    this.caseBlock.parent = this;
   }
 
   deepClone(): Node {
@@ -910,6 +998,10 @@ export class CaseBlock extends Node {
     return v.visitList(this.clauses);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.clauses.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -939,6 +1031,11 @@ export class CaseOrDefaultClause extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (this.expression !== undefined && v.visitNode(this.expression)) return true;
     return v.visitList(this.statements);
+  }
+
+  setParentOfChildren(): void {
+    if (this.expression !== undefined) this.expression.parent = this;
+    setParents(this.statements.nodes, this);
   }
 
   deepClone(): Node {
@@ -973,6 +1070,10 @@ export class ThrowStatement extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1005,6 +1106,12 @@ export class TryStatement extends Node {
     if (v.visitNode(this.tryBlock)) return true;
     if (this.catchClause !== undefined && v.visitNode(this.catchClause)) return true;
     return this.finallyBlock !== undefined && v.visitNode(this.finallyBlock);
+  }
+
+  setParentOfChildren(): void {
+    this.tryBlock.parent = this;
+    if (this.catchClause !== undefined) this.catchClause.parent = this;
+    if (this.finallyBlock !== undefined) this.finallyBlock.parent = this;
   }
 
   deepClone(): Node {
@@ -1044,6 +1151,11 @@ export class CatchClause extends Node {
     return v.visitNode(this.block);
   }
 
+  setParentOfChildren(): void {
+    if (this.variableDeclaration !== undefined) this.variableDeclaration.parent = this;
+    this.block.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1072,6 +1184,8 @@ export class DebuggerStatement extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -1104,6 +1218,11 @@ export class LabeledStatement extends Node {
     return v.visitNode(this.statement);
   }
 
+  setParentOfChildren(): void {
+    this.label.parent = this;
+    this.statement.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1130,6 +1249,10 @@ export class ExpressionStatement extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -1166,6 +1289,10 @@ export class Block extends Node {
     return v.visitList(this.statements);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.statements.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1195,6 +1322,11 @@ export class VariableStatement extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (this.modifiers !== undefined && v.visitModifiers(this.modifiers)) return true;
     return v.visitNode(this.declarationList);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.declarationList.parent = this;
   }
 
   deepClone(): Node {
@@ -1244,6 +1376,13 @@ export class VariableDeclaration extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
+  setParentOfChildren(): void {
+    this.name.parent = this;
+    if (this.exclamationToken !== undefined) this.exclamationToken.parent = this;
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.initializer !== undefined) this.initializer.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1275,6 +1414,10 @@ export class VariableDeclarationList extends Node {
     return v.visitList(this.declarations);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.declarations.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1298,6 +1441,10 @@ export class BindingPattern extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitList(this.elements);
+  }
+
+  setParentOfChildren(): void {
+    setParents(this.elements.nodes, this);
   }
 
   deepClone(): Node {
@@ -1348,6 +1495,15 @@ export class ParameterDeclaration extends Node {
     if (this.questionToken !== undefined && v.visitNode(this.questionToken)) return true;
     if (this.type !== undefined && v.visitNode(this.type)) return true;
     return this.initializer !== undefined && v.visitNode(this.initializer);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.dotDotDotToken !== undefined) this.dotDotDotToken.parent = this;
+    this.name.parent = this;
+    if (this.questionToken !== undefined) this.questionToken.parent = this;
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.initializer !== undefined) this.initializer.parent = this;
   }
 
   deepClone(): Node {
@@ -1403,6 +1559,13 @@ export class BindingElement extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
+  setParentOfChildren(): void {
+    if (this.dotDotDotToken !== undefined) this.dotDotDotToken.parent = this;
+    if (this.propertyName !== undefined) this.propertyName.parent = this;
+    if (this.name !== undefined) this.name.parent = this;
+    if (this.initializer !== undefined) this.initializer.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1436,6 +1599,10 @@ export class MissingDeclaration extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return this.modifiers !== undefined && v.visitModifiers(this.modifiers);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
   }
 
   deepClone(): Node {
@@ -1508,6 +1675,17 @@ export class FunctionDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.asteriskToken !== undefined) this.asteriskToken.parent = this;
+    if (this.name !== undefined) this.name.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.fullSignature !== undefined) this.fullSignature.parent = this;
+    if (this.body !== undefined) this.body.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1571,6 +1749,14 @@ export class ClassDeclaration extends Node {
     return v.visitList(this.members);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.name !== undefined) this.name.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    if (this.heritageClauses !== undefined) setParents(this.heritageClauses.nodes, this);
+    setParents(this.members.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1629,6 +1815,14 @@ export class ClassExpression extends Node {
     return v.visitList(this.members);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.name !== undefined) this.name.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    if (this.heritageClauses !== undefined) setParents(this.heritageClauses.nodes, this);
+    setParents(this.members.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1660,6 +1854,10 @@ export class HeritageClause extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitList(this.types);
+  }
+
+  setParentOfChildren(): void {
+    setParents(this.types.nodes, this);
   }
 
   deepClone(): Node {
@@ -1710,6 +1908,14 @@ export class InterfaceDeclaration extends Node {
     if (this.typeParameters !== undefined && v.visitList(this.typeParameters)) return true;
     if (this.heritageClauses !== undefined && v.visitList(this.heritageClauses)) return true;
     return v.visitList(this.members);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    if (this.heritageClauses !== undefined) setParents(this.heritageClauses.nodes, this);
+    setParents(this.members.nodes, this);
   }
 
   deepClone(): Node {
@@ -1769,6 +1975,13 @@ export class TypeAliasDeclaration extends Node {
     return v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1804,6 +2017,11 @@ export class EnumMember extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.name)) return true;
     return this.initializer !== undefined && v.visitNode(this.initializer);
+  }
+
+  setParentOfChildren(): void {
+    this.name.parent = this;
+    if (this.initializer !== undefined) this.initializer.parent = this;
   }
 
   deepClone(): Node {
@@ -1847,6 +2065,12 @@ export class EnumDeclaration extends Node {
     return v.visitList(this.members);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    setParents(this.members.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1879,6 +2103,10 @@ export class ModuleBlock extends Node {
     return v.visitList(this.statements);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.statements.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1905,6 +2133,8 @@ export class NotEmittedStatement extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -1926,6 +2156,8 @@ export class NotEmittedTypeElement extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -1972,6 +2204,13 @@ export class ImportDeclaration extends Node {
     return this.attributes !== undefined && v.visitNode(this.attributes);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.importClause !== undefined) this.importClause.parent = this;
+    this.moduleSpecifier.parent = this;
+    if (this.attributes !== undefined) this.attributes.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2001,6 +2240,10 @@ export class ExternalModuleReference extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -2033,6 +2276,10 @@ export class NamespaceImport extends Node {
     return v.visitNode(this.name);
   }
 
+  setParentOfChildren(): void {
+    this.name.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2056,6 +2303,10 @@ export class NamedImports extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitList(this.elements);
+  }
+
+  setParentOfChildren(): void {
+    setParents(this.elements.nodes, this);
   }
 
   deepClone(): Node {
@@ -2101,6 +2352,12 @@ export class ExportAssignment extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2139,6 +2396,11 @@ export class NamespaceExportDeclaration extends Node {
     return v.visitNode(this.name);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2170,6 +2432,10 @@ export class NamespaceExport extends Node {
     return v.visitNode(this.name);
   }
 
+  setParentOfChildren(): void {
+    this.name.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2193,6 +2459,10 @@ export class NamedExports extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitList(this.elements);
+  }
+
+  setParentOfChildren(): void {
+    setParents(this.elements.nodes, this);
   }
 
   deepClone(): Node {
@@ -2228,6 +2498,11 @@ export class ExportSpecifier extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (this.propertyName !== undefined && v.visitNode(this.propertyName)) return true;
     return v.visitNode(this.name);
+  }
+
+  setParentOfChildren(): void {
+    if (this.propertyName !== undefined) this.propertyName.parent = this;
+    this.name.parent = this;
   }
 
   deepClone(): Node {
@@ -2272,6 +2547,12 @@ export class CallSignatureDeclaration extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2312,6 +2593,12 @@ export class ConstructSignatureDeclaration extends Node {
     if (this.typeParameters !== undefined && v.visitList(this.typeParameters)) return true;
     if (v.visitList(this.parameters)) return true;
     return this.type !== undefined && v.visitNode(this.type);
+  }
+
+  setParentOfChildren(): void {
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
   }
 
   deepClone(): Node {
@@ -2374,6 +2661,15 @@ export class ConstructorDeclaration extends Node {
     if (this.type !== undefined && v.visitNode(this.type)) return true;
     if (this.fullSignature !== undefined && v.visitNode(this.fullSignature)) return true;
     return this.body !== undefined && v.visitNode(this.body);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.fullSignature !== undefined) this.fullSignature.parent = this;
+    if (this.body !== undefined) this.body.parent = this;
   }
 
   deepClone(): Node {
@@ -2443,6 +2739,16 @@ export class GetAccessorDeclaration extends Node {
     if (this.type !== undefined && v.visitNode(this.type)) return true;
     if (this.fullSignature !== undefined && v.visitNode(this.fullSignature)) return true;
     return this.body !== undefined && v.visitNode(this.body);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.fullSignature !== undefined) this.fullSignature.parent = this;
+    if (this.body !== undefined) this.body.parent = this;
   }
 
   deepClone(): Node {
@@ -2515,6 +2821,16 @@ export class SetAccessorDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.fullSignature !== undefined) this.fullSignature.parent = this;
+    if (this.body !== undefined) this.body.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2559,6 +2875,12 @@ export class IndexSignatureDeclaration extends Node {
     if (this.modifiers !== undefined && v.visitModifiers(this.modifiers)) return true;
     if (v.visitList(this.parameters)) return true;
     return this.type !== undefined && v.visitNode(this.type);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
   }
 
   deepClone(): Node {
@@ -2617,6 +2939,15 @@ export class MethodSignatureDeclaration extends Node {
     if (this.typeParameters !== undefined && v.visitList(this.typeParameters)) return true;
     if (v.visitList(this.parameters)) return true;
     return this.type !== undefined && v.visitNode(this.type);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.postfixToken !== undefined) this.postfixToken.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
   }
 
   deepClone(): Node {
@@ -2696,6 +3027,18 @@ export class MethodDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.asteriskToken !== undefined) this.asteriskToken.parent = this;
+    this.name.parent = this;
+    if (this.postfixToken !== undefined) this.postfixToken.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.fullSignature !== undefined) this.fullSignature.parent = this;
+    if (this.body !== undefined) this.body.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2752,6 +3095,14 @@ export class PropertySignatureDeclaration extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.postfixToken !== undefined) this.postfixToken.parent = this;
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.initializer !== undefined) this.initializer.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2804,6 +3155,14 @@ export class PropertyDeclaration extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.postfixToken !== undefined) this.postfixToken.parent = this;
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.initializer !== undefined) this.initializer.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2835,6 +3194,8 @@ export class SemicolonClassElement extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -2873,6 +3234,11 @@ export class ClassStaticBlockDeclaration extends Node {
     return v.visitNode(this.body);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.body.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2897,6 +3263,8 @@ export class OmittedExpression extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -2923,6 +3291,8 @@ export class KeywordExpression extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -2951,6 +3321,8 @@ export class StringLiteral extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -2977,6 +3349,8 @@ export class NumericLiteral extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -3005,6 +3379,8 @@ export class BigIntLiteral extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3031,6 +3407,8 @@ export class RegularExpressionLiteral extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -3061,6 +3439,8 @@ export class NoSubstitutionTemplateLiteral extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -3108,6 +3488,14 @@ export class BinaryExpression extends Node {
     return v.visitNode(this.right);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.left.parent = this;
+    if (this.type !== undefined) this.type.parent = this;
+    this.operatorToken.parent = this;
+    this.right.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3141,6 +3529,10 @@ export class PrefixUnaryExpression extends Node {
     return v.visitNode(this.operand);
   }
 
+  setParentOfChildren(): void {
+    this.operand.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3166,6 +3558,10 @@ export class PostfixUnaryExpression extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.operand);
+  }
+
+  setParentOfChildren(): void {
+    this.operand.parent = this;
   }
 
   deepClone(): Node {
@@ -3194,6 +3590,11 @@ export class YieldExpression extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (this.asteriskToken !== undefined && v.visitNode(this.asteriskToken)) return true;
     return this.expression !== undefined && v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    if (this.asteriskToken !== undefined) this.asteriskToken.parent = this;
+    if (this.expression !== undefined) this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -3259,6 +3660,16 @@ export class ArrowFunction extends Node {
     if (this.fullSignature !== undefined && v.visitNode(this.fullSignature)) return true;
     if (this.equalsGreaterThanToken !== undefined && v.visitNode(this.equalsGreaterThanToken)) return true;
     return v.visitNode(this.body);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.fullSignature !== undefined) this.fullSignature.parent = this;
+    if (this.equalsGreaterThanToken !== undefined) this.equalsGreaterThanToken.parent = this;
+    this.body.parent = this;
   }
 
   deepClone(): Node {
@@ -3337,6 +3748,17 @@ export class FunctionExpression extends Node {
     return v.visitNode(this.body);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.asteriskToken !== undefined) this.asteriskToken.parent = this;
+    if (this.name !== undefined) this.name.parent = this;
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.fullSignature !== undefined) this.fullSignature.parent = this;
+    this.body.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3374,6 +3796,11 @@ export class AsExpression extends Node {
     return v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3400,6 +3827,11 @@ export class SatisfiesExpression extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.expression)) return true;
     return v.visitNode(this.type);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    this.type.parent = this;
   }
 
   deepClone(): Node {
@@ -3445,6 +3877,14 @@ export class ConditionalExpression extends Node {
     return v.visitNode(this.whenFalse);
   }
 
+  setParentOfChildren(): void {
+    this.condition.parent = this;
+    this.questionToken.parent = this;
+    this.whenTrue.parent = this;
+    this.colonToken.parent = this;
+    this.whenFalse.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3484,6 +3924,12 @@ export class PropertyAccessExpression extends Node {
     if (v.visitNode(this.expression)) return true;
     if (this.questionDotToken !== undefined && v.visitNode(this.questionDotToken)) return true;
     return v.visitNode(this.name);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    if (this.questionDotToken !== undefined) this.questionDotToken.parent = this;
+    this.name.parent = this;
   }
 
   deepClone(): Node {
@@ -3529,6 +3975,12 @@ export class ElementAccessExpression extends Node {
     if (v.visitNode(this.expression)) return true;
     if (this.questionDotToken !== undefined && v.visitNode(this.questionDotToken)) return true;
     return v.visitNode(this.argumentExpression);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    if (this.questionDotToken !== undefined) this.questionDotToken.parent = this;
+    this.argumentExpression.parent = this;
   }
 
   deepClone(): Node {
@@ -3580,6 +4032,13 @@ export class CallExpression extends Node {
     return v.visitList(this.arguments);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    if (this.questionDotToken !== undefined) this.questionDotToken.parent = this;
+    if (this.typeArguments !== undefined) setParents(this.typeArguments.nodes, this);
+    setParents(this.arguments.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3617,6 +4076,12 @@ export class NewExpression extends Node {
     return this.arguments !== undefined && v.visitList(this.arguments);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    if (this.typeArguments !== undefined) setParents(this.typeArguments.nodes, this);
+    if (this.arguments !== undefined) setParents(this.arguments.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3651,6 +4116,10 @@ export class MetaProperty extends Node {
     return v.visitNode(this.name);
   }
 
+  setParentOfChildren(): void {
+    this.name.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3677,6 +4146,10 @@ export class NonNullExpression extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3700,6 +4173,10 @@ export class SpreadElement extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -3730,6 +4207,11 @@ export class TemplateExpression extends Node {
     return v.visitList(this.templateSpans);
   }
 
+  setParentOfChildren(): void {
+    this.head.parent = this;
+    setParents(this.templateSpans.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3756,6 +4238,11 @@ export class TemplateSpan extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.expression)) return true;
     return v.visitNode(this.literal);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    this.literal.parent = this;
   }
 
   deepClone(): Node {
@@ -3799,6 +4286,13 @@ export class TaggedTemplateExpression extends Node {
     return v.visitNode(this.template);
   }
 
+  setParentOfChildren(): void {
+    this.tag.parent = this;
+    if (this.questionDotToken !== undefined) this.questionDotToken.parent = this;
+    if (this.typeArguments !== undefined) setParents(this.typeArguments.nodes, this);
+    this.template.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3830,6 +4324,10 @@ export class ParenthesizedExpression extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3855,6 +4353,10 @@ export class ArrayLiteralExpression extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitList(this.elements);
+  }
+
+  setParentOfChildren(): void {
+    setParents(this.elements.nodes, this);
   }
 
   deepClone(): Node {
@@ -3887,6 +4389,10 @@ export class ObjectLiteralExpression extends Node {
     return v.visitList(this.properties);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.properties.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -3913,6 +4419,10 @@ export class SpreadAssignment extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -3959,6 +4469,14 @@ export class PropertyAssignment extends Node {
     if (this.postfixToken !== undefined && v.visitNode(this.postfixToken)) return true;
     if (this.type !== undefined && v.visitNode(this.type)) return true;
     return v.visitNode(this.initializer);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.postfixToken !== undefined) this.postfixToken.parent = this;
+    if (this.type !== undefined) this.type.parent = this;
+    this.initializer.parent = this;
   }
 
   deepClone(): Node {
@@ -4017,6 +4535,15 @@ export class ShorthandPropertyAssignment extends Node {
     return this.objectAssignmentInitializer !== undefined && v.visitNode(this.objectAssignmentInitializer);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.postfixToken !== undefined) this.postfixToken.parent = this;
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.equalsToken !== undefined) this.equalsToken.parent = this;
+    if (this.objectAssignmentInitializer !== undefined) this.objectAssignmentInitializer.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4049,6 +4576,10 @@ export class DeleteExpression extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4072,6 +4603,10 @@ export class TypeOfExpression extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -4099,6 +4634,10 @@ export class VoidExpression extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4122,6 +4661,10 @@ export class AwaitExpression extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -4152,6 +4695,11 @@ export class TypeAssertion extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    this.type.parent = this;
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4173,6 +4721,8 @@ export class KeywordTypeNode extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -4199,6 +4749,10 @@ export class UnionTypeNode extends Node {
     return v.visitList(this.types);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.types.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4222,6 +4776,10 @@ export class IntersectionTypeNode extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitList(this.types);
+  }
+
+  setParentOfChildren(): void {
+    setParents(this.types.nodes, this);
   }
 
   deepClone(): Node {
@@ -4263,6 +4821,13 @@ export class ConditionalTypeNode extends Node {
     return v.visitNode(this.falseType);
   }
 
+  setParentOfChildren(): void {
+    this.checkType.parent = this;
+    this.extendsType.parent = this;
+    this.trueType.parent = this;
+    this.falseType.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4295,6 +4860,10 @@ export class TypeOperatorNode extends Node {
     return v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4320,6 +4889,10 @@ export class InferTypeNode extends Node {
     return v.visitNode(this.typeParameter);
   }
 
+  setParentOfChildren(): void {
+    this.typeParameter.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4343,6 +4916,10 @@ export class ArrayTypeNode extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.elementType);
+  }
+
+  setParentOfChildren(): void {
+    this.elementType.parent = this;
   }
 
   deepClone(): Node {
@@ -4373,6 +4950,11 @@ export class IndexedAccessTypeNode extends Node {
     return v.visitNode(this.indexType);
   }
 
+  setParentOfChildren(): void {
+    this.objectType.parent = this;
+    this.indexType.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4399,6 +4981,11 @@ export class TypeReferenceNode extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.typeName)) return true;
     return this.typeArguments !== undefined && v.visitList(this.typeArguments);
+  }
+
+  setParentOfChildren(): void {
+    this.typeName.parent = this;
+    if (this.typeArguments !== undefined) setParents(this.typeArguments.nodes, this);
   }
 
   deepClone(): Node {
@@ -4432,6 +5019,11 @@ export class ExpressionWithTypeArguments extends Node {
     return this.typeArguments !== undefined && v.visitList(this.typeArguments);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    if (this.typeArguments !== undefined) setParents(this.typeArguments.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4460,6 +5052,10 @@ export class LiteralTypeNode extends Node {
     return v.visitNode(this.literal);
   }
 
+  setParentOfChildren(): void {
+    this.literal.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4481,6 +5077,8 @@ export class ThisTypeNode extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -4517,6 +5115,12 @@ export class TypePredicateNode extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    if (this.assertsModifier !== undefined) this.assertsModifier.parent = this;
+    this.parameterName.parent = this;
+    if (this.type !== undefined) this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4547,6 +5151,11 @@ export class ImportAttribute extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (this.name !== undefined && v.visitNode(this.name)) return true;
     return v.visitNode(this.value);
+  }
+
+  setParentOfChildren(): void {
+    if (this.name !== undefined) this.name.parent = this;
+    this.value.parent = this;
   }
 
   deepClone(): Node {
@@ -4581,6 +5190,10 @@ export class ImportAttributes extends Node {
     return v.visitList(this.attributes);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.attributes.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4607,6 +5220,11 @@ export class TypeQueryNode extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.exprName)) return true;
     return this.typeArguments !== undefined && v.visitList(this.typeArguments);
+  }
+
+  setParentOfChildren(): void {
+    this.exprName.parent = this;
+    if (this.typeArguments !== undefined) setParents(this.typeArguments.nodes, this);
   }
 
   deepClone(): Node {
@@ -4666,6 +5284,15 @@ export class MappedTypeNode extends Node {
     return this.members !== undefined && v.visitList(this.members);
   }
 
+  setParentOfChildren(): void {
+    if (this.readonlyToken !== undefined) this.readonlyToken.parent = this;
+    this.typeParameter.parent = this;
+    if (this.nameType !== undefined) this.nameType.parent = this;
+    if (this.questionToken !== undefined) this.questionToken.parent = this;
+    if (this.type !== undefined) this.type.parent = this;
+    if (this.members !== undefined) setParents(this.members.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4701,6 +5328,10 @@ export class TypeLiteralNode extends Node {
     return v.visitList(this.members);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.members.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4724,6 +5355,10 @@ export class TupleTypeNode extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitList(this.elements);
+  }
+
+  setParentOfChildren(): void {
+    setParents(this.elements.nodes, this);
   }
 
   deepClone(): Node {
@@ -4763,6 +5398,13 @@ export class NamedTupleMember extends Node {
     return v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    if (this.dotDotDotToken !== undefined) this.dotDotDotToken.parent = this;
+    this.name.parent = this;
+    if (this.questionToken !== undefined) this.questionToken.parent = this;
+    this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4793,6 +5435,10 @@ export class OptionalTypeNode extends Node {
     return v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4818,6 +5464,10 @@ export class RestTypeNode extends Node {
     return v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4841,6 +5491,10 @@ export class ParenthesizedTypeNode extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.type);
+  }
+
+  setParentOfChildren(): void {
+    this.type.parent = this;
   }
 
   deepClone(): Node {
@@ -4879,6 +5533,12 @@ export class FunctionTypeNode extends Node {
     if (this.typeParameters !== undefined && v.visitList(this.typeParameters)) return true;
     if (v.visitList(this.parameters)) return true;
     return this.type !== undefined && v.visitNode(this.type);
+  }
+
+  setParentOfChildren(): void {
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
   }
 
   deepClone(): Node {
@@ -4931,6 +5591,13 @@ export class ConstructorTypeNode extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4965,6 +5632,8 @@ export class TemplateHead extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -4993,6 +5662,8 @@ export class TemplateMiddle extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -5023,6 +5694,8 @@ export class TemplateTail extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5049,6 +5722,11 @@ export class TemplateLiteralTypeNode extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.head)) return true;
     return v.visitList(this.templateSpans);
+  }
+
+  setParentOfChildren(): void {
+    this.head.parent = this;
+    setParents(this.templateSpans.nodes, this);
   }
 
   deepClone(): Node {
@@ -5079,6 +5757,11 @@ export class TemplateLiteralTypeSpan extends Node {
     return v.visitNode(this.literal);
   }
 
+  setParentOfChildren(): void {
+    this.type.parent = this;
+    this.literal.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5102,6 +5785,10 @@ export class PartiallyEmittedExpression extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -5135,6 +5822,12 @@ export class JsxElement extends Node {
     return v.visitNode(this.closingElement);
   }
 
+  setParentOfChildren(): void {
+    this.openingElement.parent = this;
+    setParents(this.children.nodes, this);
+    this.closingElement.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5163,6 +5856,10 @@ export class JsxAttributes extends Node {
     return v.visitList(this.properties);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.properties.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5189,6 +5886,11 @@ export class JsxNamespacedName extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.namespace)) return true;
     return v.visitNode(this.name);
+  }
+
+  setParentOfChildren(): void {
+    this.namespace.parent = this;
+    this.name.parent = this;
   }
 
   deepClone(): Node {
@@ -5220,6 +5922,12 @@ export class JsxOpeningElement extends Node {
     if (v.visitNode(this.tagName)) return true;
     if (this.typeArguments !== undefined && v.visitList(this.typeArguments)) return true;
     return v.visitNode(this.attributes);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.typeArguments !== undefined) setParents(this.typeArguments.nodes, this);
+    this.attributes.parent = this;
   }
 
   deepClone(): Node {
@@ -5257,6 +5965,12 @@ export class JsxSelfClosingElement extends Node {
     return v.visitNode(this.attributes);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.typeArguments !== undefined) setParents(this.typeArguments.nodes, this);
+    this.attributes.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5292,6 +6006,12 @@ export class JsxFragment extends Node {
     return v.visitNode(this.closingFragment);
   }
 
+  setParentOfChildren(): void {
+    this.openingFragment.parent = this;
+    setParents(this.children.nodes, this);
+    this.closingFragment.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5314,6 +6034,8 @@ export class JsxOpeningFragment extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5335,6 +6057,8 @@ export class JsxClosingFragment extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -5367,6 +6091,11 @@ export class JsxAttribute extends Node {
     return this.initializer !== undefined && v.visitNode(this.initializer);
   }
 
+  setParentOfChildren(): void {
+    this.name.parent = this;
+    if (this.initializer !== undefined) this.initializer.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5395,6 +6124,10 @@ export class JsxSpreadAttribute extends Node {
     return v.visitNode(this.expression);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5418,6 +6151,10 @@ export class JsxClosingElement extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.tagName);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
   }
 
   deepClone(): Node {
@@ -5446,6 +6183,11 @@ export class JsxExpression extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (this.dotDotDotToken !== undefined && v.visitNode(this.dotDotDotToken)) return true;
     return this.expression !== undefined && v.visitNode(this.expression);
+  }
+
+  setParentOfChildren(): void {
+    if (this.dotDotDotToken !== undefined) this.dotDotDotToken.parent = this;
+    if (this.expression !== undefined) this.expression.parent = this;
   }
 
   deepClone(): Node {
@@ -5478,6 +6220,8 @@ export class JsxText extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5502,6 +6246,10 @@ export class SyntaxList extends Node {
   forEachChild(v: NodeVisitor): boolean {
     for (const node of this.children) if (v.visitNode(node)) return true;
     return false;
+  }
+
+  setParentOfChildren(): void {
+    setParents(this.children, this);
   }
 
   deepClone(): Node {
@@ -5532,6 +6280,11 @@ export class JSDoc extends Node {
     return this.tags !== undefined && v.visitList(this.tags);
   }
 
+  setParentOfChildren(): void {
+    setParents(this.comment.nodes, this);
+    if (this.tags !== undefined) setParents(this.tags.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5555,6 +6308,10 @@ export class JSDocTypeExpression extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.type);
+  }
+
+  setParentOfChildren(): void {
+    this.type.parent = this;
   }
 
   deepClone(): Node {
@@ -5582,6 +6339,10 @@ export class JSDocNonNullableType extends Node {
     return v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5607,6 +6368,10 @@ export class JSDocNullableType extends Node {
     return v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5628,6 +6393,8 @@ export class JSDocAllType extends Node {
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return this.copy();
@@ -5654,6 +6421,10 @@ export class JSDocVariadicType extends Node {
     return v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5677,6 +6448,10 @@ export class JSDocOptionalType extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitNode(this.type);
+  }
+
+  setParentOfChildren(): void {
+    this.type.parent = this;
   }
 
   deepClone(): Node {
@@ -5710,6 +6485,12 @@ export class JSDocTypeTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.typeExpression !== undefined) this.typeExpression.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5740,6 +6521,11 @@ export class JSDocUnknownTag extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.tagName)) return true;
     return this.comment !== undefined && v.visitList(this.comment);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
   deepClone(): Node {
@@ -5784,6 +6570,13 @@ export class JSDocTemplateTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.constraint !== undefined) this.constraint.parent = this;
+    setParents(this.typeParameters.nodes, this);
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5820,6 +6613,12 @@ export class JSDocReturnTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.typeExpression !== undefined) this.typeExpression.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5850,6 +6649,11 @@ export class JSDocPublicTag extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.tagName)) return true;
     return this.comment !== undefined && v.visitList(this.comment);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
   deepClone(): Node {
@@ -5883,6 +6687,11 @@ export class JSDocPrivateTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5912,6 +6721,11 @@ export class JSDocProtectedTag extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.tagName)) return true;
     return this.comment !== undefined && v.visitList(this.comment);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
   deepClone(): Node {
@@ -5945,6 +6759,11 @@ export class JSDocReadonlyTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -5976,6 +6795,11 @@ export class JSDocOverrideTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6005,6 +6829,11 @@ export class JSDocDeprecatedTag extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.tagName)) return true;
     return this.comment !== undefined && v.visitList(this.comment);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
   deepClone(): Node {
@@ -6039,6 +6868,12 @@ export class JSDocSeeTag extends Node {
     if (v.visitNode(this.tagName)) return true;
     if (this.nameExpression !== undefined && v.visitNode(this.nameExpression)) return true;
     return this.comment !== undefined && v.visitList(this.comment);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.nameExpression !== undefined) this.nameExpression.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
   deepClone(): Node {
@@ -6076,6 +6911,12 @@ export class JSDocImplementsTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    this.className.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6109,6 +6950,12 @@ export class JSDocAugmentsTag extends Node {
     if (v.visitNode(this.tagName)) return true;
     if (v.visitNode(this.className)) return true;
     return this.comment !== undefined && v.visitList(this.comment);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    this.className.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
   deepClone(): Node {
@@ -6146,6 +6993,12 @@ export class JSDocSatisfiesTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    this.typeExpression.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6181,6 +7034,12 @@ export class JSDocThrowsTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.typeExpression !== undefined) this.typeExpression.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6214,6 +7073,12 @@ export class JSDocThisTag extends Node {
     if (v.visitNode(this.tagName)) return true;
     if (v.visitNode(this.typeExpression)) return true;
     return this.comment !== undefined && v.visitList(this.comment);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    this.typeExpression.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
   deepClone(): Node {
@@ -6263,6 +7128,14 @@ export class JSDocImportTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.importClause !== undefined) this.importClause.parent = this;
+    this.moduleSpecifier.parent = this;
+    if (this.attributes !== undefined) this.attributes.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6308,6 +7181,13 @@ export class JSDocCallbackTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    this.typeExpression.parent = this;
+    if (this.name !== undefined) this.name.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6342,6 +7222,12 @@ export class JSDocOverloadTag extends Node {
     if (v.visitNode(this.tagName)) return true;
     if (v.visitNode(this.typeExpression)) return true;
     return this.comment !== undefined && v.visitList(this.comment);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    this.typeExpression.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
   deepClone(): Node {
@@ -6387,6 +7273,13 @@ export class JSDocTypedefTag extends Node {
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    if (this.typeExpression !== undefined) this.typeExpression.parent = this;
+    if (this.name !== undefined) this.name.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6430,6 +7323,12 @@ export class JSDocSignature extends Node {
     return this.type !== undefined && v.visitNode(this.type);
   }
 
+  setParentOfChildren(): void {
+    if (this.typeParameters !== undefined) setParents(this.typeParameters.nodes, this);
+    setParents(this.parameters.nodes, this);
+    if (this.type !== undefined) this.type.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6457,6 +7356,10 @@ export class JSDocNameReference extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return this.name !== undefined && v.visitNode(this.name);
+  }
+
+  setParentOfChildren(): void {
+    if (this.name !== undefined) this.name.parent = this;
   }
 
   deepClone(): Node {
@@ -6510,6 +7413,12 @@ export class ModuleDeclaration extends Node {
     return this.body !== undefined && v.visitNode(this.body);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.body !== undefined) this.body.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6558,6 +7467,12 @@ export class ImportEqualsDeclaration extends Node {
     if (this.modifiers !== undefined && v.visitModifiers(this.modifiers)) return true;
     if (v.visitNode(this.name)) return true;
     return v.visitNode(this.moduleReference);
+  }
+
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    this.moduleReference.parent = this;
   }
 
   deepClone(): Node {
@@ -6612,6 +7527,13 @@ export class ExportDeclaration extends Node {
     return this.attributes !== undefined && v.visitNode(this.attributes);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    if (this.exportClause !== undefined) this.exportClause.parent = this;
+    if (this.moduleSpecifier !== undefined) this.moduleSpecifier.parent = this;
+    if (this.attributes !== undefined) this.attributes.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6660,6 +7582,13 @@ export class ImportTypeNode extends Node {
     return this.typeArguments !== undefined && v.visitList(this.typeArguments);
   }
 
+  setParentOfChildren(): void {
+    this.argument.parent = this;
+    if (this.attributes !== undefined) this.attributes.parent = this;
+    if (this.qualifier !== undefined) this.qualifier.parent = this;
+    if (this.typeArguments !== undefined) setParents(this.typeArguments.nodes, this);
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6705,6 +7634,11 @@ export class ImportClause extends Node {
     return this.namedBindings !== undefined && v.visitNode(this.namedBindings);
   }
 
+  setParentOfChildren(): void {
+    if (this.name !== undefined) this.name.parent = this;
+    if (this.namedBindings !== undefined) this.namedBindings.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6744,6 +7678,11 @@ export class ImportSpecifier extends Node {
     return v.visitNode(this.name);
   }
 
+  setParentOfChildren(): void {
+    if (this.propertyName !== undefined) this.propertyName.parent = this;
+    this.name.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6773,6 +7712,8 @@ export class JSDocText extends Node {
     return false;
   }
 
+  setParentOfChildren(): void {}
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6798,6 +7739,10 @@ export class JSDocLink extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return this.name !== undefined && v.visitNode(this.name);
+  }
+
+  setParentOfChildren(): void {
+    if (this.name !== undefined) this.name.parent = this;
   }
 
   deepClone(): Node {
@@ -6827,6 +7772,10 @@ export class JSDocLinkPlain extends Node {
     return this.name !== undefined && v.visitNode(this.name);
   }
 
+  setParentOfChildren(): void {
+    if (this.name !== undefined) this.name.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6852,6 +7801,10 @@ export class JSDocLinkCode extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return this.name !== undefined && v.visitNode(this.name);
+  }
+
+  setParentOfChildren(): void {
+    if (this.name !== undefined) this.name.parent = this;
   }
 
   deepClone(): Node {
@@ -6900,6 +7853,14 @@ export class TypeParameterDeclaration extends Node {
     return this.defaultType !== undefined && v.visitNode(this.defaultType);
   }
 
+  setParentOfChildren(): void {
+    if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
+    this.name.parent = this;
+    if (this.constraint !== undefined) this.constraint.parent = this;
+    if (this.expression !== undefined) this.expression.parent = this;
+    if (this.defaultType !== undefined) this.defaultType.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6934,6 +7895,11 @@ export class SyntheticReferenceExpression extends Node {
     return v.visitNode(this.thisArg);
   }
 
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    this.thisArg.parent = this;
+  }
+
   deepClone(): Node {
     return this.copy();
   }
@@ -6964,6 +7930,10 @@ export class JSDocTypeLiteral extends Node {
     if (this.jsdocPropertyTags !== undefined)
       for (const node of this.jsdocPropertyTags) if (v.visitNode(node)) return true;
     return false;
+  }
+
+  setParentOfChildren(): void {
+    if (this.jsdocPropertyTags !== undefined) setParents(this.jsdocPropertyTags, this);
   }
 
   deepClone(): Node {
@@ -7021,6 +7991,13 @@ export class JSDocParameterOrPropertyTag extends Node {
       if (v.visitNode(this.name)) return true;
     }
     return this.comment !== undefined && v.visitList(this.comment);
+  }
+
+  setParentOfChildren(): void {
+    this.tagName.parent = this;
+    this.name.parent = this;
+    if (this.typeExpression !== undefined) this.typeExpression.parent = this;
+    if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
   deepClone(): Node {
@@ -7157,6 +8134,11 @@ export class SourceFile extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     return v.visitList(this.statements) || v.visitNode(this.endOfFileToken);
+  }
+
+  setParentOfChildren(): void {
+    setParents(this.statements.nodes, this);
+    this.endOfFileToken.parent = this;
   }
 
   deepClone(): Node {

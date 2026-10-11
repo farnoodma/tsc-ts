@@ -375,32 +375,6 @@ export class ParserState extends ScannerState {
   }
 }
 
-/** Sets the parent of every visited node to `node`. */
-class ParentSetter extends NodeVisitor {
-  node: Node;
-  // `node` as stored in `parent` fields. Optional object fields are boxed natively, so the box is
-  // created on the first child and shared by the rest; leaves need none.
-  parent: Node | undefined;
-  boxed: boolean;
-
-  constructor() {
-    super();
-    this.node = new Token(SyntaxKind.Unknown);
-    this.parent = undefined;
-    this.boxed = false;
-  }
-
-  visitNode(node: Node): boolean {
-    // A flag rather than `this.parent === undefined`: a narrowed read would box again per child.
-    if (!this.boxed) {
-      this.parent = this.node;
-      this.boxed = true;
-    }
-    node.parent = this.parent;
-    return false;
-  }
-}
-
 function appendRange(to: Node[], from: readonly Node[], start: number, end: number): void {
   // `i += 1`: scriptc rejects `i++` here (the bounds come from array elements).
   for (let i = start; i < end; i += 1) to.push(from[i]!);
@@ -501,7 +475,6 @@ export class Parser extends ScannerErrorReporter {
   signatureParameterAllowAmbiguity: boolean;
   signatureParameterFlags: ParseFlags;
 
-  private readonly parentSetter: ParentSetter;
   /** Parses JSDoc comments and, in JavaScript files, reparses their tags. */
   readonly jsdoc: JSDocParser;
   /**
@@ -551,7 +524,6 @@ export class Parser extends ScannerErrorReporter {
     this.signatureParameterInAwaitContext = false;
     this.signatureParameterAllowAmbiguity = false;
     this.signatureParameterFlags = ParseFlags.None;
-    this.parentSetter = new ParentSetter();
     this.jsdoc = new JSDocParser(this);
     this.noElement = new Token(SyntaxKind.Unknown);
     this.speculation = [];
@@ -745,8 +717,8 @@ export class Parser extends ScannerErrorReporter {
   }
 
   finishNodeWithEnd(node: Node, pos: number, end: number): Node {
-    node.pos = pos;
-    node.end = end;
+    node.pos = pos | 0;
+    node.end = end | 0;
     node.flags |= this.contextFlags;
     if (this.hasParseError) {
       node.flags |= NodeFlags.ThisNodeHasError;
@@ -758,13 +730,7 @@ export class Parser extends ScannerErrorReporter {
   }
 
   overrideParentInImmediateChildren(node: Node): void {
-    const setter = this.parentSetter;
-    setter.node = node;
-    node.forEachChild(setter);
-    if (setter.boxed) {
-      setter.parent = undefined;
-      setter.boxed = false;
-    }
+    node.setParentOfChildren();
   }
 
   // Source files
@@ -2614,8 +2580,8 @@ export class Parser extends ScannerErrorReporter {
     let body: Node;
     if (this.parseOptional(SyntaxKind.DotToken)) {
       const implicitExport = new Token(SyntaxKind.ExportKeyword);
-      implicitExport.pos = this.nodePos();
-      implicitExport.end = this.nodePos();
+      implicitExport.pos = this.nodePos() | 0;
+      implicitExport.end = this.nodePos() | 0;
       implicitExport.flags = NodeFlags.Reparsed;
       const implicitModifiers = this.newModifierList(this.nodePos(), this.nodePos(), [implicitExport]);
       body = this.parseModuleOrNamespaceDeclaration(
