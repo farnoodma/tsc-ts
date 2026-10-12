@@ -121,6 +121,7 @@ import {
   getPropertyListOfType,
   getPropertyListOfObjectType,
   hasPropertiesOfType,
+  hasPropertyOfType,
   type PropertyList,
 } from './checker-members.js';
 import {
@@ -3857,22 +3858,25 @@ export function getUnmatchedProperty(
       requireOptionalProperties ||
       ((targetProps.flags(i) & SymbolFlags.Optional) === 0 && (targetProps.checkFlags(i) & CheckFlags.Partial) === 0)
     ) {
+      // Only the existence of the source property matters, unless discriminants are compared.
+      if (!matchDiscriminantProperties) {
+        if (!hasPropertyOfType(c, source, targetProps.name(i))) return targetProps.symbol(i);
+        continue;
+      }
       const sourceProp = getPropertyOfType(c, source, targetProps.name(i));
       if (sourceProp === undefined) return targetProps.symbol(i);
-      if (matchDiscriminantProperties) {
-        const targetProp = targetProps.symbol(i);
-        // A unit-typed (discriminant) property whose literal differs in the source is unmatched.
-        const targetType = getTypeOfSymbol(c, targetProp);
-        if ((targetType.flags & TypeFlags.Unit) !== 0) {
-          const sourceType = getTypeOfSymbol(c, sourceProp);
-          if (
-            !(
-              (sourceType.flags & TypeFlags.Any) !== 0 ||
-              getRegularTypeOfLiteralType(c, sourceType) === getRegularTypeOfLiteralType(c, targetType)
-            )
+      const targetProp = targetProps.symbol(i);
+      // A unit-typed (discriminant) property whose literal differs in the source is unmatched.
+      const targetType = getTypeOfSymbol(c, targetProp);
+      if ((targetType.flags & TypeFlags.Unit) !== 0) {
+        const sourceType = getTypeOfSymbol(c, sourceProp);
+        if (
+          !(
+            (sourceType.flags & TypeFlags.Any) !== 0 ||
+            getRegularTypeOfLiteralType(c, sourceType) === getRegularTypeOfLiteralType(c, targetType)
           )
-            return targetProp;
-        }
+        )
+          return targetProp;
       }
     }
   }
@@ -3893,7 +3897,7 @@ export function getUnmatchedProperties(
       requireOptionalProperties ||
       ((targetProps.flags(i) & SymbolFlags.Optional) === 0 && (targetProps.checkFlags(i) & CheckFlags.Partial) === 0)
     )
-      if (getPropertyOfType(c, source, targetProps.name(i)) === undefined) result.push(targetProps.symbol(i));
+      if (!hasPropertyOfType(c, source, targetProps.name(i))) result.push(targetProps.symbol(i));
   }
   return result;
 }

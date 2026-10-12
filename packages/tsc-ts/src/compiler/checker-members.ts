@@ -484,6 +484,41 @@ export class PendingInstantiatedMembers extends PendingMembers {
     return existing;
   }
 
+  /**
+   * A symbol with the name, flags and declarations of `get(name)`, without instantiating members:
+   * the source of a pending own member, or what a base has under that name.
+   */
+  peek(name: string): Symbol | undefined {
+    let existing: Symbol | undefined;
+    if (this.table !== undefined) existing = this.table.get(name);
+    else if (this.mapper === undefined) existing = this.sourceTable?.get(name);
+    else {
+      const position = this.positions.get(name);
+      if (position !== undefined && this.state(position) !== MemberState.Skipped)
+        existing =
+          this.instantiated?.get(name) ??
+          (this.sourceTable !== undefined ? this.sourceTable.get(name)! : this.sourceList![position]!);
+    }
+    const baseTypes = this.baseTypes;
+    if ((existing !== undefined && (existing.flags & SymbolFlags.Value) !== 0) || baseTypes.length === 0)
+      return existing;
+    const lookups = this.inheritedLookups;
+    if (!this.resolving && lookups !== undefined) {
+      const known = lookups.get(name);
+      if (known !== undefined || lookups.has(name)) return known;
+    }
+    for (let i = 0; i < baseTypes.length; i++) {
+      if (existing !== undefined && (existing.flags & SymbolFlags.Value) !== 0) break;
+      const base = baseTypes[i];
+      const inherited =
+        base !== undefined
+          ? peekInheritedProperty(this.c, base, name)
+          : findProperty(this.c, this.baseProperties[i]!, name);
+      if (inherited !== undefined && !isStaticPrivateIdentifierProperty(inherited)) existing = inherited;
+    }
+    return existing;
+  }
+
   /** The table of own members, as instantiateSymbolTable or createInstantiatedSymbolTable builds it. */
   ownTable(): SymbolTable {
     if (this.mapper === undefined) return new Map<string, Symbol>(this.sourceTable ?? []);
@@ -800,6 +835,30 @@ function getInheritedProperty(c: Checker, base: StructuredType, name: string): S
   if (isReservedMemberName(name)) return undefined;
   const symbol = getResolvedMember(base, name);
   return symbol !== undefined && symbolIsValue(c, symbol) ? symbol : undefined;
+}
+
+/** getInheritedProperty, without instantiating a pending member of the base. */
+function peekInheritedProperty(c: Checker, base: StructuredType, name: string): Symbol | undefined {
+  if (isReservedMemberName(name)) return undefined;
+  const pending = base.pendingMembers as PendingInstantiatedMembers | undefined;
+  const symbol = pending !== undefined ? pending.peek(name) : base.membersValue?.get(name);
+  return symbol !== undefined && symbolIsValue(c, symbol) ? symbol : undefined;
+}
+
+/**
+ * `getPropertyOfType(c, t, name) !== undefined`, without instantiating the member of a pending table
+ * that it would return.
+ */
+export function hasPropertyOfType(c: Checker, t: Type, name: string): boolean {
+  const reduced = getReducedApparentType(c, t);
+  if ((reduced.flags & TypeFlags.Object) !== 0) {
+    const pending = resolveStructuredTypeMembers(c, reduced).pendingMembers as PendingInstantiatedMembers | undefined;
+    if (pending !== undefined) {
+      const symbol = pending.peek(name);
+      if (symbol !== undefined && symbolIsValue(c, symbol)) return true;
+    }
+  }
+  return getPropertyOfType(c, t, name) !== undefined;
 }
 
 /** The symbol named `name` in a list of properties. Long lists are indexed once. */
