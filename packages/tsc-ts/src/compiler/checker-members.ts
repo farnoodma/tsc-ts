@@ -2083,11 +2083,7 @@ export function getReducedType(c: Checker, t: Type): Type {
   } else if ((t.flags & TypeFlags.Intersection) !== 0) {
     if ((t.objectFlags & ObjectFlags.IsNeverIntersectionComputed) === 0) {
       t.objectFlags |= ObjectFlags.IsNeverIntersectionComputed;
-      for (const p of getPropertiesOfUnionOrIntersectionType(c, t as IntersectionType))
-        if (isNeverReducedProperty(c, p)) {
-          t.objectFlags |= ObjectFlags.IsNeverIntersection;
-          break;
-        }
+      if (isNeverReducedIntersection(c, t as IntersectionType)) t.objectFlags |= ObjectFlags.IsNeverIntersection;
     }
     if ((t.objectFlags & ObjectFlags.IsNeverIntersection) !== 0) return c.neverType;
   }
@@ -2106,6 +2102,84 @@ function getReducedUnionType(c: Checker, union: UnionType): Type {
   const reduced = getUnionType(c, reducedTypes);
   if ((reduced.flags & TypeFlags.Union) !== 0) (reduced as UnionType).resolvedReducedType = reduced;
   return reduced;
+}
+
+/**
+ * Whether some property of the intersection `t` reduces it to never:
+ * `getPropertiesOfUnionOrIntersectionType(c, t).some(isNeverReducedProperty)`, except that for an
+ * intersection of object types, the properties that only one constituent has aren't looked up. An
+ * intersection takes such a property as it is (createUnionOrIntersectionProperty returns it), and only
+ * a synthetic property can reduce an intersection; looking it up, once the first property's lookup
+ * has resolved every constituent, creates no types, so it is left to the lookups by name or to a
+ * later getPropertiesOfUnionOrIntersectionType, which create the same symbols then. The lookups that
+ * remain run in the same order and create the same types.
+ */
+function isNeverReducedIntersection(c: Checker, t: IntersectionType): boolean {
+  const types = t.types;
+  let lazy = t.resolvedProperties === undefined;
+  for (const current of types)
+    if ((current.flags & TypeFlags.Object) === 0 || (current.objectFlags & ObjectFlags.Mapped) !== 0) lazy = false;
+  let props: Symbol[];
+  if (!lazy) props = getPropertiesOfUnionOrIntersectionType(c, t);
+  else {
+    // getPropertiesOfUnionOrIntersectionType; the reduced apparent type of these constituents is
+    // themselves.
+    const lists: (PropertyList | undefined)[] = [];
+    for (let k = 0; k < types.length; k++) lists.push(undefined);
+    const checked = new Set<string>();
+    props = [];
+    let resolved = false;
+    let skipped = false;
+    for (let k = 0; k < types.length; k++) {
+      let list = lists[k];
+      if (list === undefined) lists[k] = list = getPropertyListOfObjectType(c, types[k]!);
+      for (let i = 0; i < list.length; i++) {
+        const name = list.name(i);
+        if (checked.has(name)) continue;
+        checked.add(name);
+        if (resolved && isUnreducingSingleProperty(c, types, lists, k, list, i)) {
+          skipped = true;
+          continue;
+        }
+        const prop = getPropertyOfUnionOrIntersectionType(c, t, name, true);
+        resolved = true;
+        if (prop !== undefined) props.push(prop);
+      }
+    }
+    if (!skipped) t.resolvedProperties = props;
+  }
+  for (const p of props) if (isNeverReducedProperty(c, p)) return true;
+  return false;
+}
+
+/**
+ * Whether property `i` of constituent `k` (`list`) of an intersection of object types is the only
+ * property of its name among the constituents, the intersection's property of that name is therefore
+ * that property itself, and that property can't reduce the intersection. Constituents still resolving
+ * their members, and properties declared by assignments (whose readonly check checks expressions),
+ * don't qualify.
+ */
+function isUnreducingSingleProperty(
+  c: Checker,
+  types: Type[],
+  lists: (PropertyList | undefined)[],
+  k: number,
+  list: PropertyList,
+  i: number,
+): boolean {
+  if ((list.checkFlags(i) & (CheckFlags.NonUniformAndLiteral | CheckFlags.ContainsPrivate)) !== 0) return false;
+  if ((types[k]!.objectFlags & ObjectFlags.UnresolvedMembers) !== 0) return false;
+  for (const d of list.symbols[i]!.declarations) if (d.kind === SyntaxKind.CallExpression) return false;
+  // Earlier constituents don't have the name (it would have been seen there).
+  const name = list.name(i);
+  for (let j = k + 1; j < types.length; j++) {
+    const other = types[j]!;
+    if ((other.objectFlags & ObjectFlags.UnresolvedMembers) !== 0) return false;
+    let otherList = lists[j];
+    if (otherList === undefined) lists[j] = otherList = getPropertyListOfObjectType(c, other);
+    if (otherList.indexOf(name) >= 0) return false;
+  }
+  return true;
 }
 
 function isNeverReducedProperty(c: Checker, prop: Symbol): boolean {
