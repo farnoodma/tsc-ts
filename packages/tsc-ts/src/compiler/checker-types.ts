@@ -466,6 +466,15 @@ export class MemberShape {
   }
 }
 
+/** Which property caches of a union or intersection its `propertyCacheShape` stands for. */
+export const enum CompactPropertyCaches {
+  None = 0,
+  /** `propertyCache`. */
+  Augmented = 1,
+  /** `propertyCacheWithoutFunctionPropertyAugment`. */
+  WithoutAugment = 2,
+}
+
 /** A type with members: object types, unions and intersections. */
 export class StructuredType extends Type {
   membersValue: SymbolTable | undefined;
@@ -697,6 +706,12 @@ export class UnionOrIntersectionType extends StructuredType {
   propertyCache: SymbolTable | undefined;
   propertyCacheWithoutFunctionPropertyAugment: SymbolTable | undefined;
   resolvedProperties: Symbol[] | undefined;
+  /**
+   * The shape of `resolvedProperties`, standing for each property cache whose `CompactPropertyCaches`
+   * bit is set: such a cache holds exactly the resolved properties (checker-members.ts).
+   */
+  propertyCacheShape: MemberShape | undefined;
+  compactPropertyCaches: CompactPropertyCaches;
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, types: Type[]) {
     super(flags, objectFlags, id, undefined);
@@ -704,6 +719,8 @@ export class UnionOrIntersectionType extends StructuredType {
     this.propertyCache = undefined;
     this.propertyCacheWithoutFunctionPropertyAugment = undefined;
     this.resolvedProperties = undefined;
+    this.propertyCacheShape = undefined;
+    this.compactPropertyCaches = CompactPropertyCaches.None;
   }
 }
 

@@ -42,6 +42,7 @@ import {
   prependTypeMapping,
   LiteralType,
   MemberShape,
+  CompactPropertyCaches,
   PendingMembers,
 } from './checker-types.js';
 import {
@@ -600,6 +601,13 @@ export function compactMembers(c: Checker, t: StructuredType): void {
   const count = properties.length;
   if (count === 0 || count !== members.size) return;
   for (const [name, symbol] of members) if (name !== symbol.name) return;
+  t.memberShape = getMemberShape(c, properties);
+  t.membersValue = undefined;
+}
+
+/** The shape of the names of `properties` (which are distinct), shared by the checker's types. */
+function getMemberShape(c: Checker, properties: readonly Symbol[]): MemberShape {
+  const count = properties.length;
   let hash = count;
   for (let i = 0; i < count; i++) {
     const name = properties[i]!.name;
@@ -614,11 +622,7 @@ export function compactMembers(c: Checker, t: StructuredType): void {
       if (names.length !== count) continue;
       let i = 0;
       while (i < count && names[i]! === properties[i]!.name) i++;
-      if (i === count) {
-        t.memberShape = shape;
-        t.membersValue = undefined;
-        return;
-      }
+      if (i === count) return shape;
     }
   } else {
     candidates = [];
@@ -628,8 +632,44 @@ export function compactMembers(c: Checker, t: StructuredType): void {
   for (let i = 0; i < count; i++) names.push(properties[i]!.name);
   const shape = new MemberShape(names);
   candidates.push(shape);
-  t.memberShape = shape;
-  t.membersValue = undefined;
+  return shape;
+}
+
+/**
+ * Drops the property caches of a union or intersection that hold exactly its resolved properties for
+ * their shape, as `compactMembers` does for tables. A later miss expands the cache again.
+ */
+function compactPropertyCaches(c: Checker, t: UnionOrIntersectionType, properties: Symbol[]): void {
+  const count = properties.length;
+  if (count === 0) return;
+  let compact = CompactPropertyCaches.None;
+  if (holdsExactly(t.propertyCache, properties)) compact |= CompactPropertyCaches.Augmented;
+  if (holdsExactly(t.propertyCacheWithoutFunctionPropertyAugment, properties))
+    compact |= CompactPropertyCaches.WithoutAugment;
+  if (compact === CompactPropertyCaches.None) return;
+  t.propertyCacheShape = getMemberShape(c, properties);
+  t.compactPropertyCaches = compact;
+  if ((compact & CompactPropertyCaches.Augmented) !== 0) t.propertyCache = undefined;
+  if ((compact & CompactPropertyCaches.WithoutAugment) !== 0) t.propertyCacheWithoutFunctionPropertyAugment = undefined;
+}
+
+/** Whether `cache` maps the name of each of `properties` (distinct names) to it, and nothing else. */
+function holdsExactly(cache: SymbolTable | undefined, properties: readonly Symbol[]): boolean {
+  if (cache === undefined || cache.size !== properties.length) return false;
+  for (const p of properties) if (cache.get(p.name) !== p) return false;
+  return true;
+}
+
+/** The property cache of `t` that `which` names as a table again, if its shape stood for it. */
+function expandPropertyCache(t: UnionOrIntersectionType, which: CompactPropertyCaches): SymbolTable | undefined {
+  if ((t.compactPropertyCaches & which) === 0)
+    return which === CompactPropertyCaches.Augmented ? t.propertyCache : t.propertyCacheWithoutFunctionPropertyAugment;
+  const cache = new Map<string, Symbol>();
+  for (const p of t.resolvedProperties!) cache.set(p.name, p);
+  t.compactPropertyCaches &= ~which;
+  if (which === CompactPropertyCaches.Augmented) t.propertyCache = cache;
+  else t.propertyCacheWithoutFunctionPropertyAugment = cache;
+  return cache;
 }
 
 /** `t.properties.length !== 0` of a type whose members are resolved, without building a pending table. */
@@ -1373,7 +1413,13 @@ export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrInt
       // Union properties are in every constituent: the first without index signatures suffices.
       if ((t.flags & TypeFlags.Union) !== 0 && getIndexInfosOfType(c, current).length === 0) break;
     }
+    if (t.resolvedProperties !== undefined) {
+      // A nested call resolved them first: its shape stands for its list, which this one replaces.
+      expandPropertyCache(t, CompactPropertyCaches.Augmented);
+      expandPropertyCache(t, CompactPropertyCaches.WithoutAugment);
+    }
     t.resolvedProperties = props;
+    compactPropertyCaches(c, t, props);
   }
   return t.resolvedProperties;
 }
@@ -1456,11 +1502,19 @@ export function getUnionOrIntersectionProperty(
   name: string,
   skipObjectFunctionPropertyAugment: boolean,
 ): Symbol | undefined {
+  const which = skipObjectFunctionPropertyAugment
+    ? CompactPropertyCaches.WithoutAugment
+    : CompactPropertyCaches.Augmented;
+  if ((t.compactPropertyCaches & which) !== 0) {
+    const position = t.propertyCacheShape!.positions.get(name);
+    if (position !== undefined) return t.resolvedProperties![position];
+  }
   let cache = skipObjectFunctionPropertyAugment ? t.propertyCacheWithoutFunctionPropertyAugment : t.propertyCache;
   const cached = cache?.get(name);
   if (cached !== undefined) return cached;
   const prop = createUnionOrIntersectionProperty(c, t, name, skipObjectFunctionPropertyAugment);
   if (prop !== undefined) {
+    cache = expandPropertyCache(t, which);
     if (cache === undefined) {
       cache = new Map<string, Symbol>();
       if (skipObjectFunctionPropertyAugment) t.propertyCacheWithoutFunctionPropertyAugment = cache;
@@ -1468,8 +1522,13 @@ export function getUnionOrIntersectionProperty(
     }
     cache.set(name, prop);
     // Non-partial results also serve the augmented cache.
-    if (skipObjectFunctionPropertyAugment && (prop.checkFlags & CheckFlags.Partial) === 0) {
-      let augmented = t.propertyCache;
+    if (
+      skipObjectFunctionPropertyAugment &&
+      (prop.checkFlags & CheckFlags.Partial) === 0 &&
+      // A compact augmented cache has every resolved property's name already.
+      ((t.compactPropertyCaches & CompactPropertyCaches.Augmented) === 0 || !t.propertyCacheShape!.positions.has(name))
+    ) {
+      let augmented = expandPropertyCache(t, CompactPropertyCaches.Augmented);
       if (augmented === undefined) {
         augmented = new Map<string, Symbol>();
         t.propertyCache = augmented;
