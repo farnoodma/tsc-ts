@@ -97,6 +97,7 @@ import {
   typesOf,
 } from './checker-type-factory.js';
 import {
+  compactMembers,
   appendIndexInfo,
   getApparentType,
   getApplicableIndexInfo,
@@ -1670,6 +1671,7 @@ export function resolveMappedTypeMembers(c: Checker, t: MappedType): void {
     );
   else forEachType(getLowerBoundOfKeyType(c, constraintType), add);
   setStructuredTypeMembers(c, t, members, [], [], indexInfos);
+  compactMembers(c, t);
 }
 
 export function getTypeOfMappedSymbol(c: Checker, symbol: Symbol): Type {

@@ -3,7 +3,7 @@ import type { Checker } from './checker.js';
 import { CheckFlags, type Symbol, getSymbolId } from './symbol.js';
 import { CachedTypeKind, cachedTypeKey, ObjectFlags, type Type, TypeFlags } from './checker-types.js';
 import { createAnonymousType } from './checker-type-factory.js';
-import { getPropertiesOfObjectType, resolveStructuredTypeMembers } from './checker-members.js';
+import { compactMembers, getPropertiesOfObjectType, resolveStructuredTypeMembers } from './checker-members.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getLiteralTypeFromProperty } from './checker-type-operators.js';
 
@@ -33,6 +33,7 @@ export function getRegularTypeOfObjectLiteral(c: Checker, t: Type): Type {
     resolved.constructSignatures,
     resolved.indexInfos,
   );
+  compactMembers(c, regular);
   regular.flags = resolved.flags;
   regular.objectFlags |= resolved.objectFlags & ~ObjectFlags.FreshLiteral;
   c.cachedTypesById.set(key, regular);

@@ -97,6 +97,7 @@ import {
 } from './checker-classes.js';
 import { instantiateType } from './instantiation.js';
 import {
+  compactMembers,
   getIndexInfosOfType,
   getPropertiesOfObjectType,
   getPropertiesOfType,
@@ -743,6 +744,7 @@ function getWidenedTypeOfObjectLiteral(c: Checker, t: Type, context: WideningCon
       ),
   );
   const result = createAnonymousType(c, t.symbol, members, [], [], infos);
+  compactMembers(c, result);
   result.objectFlags |= t.objectFlags & (ObjectFlags.JSLiteral | ObjectFlags.NonInferrableType);
   return result;
 }

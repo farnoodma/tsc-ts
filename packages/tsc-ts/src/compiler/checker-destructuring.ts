@@ -75,6 +75,7 @@ import {
   isGenericObjectType,
 } from './checker-type-operators.js';
 import {
+  compactMembers,
   getBaseConstraintOfType,
   getBaseConstraintOrType,
   mapToBaseConstraintOrType,
@@ -759,6 +760,7 @@ export function getRestType(c: Checker, sourceIn: Type, properties: readonly Nod
   const members = new Map<string, Symbol>();
   for (const prop of spreadable) members.set(prop.name, getSpreadSymbol(c, prop, false));
   const result = createAnonymousType(c, symbol, members, [], [], getIndexInfosOfType(c, source));
+  compactMembers(c, result);
   result.objectFlags |= ObjectFlags.ObjectRestType;
   return result;
 }

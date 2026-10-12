@@ -61,6 +61,7 @@ import {
   typesOf,
 } from './checker-type-factory.js';
 import {
+  compactMembers,
   getApparentType,
   getApplicableIndexInfo,
   getApplicableIndexInfoForName,
@@ -910,6 +911,7 @@ function createJsxAttributesType(
   objectFlags: ObjectFlags,
 ): Type {
   const result = createAnonymousType(c, symbol, table, [], [], []);
+  compactMembers(c, result);
   result.objectFlags |=
     objectFlags | ObjectFlags.FreshLiteral | ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral;
   return result;

@@ -257,6 +257,8 @@ function resolveObjectTypeMembers(
     t.objectFlags &= ~ObjectFlags.UnresolvedMembers;
   }
   setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
+  // A table of its own: instantiated, or copied to add the inherited members.
+  if (instantiated || baseTypes.length !== 0) compactMembers(c, t);
 }
 
 // ---- Lazily instantiated members
@@ -836,7 +838,10 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
     const indexInfos = instantiateIndexInfos(c, getIndexInfosOfType(c, target), t.mapper!);
     if (pending !== undefined)
       setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
-    else setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
+    else {
+      setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
+      compactMembers(c, t);
+    }
     return;
   }
   const symbol = getMergedSymbol(c, t.symbol!);

@@ -31,6 +31,7 @@ import {
   UnionReduction,
 } from './checker-type-factory.js';
 import {
+  compactMembers,
   getDeclarationModifierFlagsFromSymbol,
   getIndexInfoOfType,
   getIndexInfosOfType,
@@ -99,6 +100,7 @@ class ObjectLiteralBuilder {
     if (this.hasComputedNumber) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.numberType));
     if (this.hasComputedSymbol) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.esSymbolType));
     const result = createAnonymousType(c, getSymbol(this.node), this.members, [], [], indexInfos);
+    compactMembers(c, result);
     result.objectFlags |= this.objectFlags | ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral;
     if (this.isJSLiteral) result.objectFlags |= ObjectFlags.JSLiteral;
     if (this.patternWithComputedProperties)
@@ -458,6 +460,7 @@ export function getSpreadType(
   const spreadIndexInfos: IndexInfo[] = [];
   for (const info of indexInfos) spreadIndexInfos.push(getIndexInfoWithReadonly(info, readonly));
   const spread = createAnonymousType(c, symbol, members, [], [], spreadIndexInfos);
+  compactMembers(c, spread);
   spread.objectFlags |=
     ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral | ObjectFlags.ContainsSpread | objectFlags;
   return spread;
@@ -551,6 +554,7 @@ function tryMergeUnionOfObjectTypeAndEmptyObject(c: Checker, t: Type, readonly: 
     members.set(prop.name, result);
   }
   const spread = createAnonymousType(c, firstType.symbol, members, [], [], getIndexInfosOfType(c, firstType));
+  compactMembers(c, spread);
   spread.objectFlags |= ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral;
   return spread;
 }
