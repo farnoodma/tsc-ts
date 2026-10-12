@@ -220,13 +220,16 @@ function resolveObjectTypeMembers(
     indexInfos = instantiateIndexInfos(c, source.declaredIndexInfos, mapper);
   }
   const baseTypes = getBaseTypes(c, source);
+  // The declared type itself with base types: tsgo copies the declared members into a new table and
+  // adds the inherited ones; that table is built on demand too.
+  if (!instantiated && baseTypes.length !== 0) pending = pendingDeclaredTable(c, source);
   if (pending !== undefined) {
     resolvePendingObjectTypeMembers(
       c,
       t,
       pending,
       baseTypes,
-      mapper!,
+      mapper,
       typeArguments,
       callSignatures,
       constructSignatures,
@@ -281,11 +284,15 @@ const enum MemberState {
 
 export class PendingInstantiatedMembers extends PendingMembers {
   readonly c: Checker;
-  /** References: the declared members of the class or interface, by name. */
+  /**
+   * References: the declared members of the class or interface, by name. In a declared table (the
+   * declared type of a class or interface with base types) these are the own members themselves.
+   */
   readonly sourceTable: SymbolTable | undefined;
   /** Anonymous type instantiations: the properties of the target, in order. */
   readonly sourceList: Symbol[] | undefined;
-  readonly mapper: TypeMapper;
+  /** Undefined for a declared table, whose own members aren't instantiated. */
+  readonly mapper: TypeMapper | undefined;
   /** MemberState of each member of the source, in order, 16 to a word. */
   readonly states: number[];
   /** Position of each member of the source by name (shared by all instantiations of the source). */
@@ -317,7 +324,7 @@ export class PendingInstantiatedMembers extends PendingMembers {
     c: Checker,
     sourceTable: SymbolTable | undefined,
     sourceList: Symbol[] | undefined,
-    mapper: TypeMapper,
+    mapper: TypeMapper | undefined,
     states: number[],
     positions: Map<string, number>,
     hasOwnMembers: boolean,
@@ -354,13 +361,14 @@ export class PendingInstantiatedMembers extends PendingMembers {
       const known = instantiated.get(name);
       if (known !== undefined) return known;
     }
-    return this.state(position) === MemberState.Kept ? source : newInstantiatedSymbol(this.c, source, this.mapper);
+    return this.state(position) === MemberState.Kept ? source : newInstantiatedSymbol(this.c, source, this.mapper!);
   }
 
-  /** The own member `name` as in tsgo's instantiated table, or undefined. */
+  /** The own member `name` as in tsgo's instantiated (or copied) table, or undefined. */
   ownMember(name: string): Symbol | undefined {
     const table = this.table;
     if (table !== undefined) return table.get(name);
+    if (this.mapper === undefined) return this.sourceTable?.get(name);
     const position = this.positions.get(name);
     if (position === undefined || this.state(position) === MemberState.Skipped) return undefined;
     let instantiated = this.instantiated;
@@ -379,9 +387,11 @@ export class PendingInstantiatedMembers extends PendingMembers {
   /** `members.get(name)` of the table tsgo would have built by now. */
   get(name: string): Symbol | undefined {
     let existing = this.ownMember(name);
-    // Own members have value flags (pendingInstantiatedTable), so no base replaces them.
+    // Instantiated own members have value flags (pendingInstantiatedTable), so no base replaces
+    // them; in a declared table only reserved names (signatures, index signatures) lack them.
     const baseTypes = this.baseTypes;
-    if (existing !== undefined || baseTypes.length === 0) return existing;
+    if ((existing !== undefined && (existing.flags & SymbolFlags.Value) !== 0) || baseTypes.length === 0)
+      return existing;
     // Once resolution is complete the answer for a name can't change: remember it.
     const cacheable = !this.resolving;
     let lookups = this.inheritedLookups;
@@ -408,6 +418,7 @@ export class PendingInstantiatedMembers extends PendingMembers {
 
   /** The table of own members, as instantiateSymbolTable or createInstantiatedSymbolTable builds it. */
   ownTable(): SymbolTable {
+    if (this.mapper === undefined) return new Map<string, Symbol>(this.sourceTable ?? []);
     const table = new Map<string, Symbol>();
     const list = this.sourceList;
     if (list !== undefined) {
@@ -471,8 +482,16 @@ export class PendingInstantiatedMembers extends PendingMembers {
     const symbols: Symbol[] = [];
     const owners: (PendingInstantiatedMembers | undefined)[] = [];
     const index = new Map<string, number>();
+    const mapper = this.mapper;
     const list = this.sourceList;
-    if (list !== undefined) {
+    if (mapper === undefined) {
+      if (this.sourceTable !== undefined)
+        for (const [id, source] of this.sourceTable) {
+          index.set(id, symbols.length);
+          symbols.push(source);
+          owners.push(undefined);
+        }
+    } else if (list !== undefined) {
       for (let i = 0; i < list.length; i++) {
         const source = list[i]!;
         const owner = this.state(i) === MemberState.Kept ? undefined : this;
@@ -701,6 +720,37 @@ function pendingInstantiatedTable(
   );
 }
 
+/**
+ * The pending table of the declared type of `source` with base types, or undefined where a member
+ * that would be a property lacks a value flag (an inherited property could replace it).
+ */
+function pendingDeclaredTable(c: Checker, source: InterfaceType): PendingInstantiatedMembers | undefined {
+  const table = source.declaredMembers;
+  let hasOwnMembers = false;
+  let hasRequiredOwnMembers = false;
+  if (table !== undefined)
+    for (const [id, symbol] of table) {
+      if (id !== symbol.name) return undefined;
+      if (isReservedMemberName(id)) continue;
+      if ((symbol.flags & SymbolFlags.Value) === 0) return undefined;
+      hasOwnMembers = true;
+      if ((symbol.flags & SymbolFlags.Optional) === 0) hasRequiredOwnMembers = true;
+    }
+  return new PendingInstantiatedMembers(
+    c,
+    table,
+    undefined,
+    undefined,
+    emptyStates,
+    noPositions,
+    hasOwnMembers,
+    hasRequiredOwnMembers,
+  );
+}
+
+const emptyStates: number[] = [];
+const noPositions = new Map<string, number>();
+
 /** The pending table of the properties `list` instantiated with `mapper` (createInstantiatedSymbolTable). */
 function pendingInstantiatedList(c: Checker, list: Symbol[], mapper: TypeMapper): PendingInstantiatedMembers {
   const states: number[] = [];
@@ -823,7 +873,7 @@ function resolvePendingObjectTypeMembers(
   t: StructuredType,
   pending: PendingInstantiatedMembers,
   baseTypes: Type[],
-  mapper: TypeMapper,
+  mapper: TypeMapper | undefined,
   typeArguments: Type[],
   callSignatures: Signature[],
   constructSignatures: Signature[],
