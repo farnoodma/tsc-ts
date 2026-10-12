@@ -450,10 +450,32 @@ export abstract class PendingMembers {
   abstract materialize(t: StructuredType): void;
 }
 
+/**
+ * The positions of a list of properties by name, shared by all types whose properties have the same
+ * names in the same order (checker-members.ts `compactMembers`).
+ */
+export class MemberShape {
+  readonly names: string[];
+  readonly positions: Map<string, number>;
+
+  constructor(names: string[]) {
+    this.names = names;
+    const positions = new Map<string, number>();
+    for (let i = 0; i < names.length; i++) positions.set(names[i]!, i);
+    this.positions = positions;
+  }
+}
+
 /** A type with members: object types, unions and intersections. */
 export class StructuredType extends Type {
   membersValue: SymbolTable | undefined;
   propertiesValue: Symbol[];
+  /**
+   * Set when every member is a property under its own name and nothing changes the table any more:
+   * a member is then found by its position in `propertiesValue`, and `membersValue` is only built when
+   * `members` is read.
+   */
+  memberShape: MemberShape | undefined;
   /** Set while the member symbols of an instantiated type are not instantiated yet. */
   pendingMembers: PendingMembers | undefined;
   callSignatures: Signature[];
@@ -465,6 +487,7 @@ export class StructuredType extends Type {
     super(flags, objectFlags, id, symbol);
     this.membersValue = undefined;
     this.propertiesValue = emptySymbols;
+    this.memberShape = undefined;
     this.pendingMembers = undefined;
     this.callSignatures = emptySignatures;
     this.constructSignatures = emptySignatures;
@@ -475,11 +498,19 @@ export class StructuredType extends Type {
   get members(): SymbolTable | undefined {
     const pending = this.pendingMembers;
     if (pending !== undefined) pending.materialize(this);
-    return this.membersValue;
+    let members = this.membersValue;
+    if (members === undefined && this.memberShape !== undefined) {
+      // In the order of the properties: the same entries, and getNamedMembers sorts them alike.
+      members = new Map<string, Symbol>();
+      for (const p of this.propertiesValue) members.set(p.name, p);
+      this.membersValue = members;
+    }
+    return members;
   }
 
   set members(members: SymbolTable | undefined) {
     this.membersValue = members;
+    this.memberShape = undefined;
   }
 
   get properties(): Symbol[] {
@@ -489,6 +520,11 @@ export class StructuredType extends Type {
   }
 
   set properties(properties: Symbol[]) {
+    if (this.memberShape !== undefined) {
+      // The shape indexes the old list: keep the table it stands for.
+      this.membersValue = this.members;
+      this.memberShape = undefined;
+    }
     this.propertiesValue = properties;
   }
 }

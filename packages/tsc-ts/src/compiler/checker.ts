@@ -53,6 +53,7 @@ import {
   IndexInfo,
   IntrinsicType,
   LiteralType,
+  type MemberShape,
   NodeLinks,
   ObjectFlags,
   ObjectType,
@@ -286,6 +287,8 @@ export class Checker {
   readonly memberPositionsInLists = new Map<Symbol[], Map<string, number>>();
   /** Long lists of inherited properties, by name. */
   readonly propertiesByName = new Map<Symbol[], Map<string, Symbol>>();
+  /** Shapes of compacted member tables (checker-members.ts `compactMembers`), by a hash of their names. */
+  readonly memberShapes = new Map<number, MemberShape[]>();
   /** Number of `typeToString` calls in progress. */
   serializationLevel = 0;
   /** Whether `globalObjectType` is set; global type lookups before it can't suggest `typeof`. */
@@ -934,6 +937,7 @@ export function disposeChecker(c: Checker): void {
   c.sharedSymbolCopies.clear();
   c.memberPositionsInLists.clear();
   c.propertiesByName.clear();
+  c.memberShapes.clear();
   c.symbolAccessibilityCaches = undefined;
   c.unresolvedSymbols.clear();
   c.undefinedProperties.clear();

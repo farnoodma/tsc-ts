@@ -41,6 +41,7 @@ import {
   newTypeMapper,
   prependTypeMapping,
   LiteralType,
+  MemberShape,
   PendingMembers,
 } from './checker-types.js';
 import {
@@ -432,6 +433,7 @@ export class PendingInstantiatedMembers extends PendingMembers {
     if (!this.hasBases) {
       t.membersValue = members;
       t.propertiesValue = getNamedMembers(c, members, t.symbol);
+      compactMembers(c, t);
       return;
     }
     // While the bases are resolved, tsgo's `properties` holds the own members and its table
@@ -444,6 +446,8 @@ export class PendingInstantiatedMembers extends PendingMembers {
     }
     t.membersValue = members;
     t.propertiesValue = ownProperties ?? getNamedMembers(c, members, t.symbol);
+    // While the bases are resolved, tsgo adds the rest of them to this table.
+    if (!this.resolving) compactMembers(c, t);
   }
 }
 
@@ -573,7 +577,57 @@ function findProperty(c: Checker, properties: Symbol[], name: string): Symbol | 
 export function getResolvedMember(t: StructuredType, name: string): Symbol | undefined {
   const pending = t.pendingMembers;
   if (pending !== undefined) return (pending as PendingInstantiatedMembers).get(name);
+  const shape = t.memberShape;
+  if (shape !== undefined) {
+    const position = shape.positions.get(name);
+    return position !== undefined ? t.propertiesValue[position] : undefined;
+  }
   return t.membersValue?.get(name);
+}
+
+/**
+ * Drops the members table of `t` for a shape shared with other types when every member is a property
+ * under its own name, so that the table and the properties have the same entries. Lookups then find a
+ * member by its position in the properties, as `getResolvedMember` does. Only for tables that the type
+ * owns and that nothing changes any more (tsgo reads some tables while it still adds to them).
+ */
+export function compactMembers(c: Checker, t: StructuredType): void {
+  const members = t.membersValue;
+  if (members === undefined || t.pendingMembers !== undefined || t.memberShape !== undefined) return;
+  const properties = t.propertiesValue;
+  const count = properties.length;
+  if (count === 0 || count !== members.size) return;
+  for (const [name, symbol] of members) if (name !== symbol.name) return;
+  let hash = count;
+  for (let i = 0; i < count; i++) {
+    const name = properties[i]!.name;
+    hash = Math.imul(hash ^ name.length, 0x01000193);
+    if (name.length !== 0)
+      hash = Math.imul(Math.imul(hash ^ name.charCodeAt(0), 0x01000193) ^ name.charCodeAt(name.length - 1), 0x01000193);
+  }
+  let candidates = c.memberShapes.get(hash);
+  if (candidates !== undefined) {
+    for (const shape of candidates) {
+      const names = shape.names;
+      if (names.length !== count) continue;
+      let i = 0;
+      while (i < count && names[i]! === properties[i]!.name) i++;
+      if (i === count) {
+        t.memberShape = shape;
+        t.membersValue = undefined;
+        return;
+      }
+    }
+  } else {
+    candidates = [];
+    c.memberShapes.set(hash, candidates);
+  }
+  const names: string[] = [];
+  for (let i = 0; i < count; i++) names.push(properties[i]!.name);
+  const shape = new MemberShape(names);
+  candidates.push(shape);
+  t.memberShape = shape;
+  t.membersValue = undefined;
 }
 
 /** `t.properties.length !== 0` of a type whose members are resolved, without building a pending table. */
@@ -661,7 +715,10 @@ function resolvePendingObjectTypeMembers(
   pending.resolving = false;
   if (t.pendingMembers === pending)
     setPendingStructuredTypeMembers(t, pending, callSignatures, constructSignatures, indexInfos);
-  else setStructuredTypeMembers(c, t, t.membersValue, callSignatures, constructSignatures, indexInfos);
+  else {
+    setStructuredTypeMembers(c, t, t.membersValue, callSignatures, constructSignatures, indexInfos);
+    compactMembers(c, t);
+  }
 }
 
 function setPendingStructuredTypeMembers(
@@ -674,6 +731,7 @@ function setPendingStructuredTypeMembers(
   t.objectFlags |= ObjectFlags.MembersResolved;
   t.membersValue = undefined;
   t.propertiesValue = emptySymbols;
+  t.memberShape = undefined;
   t.pendingMembers = pending;
   t.callSignatures = callSignatures;
   t.constructSignatures = constructSignatures;
