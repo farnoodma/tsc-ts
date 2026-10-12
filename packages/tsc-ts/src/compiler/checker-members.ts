@@ -584,13 +584,19 @@ export class PendingInstantiatedMembers extends PendingMembers {
     const c = this.c;
     const symbols: Symbol[] = [];
     const owners: (PendingInstantiatedMembers | undefined)[] = [];
-    const index = new Map<string, number>();
-    const mapper = this.mapper;
+    let hasOwners = false;
+    const baseTypes = this.baseTypes;
     const list = this.sourceList;
-    if (mapper === undefined) {
+    // Positions by name, needed only where an entry can replace an earlier one: inherited members,
+    // and properties of a list that share a name.
+    const index: Map<string, number> | undefined =
+      baseTypes.length !== 0 || (list !== undefined && this.positions.size !== list.length)
+        ? new Map<string, number>()
+        : undefined;
+    if (this.mapper === undefined) {
       if (this.sourceTable !== undefined)
         for (const [id, source] of this.sourceTable) {
-          index.set(id, symbols.length);
+          index?.set(id, symbols.length);
           symbols.push(source);
           owners.push(undefined);
         }
@@ -598,9 +604,10 @@ export class PendingInstantiatedMembers extends PendingMembers {
       for (let i = 0; i < list.length; i++) {
         const source = list[i]!;
         const owner = this.state(i) === MemberState.Kept ? undefined : this;
-        const at = index.get(source.name);
+        if (owner !== undefined) hasOwners = true;
+        const at = index?.get(source.name);
         if (at === undefined) {
-          index.set(source.name, symbols.length);
+          index?.set(source.name, symbols.length);
           symbols.push(source);
           owners.push(owner);
         } else {
@@ -613,13 +620,13 @@ export class PendingInstantiatedMembers extends PendingMembers {
       for (const [id, source] of this.sourceTable!) {
         const state = this.state(i++);
         if (state === MemberState.Skipped) continue;
-        index.set(id, symbols.length);
+        index?.set(id, symbols.length);
         symbols.push(source);
+        if (state !== MemberState.Kept) hasOwners = true;
         owners.push(state === MemberState.Kept ? undefined : this);
       }
     }
     // addInheritedMembers for each base, in order.
-    const baseTypes = this.baseTypes;
     for (let b = 0; b < baseTypes.length; b++) {
       const base = baseTypes[b];
       const inherited =
@@ -628,43 +635,64 @@ export class PendingInstantiatedMembers extends PendingMembers {
         const symbol = inherited.symbols[i]!;
         if (isStaticPrivateIdentifierProperty(symbol)) continue;
         const owner = inherited.owners !== undefined ? inherited.owners[i] : undefined;
-        const at = index.get(symbol.name);
+        const at = index!.get(symbol.name);
         if (at === undefined) {
-          index.set(symbol.name, symbols.length);
+          index!.set(symbol.name, symbols.length);
           symbols.push(symbol);
           owners.push(owner);
+          if (owner !== undefined) hasOwners = true;
         } else if ((symbols[at]!.flags & SymbolFlags.Value) === 0) {
           symbols[at] = symbol;
           owners[at] = owner;
+          if (owner !== undefined) hasOwners = true;
         }
       }
     }
     // getNamedMembers: value members whose names aren't reserved, those declared in the class or
-    // interface first, each part in declaration order.
+    // interface first, each part in declaration order. Usually that is the order they are in.
     const container = t.symbol;
     const isClassOrInterface =
       container !== undefined && (container.flags & (SymbolFlags.Class | SymbolFlags.Interface)) !== 0;
-    const contained: number[] = [];
-    const rest: number[] = [];
+    let inOrder = true;
+    let lastPart = 0;
     for (let i = 0; i < symbols.length; i++) {
       const symbol = symbols[i]!;
-      if (isReservedMemberName(symbol.name) || !symbolIsValue(c, symbol)) continue;
-      if (isClassOrInterface && isDeclarationContainedBy(symbol, container!)) contained.push(i);
-      else rest.push(i);
-    }
-    sortSymbolPositions(c, symbols, contained);
-    sortSymbolPositions(c, symbols, rest);
-    let hasOwners = false;
-    const orderedSymbols: Symbol[] = [];
-    const orderedOwners: (PendingInstantiatedMembers | undefined)[] = [];
-    for (const part of [contained, rest])
-      for (const i of part) {
-        orderedSymbols.push(symbols[i]!);
-        const owner = owners[i];
-        orderedOwners.push(owner);
-        if (owner !== undefined) hasOwners = true;
+      if (isReservedMemberName(symbol.name) || !symbolIsValue(c, symbol)) {
+        inOrder = false;
+        break;
       }
-    const result = new PropertyList(orderedSymbols, hasOwners ? orderedOwners : undefined);
+      const part = isClassOrInterface && isDeclarationContainedBy(symbol, container!) ? 0 : 1;
+      if (part < lastPart || (i !== 0 && part === lastPart && compareSymbols(c, symbols[i - 1]!, symbol) > 0)) {
+        inOrder = false;
+        break;
+      }
+      lastPart = part;
+    }
+    let result: PropertyList;
+    if (inOrder) result = new PropertyList(symbols, hasOwners ? owners : undefined);
+    else {
+      const contained: number[] = [];
+      const rest: number[] = [];
+      for (let i = 0; i < symbols.length; i++) {
+        const symbol = symbols[i]!;
+        if (isReservedMemberName(symbol.name) || !symbolIsValue(c, symbol)) continue;
+        if (isClassOrInterface && isDeclarationContainedBy(symbol, container!)) contained.push(i);
+        else rest.push(i);
+      }
+      sortSymbolPositions(c, symbols, contained);
+      sortSymbolPositions(c, symbols, rest);
+      let orderedHasOwners = false;
+      const orderedSymbols: Symbol[] = [];
+      const orderedOwners: (PendingInstantiatedMembers | undefined)[] = [];
+      for (const part of [contained, rest])
+        for (const i of part) {
+          orderedSymbols.push(symbols[i]!);
+          const owner = owners[i];
+          orderedOwners.push(owner);
+          if (owner !== undefined) orderedHasOwners = true;
+        }
+      result = new PropertyList(orderedSymbols, orderedHasOwners ? orderedOwners : undefined);
+    }
     this.list = result;
     return result;
   }
@@ -851,14 +879,18 @@ function peekInheritedProperty(c: Checker, base: StructuredType, name: string): 
  */
 export function hasPropertyOfType(c: Checker, t: Type, name: string): boolean {
   const reduced = getReducedApparentType(c, t);
-  if ((reduced.flags & TypeFlags.Object) !== 0) {
-    const pending = resolveStructuredTypeMembers(c, reduced).pendingMembers as PendingInstantiatedMembers | undefined;
-    if (pending !== undefined) {
-      const symbol = pending.peek(name);
-      if (symbol !== undefined && symbolIsValue(c, symbol)) return true;
-    }
-  }
-  return getPropertyOfType(c, t, name) !== undefined;
+  if ((reduced.flags & TypeFlags.Object) === 0) return getPropertyOfType(c, t, name) !== undefined;
+  // getPropertyOfTypeEx for an object type.
+  const resolved = resolveStructuredTypeMembers(c, reduced);
+  const pending = resolved.pendingMembers as PendingInstantiatedMembers | undefined;
+  const symbol = pending !== undefined ? pending.peek(name) : resolved.membersValue?.get(name);
+  if (symbol !== undefined && symbolIsValue(c, symbol)) return true;
+  let functionType: Type | undefined;
+  if (reduced === c.anyFunctionType) functionType = c.globalFunctionType;
+  else if (resolved.callSignatures.length !== 0) functionType = c.globalCallableFunctionType;
+  else if (resolved.constructSignatures.length !== 0) functionType = c.globalNewableFunctionType;
+  if (functionType !== undefined && getPropertyOfObjectType(c, functionType, name) !== undefined) return true;
+  return getPropertyOfObjectType(c, c.globalObjectType, name) !== undefined;
 }
 
 /** The symbol named `name` in a list of properties. Long lists are indexed once. */
