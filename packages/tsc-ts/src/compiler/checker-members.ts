@@ -282,6 +282,74 @@ const enum MemberState {
   Kept = 3,
 }
 
+/**
+ * The properties of a type in order, as getPropertiesOfType returns them, readable without
+ * instantiating the members of a pending table. Property `i` is `symbols[i]` itself or, where
+ * `owners[i]` is set, the member of that pending table instantiated from `symbols[i]`, which has the
+ * same name, flags, declarations and value declaration. `symbol(i)` returns the property itself.
+ */
+export class PropertyList {
+  readonly symbols: Symbol[];
+  readonly owners: (PendingInstantiatedMembers | undefined)[] | undefined;
+  /** Positions by name, built on first use for long lists. */
+  positions: Map<string, number> | undefined;
+
+  constructor(symbols: Symbol[], owners: (PendingInstantiatedMembers | undefined)[] | undefined) {
+    this.symbols = symbols;
+    this.owners = owners;
+    this.positions = undefined;
+  }
+
+  get length(): number {
+    return this.symbols.length;
+  }
+
+  name(i: number): string {
+    return this.symbols[i]!.name;
+  }
+
+  flags(i: number): SymbolFlags {
+    return this.symbols[i]!.flags;
+  }
+
+  checkFlags(i: number): CheckFlags {
+    const owners = this.owners;
+    const flags = this.symbols[i]!.checkFlags;
+    // An instantiated symbol takes these flags from its source (newInstantiatedSymbol).
+    return owners !== undefined && owners[i] !== undefined
+      ? CheckFlags.Instantiated |
+          (flags & (CheckFlags.Readonly | CheckFlags.Late | CheckFlags.OptionalParameter | CheckFlags.RestParameter))
+      : flags;
+  }
+
+  /** Property `i` itself, instantiated if it is a pending member. */
+  symbol(i: number): Symbol {
+    const owners = this.owners;
+    if (owners !== undefined) {
+      const owner = owners[i];
+      if (owner !== undefined) return owner.ownMember(this.symbols[i]!.name)!;
+    }
+    return this.symbols[i]!;
+  }
+
+  /** The position of the property named `name`, or -1. */
+  indexOf(name: string): number {
+    const symbols = this.symbols;
+    if (symbols.length < 16) {
+      for (let i = 0; i < symbols.length; i++) if (symbols[i]!.name === name) return i;
+      return -1;
+    }
+    let positions = this.positions;
+    if (positions === undefined) {
+      positions = new Map<string, number>();
+      for (let i = 0; i < symbols.length; i++) positions.set(symbols[i]!.name, i);
+      this.positions = positions;
+    }
+    const at = positions.get(name);
+    return at === undefined ? -1 : at;
+  }
+}
+
 export class PendingInstantiatedMembers extends PendingMembers {
   readonly c: Checker;
   /**
@@ -576,99 +644,24 @@ function sortSymbolPositions(c: Checker, symbols: Symbol[], positions: number[])
     }
 }
 
-// CheckFlags an instantiated symbol takes from its source (newInstantiatedSymbol).
-const instantiatedCheckFlags =
-  CheckFlags.Readonly | CheckFlags.Late | CheckFlags.OptionalParameter | CheckFlags.RestParameter;
-
-/**
- * The properties of a type in order, as getPropertiesOfType returns them, readable without
- * instantiating the members of a pending table. Property `i` is `symbols[i]` itself or, where
- * `owners[i]` is set, the member of that pending table instantiated from `symbols[i]`, which has the
- * same name, flags, declarations and value declaration. `symbol(i)` returns the property itself.
- */
-export class PropertyList {
-  readonly symbols: Symbol[];
-  readonly owners: (PendingInstantiatedMembers | undefined)[] | undefined;
-  /** Positions by name, built on first use for long lists. */
-  positions: Map<string, number> | undefined;
-
-  constructor(symbols: Symbol[], owners: (PendingInstantiatedMembers | undefined)[] | undefined) {
-    this.symbols = symbols;
-    this.owners = owners;
-    this.positions = undefined;
-  }
-
-  get length(): number {
-    return this.symbols.length;
-  }
-
-  name(i: number): string {
-    return this.symbols[i]!.name;
-  }
-
-  flags(i: number): SymbolFlags {
-    return this.symbols[i]!.flags;
-  }
-
-  checkFlags(i: number): CheckFlags {
-    const owners = this.owners;
-    const flags = this.symbols[i]!.checkFlags;
-    return owners !== undefined && owners[i] !== undefined
-      ? CheckFlags.Instantiated | (flags & instantiatedCheckFlags)
-      : flags;
-  }
-
-  /** Property `i` itself, instantiated if it is a pending member. */
-  symbol(i: number): Symbol {
-    const owners = this.owners;
-    if (owners !== undefined) {
-      const owner = owners[i];
-      if (owner !== undefined) return owner.ownMember(this.symbols[i]!.name)!;
-    }
-    return this.symbols[i]!;
-  }
-
-  /** The position of the property named `name`, or -1. */
-  indexOf(name: string): number {
-    const symbols = this.symbols;
-    if (symbols.length < 16) {
-      for (let i = 0; i < symbols.length; i++) if (symbols[i]!.name === name) return i;
-      return -1;
-    }
-    let positions = this.positions;
-    if (positions === undefined) {
-      positions = new Map<string, number>();
-      for (let i = 0; i < symbols.length; i++) positions.set(symbols[i]!.name, i);
-      this.positions = positions;
-    }
-    const at = positions.get(name);
-    return at === undefined ? -1 : at;
-  }
-}
-
-const emptyPropertyList = new PropertyList(emptySymbols, undefined);
-
 /** The properties of a type whose members are resolved, as a PropertyList. */
 function getPropertyListOfResolvedType(t: StructuredType): PropertyList {
   const pending = t.pendingMembers as PendingInstantiatedMembers | undefined;
   if (pending !== undefined && !pending.resolving) return pending.propertyList(t);
-  const properties = t.properties;
-  return properties.length === 0 ? emptyPropertyList : new PropertyList(properties, undefined);
+  return new PropertyList(t.properties, undefined);
 }
 
 /** getPropertiesOfObjectType as a PropertyList: pending members stay pending. */
 export function getPropertyListOfObjectType(c: Checker, t: Type): PropertyList {
-  if ((t.flags & TypeFlags.Object) === 0) return emptyPropertyList;
+  if ((t.flags & TypeFlags.Object) === 0) return new PropertyList(emptySymbols, undefined);
   return getPropertyListOfResolvedType(resolveStructuredTypeMembers(c, t));
 }
 
 /** getPropertiesOfType as a PropertyList: pending members stay pending. */
 export function getPropertyListOfType(c: Checker, t: Type): PropertyList {
   t = getReducedApparentType(c, t);
-  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
-    const properties = getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType);
-    return properties.length === 0 ? emptyPropertyList : new PropertyList(properties, undefined);
-  }
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
+    return new PropertyList(getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType), undefined);
   return getPropertyListOfObjectType(c, t);
 }
 
@@ -742,14 +735,13 @@ function pendingDeclaredTable(c: Checker, source: InterfaceType): PendingInstant
     undefined,
     undefined,
     emptyStates,
-    noPositions,
+    new Map<string, number>(),
     hasOwnMembers,
     hasRequiredOwnMembers,
   );
 }
 
 const emptyStates: number[] = [];
-const noPositions = new Map<string, number>();
 
 /** The pending table of the properties `list` instantiated with `mapper` (createInstantiatedSymbolTable). */
 function pendingInstantiatedList(c: Checker, list: Symbol[], mapper: TypeMapper): PendingInstantiatedMembers {
