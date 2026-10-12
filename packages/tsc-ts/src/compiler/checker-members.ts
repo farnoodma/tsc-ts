@@ -722,8 +722,10 @@ function getPropertyListOfResolvedType(t: StructuredType): PropertyList {
 export function getPropertySourcesOfType(c: Checker, t: Type): Symbol[] {
   t = getReducedApparentType(c, t);
   if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
+    // Computing these properties walks the constituents, which sets c.propertyOwners.
+    const properties = getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType);
     c.propertyOwners = undefined;
-    return getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType);
+    return properties;
   }
   return getPropertySourcesOfObjectType(c, t);
 }
@@ -741,8 +743,9 @@ export function getPropertySourcesOfObjectType(c: Checker, t: Type): Symbol[] {
     c.propertyOwners = list.owners;
     return list.symbols;
   }
+  const properties = resolved.properties;
   c.propertyOwners = undefined;
-  return resolved.properties;
+  return properties;
 }
 
 /** Property `i` of what getPropertySourcesOfType returned with `owners`, instantiated if pending. */
