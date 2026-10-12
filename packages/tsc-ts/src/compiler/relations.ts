@@ -118,11 +118,12 @@ import {
   getResolvedMember,
   hasResolvedProperties,
   resolvedPropertiesAreOptional,
-  getPropertyListOfType,
-  getPropertyListOfObjectType,
+  getPropertySourcesOfType,
+  getPropertySourcesOfObjectType,
+  propertyAt,
+  propertyCheckFlagsAt,
   hasPropertiesOfType,
   hasPropertyOfType,
-  type PropertyList,
 } from './checker-members.js';
 import {
   getParentOfSymbol,
@@ -2181,9 +2182,11 @@ export class Relater extends TypeComparer {
   typeRelatedToDiscriminatedType(source: Type, target: UnionType): Ternary {
     const c = this.c;
     const discriminants: Symbol[] = [];
-    const sourceProps = getPropertyListOfType(c, source);
+    const sourceProps = getPropertySourcesOfType(c, source);
+    const owners = c.propertyOwners;
     for (let i = 0; i < sourceProps.length; i++)
-      if (isDiscriminantProperty(c, target, sourceProps.name(i))) discriminants.push(sourceProps.symbol(i));
+      if (isDiscriminantProperty(c, target, sourceProps[i]!.name))
+        discriminants.push(propertyAt(sourceProps, owners, i));
     if (discriminants.length === 0) return Ternary.False;
     // Check the number of combinations before building them.
     let combinations = 1;
@@ -2555,14 +2558,15 @@ export class Relater extends TypeComparer {
       return Ternary.False;
     }
     if (isObjectLiteralType(target)) {
-      const sourceProps = getPropertyListOfType(c, source);
+      const sourceProps = getPropertySourcesOfType(c, source);
+      const sourceOwners = c.propertyOwners;
       for (let i = 0; i < sourceProps.length; i++) {
-        const name = sourceProps.name(i);
+        const name = sourceProps[i]!.name;
         if (excludedProperties !== undefined && excludedProperties.has(name)) continue;
         if (getPropertyOfObjectType(c, target, name) === undefined) {
           if (reportErrors)
             this.reportError(Diagnostics.Property_0_does_not_exist_on_type_1, [
-              symbolToString(c, sourceProps.symbol(i)),
+              symbolToString(c, propertyAt(sourceProps, sourceOwners, i)),
               typeToString(c, target),
             ]);
           return Ternary.False;
@@ -2572,18 +2576,19 @@ export class Relater extends TypeComparer {
     const numericNamesOnly = isTupleType(source) && isTupleType(target);
     // A pending target member that the source lacks is never instantiated; one that the source has
     // is (to compare identities and relate types).
-    const targetProps = getPropertyListOfType(c, target);
+    const targetProps = getPropertySourcesOfType(c, target);
+    const targetOwners = c.propertyOwners;
     for (let i = 0; i < targetProps.length; i++) {
-      const name = targetProps.name(i);
+      const name = targetProps[i]!.name;
       if (excludedProperties !== undefined && excludedProperties.has(name)) continue;
-      const targetFlags = targetProps.flags(i);
+      const targetFlags = targetProps[i]!.flags;
       if (
         (targetFlags & SymbolFlags.Prototype) === 0 &&
         (!numericNamesOnly || isNumericLiteralName(name) || name === 'length') &&
         (!optionalsOnly || (targetFlags & SymbolFlags.Optional) !== 0)
       ) {
         const sourceProp = getPropertyOfType(c, source, name);
-        const targetProp = sourceProp !== undefined ? targetProps.symbol(i) : undefined;
+        const targetProp = sourceProp !== undefined ? propertyAt(targetProps, targetOwners, i) : undefined;
         if (sourceProp !== undefined && sourceProp !== targetProp) {
           const related = this.propertyRelatedTo(
             source,
@@ -2822,17 +2827,18 @@ export class Relater extends TypeComparer {
     const c = this.c;
     if ((source.flags & TypeFlags.Object) === 0 || (target.flags & TypeFlags.Object) === 0) return Ternary.False;
     // Counted and walked without instantiating pending members that aren't compared.
-    const sourceProperties = getPropertyListOfObjectType(c, source);
-    const targetProperties = getPropertyListOfObjectType(c, target);
+    const sourceProperties = getPropertySourcesOfObjectType(c, source);
+    const sourceOwners = c.propertyOwners;
+    const targetProperties = getPropertySourcesOfObjectType(c, target);
     if (countProperties(sourceProperties, excludedProperties) !== countProperties(targetProperties, excludedProperties))
       return Ternary.False;
     let result = Ternary.True;
     for (let i = 0; i < sourceProperties.length; i++) {
-      const name = sourceProperties.name(i);
+      const name = sourceProperties[i]!.name;
       if (excludedProperties !== undefined && excludedProperties.has(name)) continue;
       const targetProp = getPropertyOfObjectType(c, target, name);
       if (targetProp === undefined) return Ternary.False;
-      const related = comparePropertiesWith(c, sourceProperties.symbol(i), targetProp, this);
+      const related = comparePropertiesWith(c, propertyAt(sourceProperties, sourceOwners, i), targetProp, this);
       if (related === Ternary.False) return Ternary.False;
       result &= related;
     }
@@ -3548,9 +3554,9 @@ export function isWeakType(c: Checker, t: Type): boolean {
 }
 
 function hasCommonProperties(c: Checker, source: Type, target: Type, isComparingJsxAttributes: boolean): boolean {
-  const props = getPropertyListOfType(c, source);
+  const props = getPropertySourcesOfType(c, source);
   for (let i = 0; i < props.length; i++)
-    if (isKnownProperty(c, target, props.name(i), isComparingJsxAttributes)) return true;
+    if (isKnownProperty(c, target, props[i]!.name, isComparingJsxAttributes)) return true;
   return false;
 }
 
@@ -3689,9 +3695,10 @@ function findMatchingDiscriminantType(c: Checker, source: Type, target: Type, re
   const match = getMatchingUnionConstituentForType(c, target as UnionType, source);
   if (match !== undefined) return match;
   const discriminants: Symbol[] = [];
-  const sourceProps = getPropertyListOfType(c, source);
+  const sourceProps = getPropertySourcesOfType(c, source);
+  const owners = c.propertyOwners;
   for (let i = 0; i < sourceProps.length; i++)
-    if (isDiscriminantProperty(c, target, sourceProps.name(i))) discriminants.push(sourceProps.symbol(i));
+    if (isDiscriminantProperty(c, target, sourceProps[i]!.name)) discriminants.push(propertyAt(sourceProps, owners, i));
   if (discriminants.length === 0) return undefined;
   // Constituents whose discriminant types the source's values relate to.
   let types = typesOf(target);
@@ -3851,21 +3858,24 @@ export function getUnmatchedProperty(
   matchDiscriminantProperties: boolean,
 ): Symbol | undefined {
   // Pending members of the target are instantiated only when they are returned or their types read.
-  const targetProps = getPropertyListOfType(c, target);
+  const targetProps = getPropertySourcesOfType(c, target);
+  const owners = c.propertyOwners;
   for (let i = 0; i < targetProps.length; i++) {
-    if (isStaticPrivateIdentifierProperty(targetProps.symbols[i]!)) continue;
+    const targetSource = targetProps[i]!;
+    if (isStaticPrivateIdentifierProperty(targetSource)) continue;
     if (
       requireOptionalProperties ||
-      ((targetProps.flags(i) & SymbolFlags.Optional) === 0 && (targetProps.checkFlags(i) & CheckFlags.Partial) === 0)
+      ((targetSource.flags & SymbolFlags.Optional) === 0 &&
+        (propertyCheckFlagsAt(targetProps, owners, i) & CheckFlags.Partial) === 0)
     ) {
       // Only the existence of the source property matters, unless discriminants are compared.
       if (!matchDiscriminantProperties) {
-        if (!hasPropertyOfType(c, source, targetProps.name(i))) return targetProps.symbol(i);
+        if (!hasPropertyOfType(c, source, targetSource.name)) return propertyAt(targetProps, owners, i);
         continue;
       }
-      const sourceProp = getPropertyOfType(c, source, targetProps.name(i));
-      if (sourceProp === undefined) return targetProps.symbol(i);
-      const targetProp = targetProps.symbol(i);
+      const sourceProp = getPropertyOfType(c, source, targetSource.name);
+      if (sourceProp === undefined) return propertyAt(targetProps, owners, i);
+      const targetProp = propertyAt(targetProps, owners, i);
       // A unit-typed (discriminant) property whose literal differs in the source is unmatched.
       const targetType = getTypeOfSymbol(c, targetProp);
       if ((targetType.flags & TypeFlags.Unit) !== 0) {
@@ -3890,23 +3900,26 @@ export function getUnmatchedProperties(
   requireOptionalProperties: boolean,
 ): Symbol[] {
   const result: Symbol[] = [];
-  const targetProps = getPropertyListOfType(c, target);
+  const targetProps = getPropertySourcesOfType(c, target);
+  const owners = c.propertyOwners;
   for (let i = 0; i < targetProps.length; i++) {
-    if (isStaticPrivateIdentifierProperty(targetProps.symbols[i]!)) continue;
+    const targetSource = targetProps[i]!;
+    if (isStaticPrivateIdentifierProperty(targetSource)) continue;
     if (
       requireOptionalProperties ||
-      ((targetProps.flags(i) & SymbolFlags.Optional) === 0 && (targetProps.checkFlags(i) & CheckFlags.Partial) === 0)
+      ((targetSource.flags & SymbolFlags.Optional) === 0 &&
+        (propertyCheckFlagsAt(targetProps, owners, i) & CheckFlags.Partial) === 0)
     )
-      if (!hasPropertyOfType(c, source, targetProps.name(i))) result.push(targetProps.symbol(i));
+      if (!hasPropertyOfType(c, source, targetSource.name)) result.push(propertyAt(targetProps, owners, i));
   }
   return result;
 }
 
 /** The number of properties in `list` whose names aren't excluded. */
-function countProperties(list: PropertyList, excludedProperties: Set<string> | undefined): number {
-  if (excludedProperties === undefined || excludedProperties.size === 0) return list.length;
+function countProperties(properties: Symbol[], excludedProperties: Set<string> | undefined): number {
+  if (excludedProperties === undefined || excludedProperties.size === 0) return properties.length;
   let count = 0;
-  for (let i = 0; i < list.length; i++) if (!excludedProperties.has(list.name(i))) count++;
+  for (const p of properties) if (!excludedProperties.has(p.name)) count++;
   return count;
 }
 

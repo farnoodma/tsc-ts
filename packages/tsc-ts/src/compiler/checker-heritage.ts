@@ -86,7 +86,8 @@ import {
   getIndexTypeOfType,
   getPropertiesOfObjectType,
   getPropertiesOfType,
-  getPropertyListOfType,
+  getPropertySourcesOfType,
+  propertyAt,
   getPropertyOfObjectType,
   getPropertyOfType,
   getReducedType,
@@ -424,9 +425,10 @@ function checkKindsOfPropertyMemberOverrides(c: Checker, t: InterfaceType, baseT
   let missing: MissingAbstractMembers | undefined = undefined;
   let missingNode: Node | undefined = undefined;
   // The target of a pending base member is that of its source: it isn't instantiated unless printed.
-  const baseProperties = getPropertyListOfType(c, baseType);
+  const baseProperties = getPropertySourcesOfType(c, baseType);
+  const owners = c.propertyOwners;
   for (let i = 0; i < baseProperties.length; i++) {
-    const base = getTargetSymbol(c, baseProperties.symbols[i]!);
+    const base = getTargetSymbol(c, baseProperties[i]!);
     if ((base.flags & SymbolFlags.Prototype) !== 0) continue;
     const baseSymbol = getPropertyOfObjectType(c, t, base.name);
     if (baseSymbol === undefined) continue;
@@ -444,7 +446,7 @@ function checkKindsOfPropertyMemberOverrides(c: Checker, t: InterfaceType, baseT
         missing = new MissingAbstractMembers(typeToString(c, baseType), typeToString(c, t));
         missingNode = derivedClassDecl;
       }
-      missing.properties.push(symbolToString(c, baseProperties.symbol(i)));
+      missing.properties.push(symbolToString(c, propertyAt(baseProperties, owners, i)));
       continue;
     }
     const derivedDeclarationFlags = getDeclarationModifierFlagsFromSymbol(c, derived, false);

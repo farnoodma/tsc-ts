@@ -714,18 +714,65 @@ function getPropertyListOfResolvedType(t: StructuredType): PropertyList {
   return new PropertyList(t.properties, undefined);
 }
 
-/** getPropertiesOfObjectType as a PropertyList: pending members stay pending. */
-export function getPropertyListOfObjectType(c: Checker, t: Type): PropertyList {
-  if ((t.flags & TypeFlags.Object) === 0) return new PropertyList(emptySymbols, undefined);
-  return getPropertyListOfResolvedType(resolveStructuredTypeMembers(c, t));
+/**
+ * getPropertiesOfType, except that a complete pending table gives the source symbols of its
+ * PropertyList; `c.propertyOwners` is then their owners, and undefined otherwise. Read it right after
+ * the call, and use propertyAt and propertyCheckFlagsAt for what differs from the source symbol.
+ */
+export function getPropertySourcesOfType(c: Checker, t: Type): Symbol[] {
+  t = getReducedApparentType(c, t);
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
+    c.propertyOwners = undefined;
+    return getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType);
+  }
+  return getPropertySourcesOfObjectType(c, t);
 }
 
-/** getPropertiesOfType as a PropertyList: pending members stay pending. */
-export function getPropertyListOfType(c: Checker, t: Type): PropertyList {
-  t = getReducedApparentType(c, t);
-  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0)
-    return new PropertyList(getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType), undefined);
-  return getPropertyListOfObjectType(c, t);
+/** getPropertiesOfObjectType as getPropertySourcesOfType returns them. */
+export function getPropertySourcesOfObjectType(c: Checker, t: Type): Symbol[] {
+  if ((t.flags & TypeFlags.Object) === 0) {
+    c.propertyOwners = undefined;
+    return emptySymbols;
+  }
+  const resolved = resolveStructuredTypeMembers(c, t);
+  const pending = resolved.pendingMembers as PendingInstantiatedMembers | undefined;
+  if (pending !== undefined && !pending.resolving) {
+    const list = pending.propertyList(resolved);
+    c.propertyOwners = list.owners;
+    return list.symbols;
+  }
+  c.propertyOwners = undefined;
+  return resolved.properties;
+}
+
+/** Property `i` of what getPropertySourcesOfType returned with `owners`, instantiated if pending. */
+export function propertyAt(sources: Symbol[], owners: (PendingMembers | undefined)[] | undefined, i: number): Symbol {
+  const source = sources[i]!;
+  if (owners !== undefined) {
+    const owner = owners[i] as PendingInstantiatedMembers | undefined;
+    if (owner !== undefined) return owner.ownMember(source.name)!;
+  }
+  return source;
+}
+
+/** The check flags of propertyAt(sources, owners, i), without instantiating it. */
+export function propertyCheckFlagsAt(
+  sources: Symbol[],
+  owners: (PendingMembers | undefined)[] | undefined,
+  i: number,
+): CheckFlags {
+  const flags = sources[i]!.checkFlags;
+  // An instantiated symbol takes these flags from its source (newInstantiatedSymbol).
+  return owners !== undefined && owners[i] !== undefined
+    ? CheckFlags.Instantiated |
+        (flags & (CheckFlags.Readonly | CheckFlags.Late | CheckFlags.OptionalParameter | CheckFlags.RestParameter))
+    : flags;
+}
+
+/** getPropertiesOfObjectType as a PropertyList: pending members stay pending. */
+function getPropertyListOfObjectType(c: Checker, t: Type): PropertyList {
+  if ((t.flags & TypeFlags.Object) === 0) return new PropertyList(emptySymbols, undefined);
+  return getPropertyListOfResolvedType(resolveStructuredTypeMembers(c, t));
 }
 
 /**
@@ -1638,9 +1685,9 @@ export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrInt
     const props: Symbol[] = [];
     for (const current of t.types) {
       // Only the names are read here (the properties come from the lookups by name).
-      const list = getPropertyListOfType(c, current);
-      for (let i = 0; i < list.length; i++) {
-        const name = list.name(i);
+      const sources = getPropertySourcesOfType(c, current);
+      for (let i = 0; i < sources.length; i++) {
+        const name = sources[i]!.name;
         if (checked.has(name)) continue;
         checked.add(name);
         const combined = getPropertyOfUnionOrIntersectionType(c, t, name, (t.flags & TypeFlags.Intersection) !== 0);

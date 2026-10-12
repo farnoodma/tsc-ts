@@ -55,6 +55,7 @@ import {
   NodeLinks,
   ObjectFlags,
   ObjectType,
+  type PendingMembers,
   Signature,
   SignatureFlags,
   SymbolLinks,
@@ -289,6 +290,8 @@ export class Checker {
   readonly memberPositionsInLists = new Map<Symbol[], Map<string, number>>();
   /** Long lists of inherited properties, by name. */
   readonly propertiesByName = new Map<Symbol[], Map<string, Symbol>>();
+  /** The owners of the source symbols the last getPropertySourcesOfType call returned (checker-members.ts). */
+  propertyOwners: (PendingMembers | undefined)[] | undefined = undefined;
   /** Number of `typeToString` calls in progress. */
   serializationLevel = 0;
   /** Whether `globalObjectType` is set; global type lookups before it can't suggest `typeof`. */

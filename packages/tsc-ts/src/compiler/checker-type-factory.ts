@@ -59,7 +59,8 @@ import {
   isArrayLikeType,
   resolveStructuredTypeMembers,
   hasResolvedProperties,
-  getPropertyListOfType,
+  getPropertySourcesOfType,
+  propertyAt,
 } from './checker-members.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getDeclaredTypeOfSymbol, getParentOfSymbol } from './checker-declared-types.js';
@@ -1243,9 +1244,10 @@ function removeSubtypes(c: Checker, types: Type[], hasObjectTypes: boolean): Typ
     let keyPropertyType: Type | undefined;
     if ((source.flags & (TypeFlags.Object | TypeFlags.Intersection | TypeFlags.InstantiableNonPrimitive)) !== 0) {
       // Members after the first unit-typed one aren't instantiated.
-      const props = getPropertyListOfType(c, source);
+      const props = getPropertySourcesOfType(c, source);
+      const owners = c.propertyOwners;
       for (let j = 0; j < props.length; j++) {
-        const p = props.symbol(j);
+        const p = propertyAt(props, owners, j);
         if (isUnitType(getTypeOfSymbol(c, p))) {
           keyProperty = p;
           break;
