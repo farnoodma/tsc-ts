@@ -259,7 +259,7 @@ function resolveObjectTypeMembers(
   }
   setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
   // A table of its own: instantiated, or copied to add the inherited members.
-  if (instantiated || baseTypes.length !== 0) compactMembers(c, t);
+  if (instantiated || baseTypes.length !== 0) compactMembers(c, t, true);
 }
 
 // ---- Lazily instantiated members
@@ -592,15 +592,17 @@ export function getResolvedMember(t: StructuredType, name: string): Symbol | und
  * Drops the members table of `t` for a shape shared with other types when every member is a property
  * under its own name, so that the table and the properties have the same entries. Lookups then find a
  * member by its position in the properties, as `getResolvedMember` does. Only for tables that the type
- * owns and that nothing changes any more (tsgo reads some tables while it still adds to them).
+ * owns and that nothing changes any more (tsgo reads some tables while it still adds to them). Tables
+ * are keyed by their symbols' names unless `checkKeys` says they may not be.
  */
-export function compactMembers(c: Checker, t: StructuredType): void {
+export function compactMembers(c: Checker, t: StructuredType, checkKeys: boolean = false): void {
   const members = t.membersValue;
   if (members === undefined || t.pendingMembers !== undefined || t.memberShape !== undefined) return;
   const properties = t.propertiesValue;
   const count = properties.length;
   if (count === 0 || count !== members.size) return;
-  for (const [name, symbol] of members) if (name !== symbol.name) return;
+  // The properties are the table's entries; with as many names, each is its own key.
+  if (checkKeys) for (const p of properties) if (members.get(p.name) !== p) return;
   t.memberShape = getMemberShape(c, properties);
   t.membersValue = undefined;
 }
@@ -612,8 +614,7 @@ function getMemberShape(c: Checker, properties: readonly Symbol[]): MemberShape 
   for (let i = 0; i < count; i++) {
     const name = properties[i]!.name;
     hash = Math.imul(hash ^ name.length, 0x01000193);
-    if (name.length !== 0)
-      hash = Math.imul(Math.imul(hash ^ name.charCodeAt(0), 0x01000193) ^ name.charCodeAt(name.length - 1), 0x01000193);
+    if (name.length !== 0) hash = Math.imul(hash ^ name.charCodeAt(0), 0x01000193);
   }
   let candidates = c.memberShapes.get(hash);
   if (candidates !== undefined) {
