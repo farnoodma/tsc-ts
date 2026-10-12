@@ -80,6 +80,7 @@ import {
   getMembersOfSymbol,
   getMergedSymbol,
   getNamedMembers,
+  getNamedMembersOfList,
   getSymbolOfDeclaration,
   isReservedMemberName,
   popTypeResolution,
@@ -430,6 +431,27 @@ export class PendingInstantiatedMembers extends PendingMembers {
   materialize(t: StructuredType): void {
     const c = this.c;
     t.pendingMembers = undefined;
+    const sourceTable = this.sourceTable;
+    if (sourceTable !== undefined && !this.hasBases) {
+      // The table would hold the named members in source order under their names, all of them values
+      // (pendingInstantiatedTable), so its properties are those members sorted, and a shape stands for it.
+      const own: Symbol[] = [];
+      let i = 0;
+      for (const source of sourceTable.values()) {
+        if (this.state(i) !== MemberState.Skipped) own.push(this.memberAt(i, source));
+        i++;
+      }
+      this.instantiated = undefined;
+      this.inheritedLookups = undefined;
+      const properties = getNamedMembersOfList(c, own, t.symbol);
+      t.propertiesValue = properties;
+      if (properties.length === 0) t.membersValue = new Map<string, Symbol>();
+      else {
+        t.membersValue = undefined;
+        t.memberShape = getMemberShape(c, properties);
+      }
+      return;
+    }
     const members = this.ownTable();
     this.instantiated = undefined;
     this.inheritedLookups = undefined;

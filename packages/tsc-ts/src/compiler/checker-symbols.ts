@@ -1574,6 +1574,27 @@ export function getNamedMembers(c: Checker, members: SymbolTable | undefined, co
   return contained.length === 0 ? rest : contained.concat(rest);
 }
 
+/**
+ * `getNamedMembers` of a table whose entries are `symbols`, in order, all of them value members with
+ * names that aren't reserved. Sorts `symbols` in place where it returns it.
+ */
+export function getNamedMembersOfList(c: Checker, symbols: Symbol[], container: Symbol | undefined): Symbol[] {
+  if (symbols.length === 0) return [];
+  if (container === undefined || (container.flags & (SymbolFlags.Class | SymbolFlags.Interface)) === 0) {
+    sortSymbols(c, symbols);
+    return symbols;
+  }
+  const contained: Symbol[] = [];
+  const rest: Symbol[] = [];
+  for (const symbol of symbols) {
+    if (isDeclarationContainedBy(symbol, container)) contained.push(symbol);
+    else rest.push(symbol);
+  }
+  sortSymbols(c, contained);
+  sortSymbols(c, rest);
+  return contained.length === 0 ? rest : contained.concat(rest);
+}
+
 /** Sorts symbols by declaration order; members are usually in that order already. */
 function sortSymbols(c: Checker, symbols: Symbol[]): void {
   for (let i = 1; i < symbols.length; i++)
