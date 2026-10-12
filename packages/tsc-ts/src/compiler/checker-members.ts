@@ -603,11 +603,27 @@ export function getResolvedMember(t: StructuredType, name: string): Symbol | und
   const pending = t.pendingMembers;
   if (pending !== undefined) return (pending as PendingInstantiatedMembers).get(name);
   const shape = t.memberShape;
-  if (shape !== undefined) {
-    const position = shape.positions.get(name);
-    return position !== undefined ? t.propertiesValue[position] : undefined;
-  }
+  if (shape !== undefined) return findInShape(shape, t.propertiesValue, name);
   return t.membersValue?.get(name);
+}
+
+/** Lists this short are searched by name instead of getting an interned shape. */
+const enum ShortMemberList {
+  MaxLength = 4,
+}
+
+/** The property named `name` in `properties`, whose shape is `shape`. */
+function findInShape(shape: MemberShape, properties: readonly Symbol[], name: string): Symbol | undefined {
+  // Short lists share a shape without names (`Checker.shortListShape`) and are searched in order.
+  if (shape.names.length === 0) {
+    for (let i = 0; i < properties.length; i++) {
+      const p = properties[i]!;
+      if (p.name === name) return p;
+    }
+    return undefined;
+  }
+  const position = shape.positions.get(name);
+  return position !== undefined ? properties[position] : undefined;
 }
 
 /**
@@ -632,6 +648,7 @@ export function compactMembers(c: Checker, t: StructuredType, checkKeys: boolean
 /** The shape of the names of `properties` (which are distinct), shared by the checker's types. */
 function getMemberShape(c: Checker, properties: readonly Symbol[]): MemberShape {
   const count = properties.length;
+  if (count <= ShortMemberList.MaxLength) return c.shortListShape;
   // The lengths of the names: cheap, and candidates are compared name by name anyway.
   let hash = count;
   for (let i = 0; i < count; i++) hash = Math.imul(hash ^ properties[i]!.name.length, 0x01000193);
@@ -1526,8 +1543,8 @@ export function getUnionOrIntersectionProperty(
     ? CompactPropertyCaches.WithoutAugment
     : CompactPropertyCaches.Augmented;
   if ((t.compactPropertyCaches & which) !== 0) {
-    const position = t.propertyCacheShape!.positions.get(name);
-    if (position !== undefined) return t.resolvedProperties![position];
+    const found = findInShape(t.propertyCacheShape!, t.resolvedProperties!, name);
+    if (found !== undefined) return found;
   }
   let cache = skipObjectFunctionPropertyAugment ? t.propertyCacheWithoutFunctionPropertyAugment : t.propertyCache;
   const cached = cache?.get(name);
@@ -1546,7 +1563,8 @@ export function getUnionOrIntersectionProperty(
       skipObjectFunctionPropertyAugment &&
       (prop.checkFlags & CheckFlags.Partial) === 0 &&
       // A compact augmented cache has every resolved property's name already.
-      ((t.compactPropertyCaches & CompactPropertyCaches.Augmented) === 0 || !t.propertyCacheShape!.positions.has(name))
+      ((t.compactPropertyCaches & CompactPropertyCaches.Augmented) === 0 ||
+        findInShape(t.propertyCacheShape!, t.resolvedProperties!, name) === undefined)
     ) {
       let augmented = expandPropertyCache(t, CompactPropertyCaches.Augmented);
       if (augmented === undefined) {

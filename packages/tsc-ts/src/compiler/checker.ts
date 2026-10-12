@@ -53,7 +53,7 @@ import {
   IndexInfo,
   IntrinsicType,
   LiteralType,
-  type MemberShape,
+  MemberShape,
   NodeLinks,
   ObjectFlags,
   ObjectType,
@@ -289,6 +289,8 @@ export class Checker {
   readonly propertiesByName = new Map<Symbol[], Map<string, Symbol>>();
   /** Shapes of compacted member tables (checker-members.ts `compactMembers`), by a hash of their names. */
   readonly memberShapes = new Map<number, MemberShape[]>();
+  /** The shape of all short property lists, which are searched by name (no names: see `findInShape`). */
+  readonly shortListShape = new MemberShape([]);
   /** Number of `typeToString` calls in progress. */
   serializationLevel = 0;
   /** Whether `globalObjectType` is set; global type lookups before it can't suggest `typeof`. */
