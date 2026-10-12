@@ -45,6 +45,7 @@ import {
 } from './checker-types.js';
 import {
   UnionReduction,
+  compareSymbols,
   createArrayTypeEx,
   createTupleTypeEx,
   createTypeReference,
@@ -79,6 +80,7 @@ import {
   getMergedSymbol,
   getNamedMembers,
   getSymbolOfDeclaration,
+  isDeclarationContainedBy,
   isReservedMemberName,
   popTypeResolution,
   pushTypeResolution,
@@ -303,6 +305,10 @@ export class PendingInstantiatedMembers extends PendingMembers {
   instantiated: Map<string, Symbol> | undefined;
   /** Names that aren't own members, looked up after resolution, and what they found. */
   inheritedLookups: Map<string, Symbol | undefined> | undefined;
+  /** The properties in order, built once resolution is complete (propertyList). */
+  list: PropertyList | undefined;
+  /** The members table once built; own members are read from it from then on. */
+  table: SymbolTable | undefined;
   /** Whether the instantiated table has an own member, and one that isn't optional. */
   readonly hasOwnMembers: boolean;
   readonly hasRequiredOwnMembers: boolean;
@@ -332,6 +338,8 @@ export class PendingInstantiatedMembers extends PendingMembers {
     this.resolving = false;
     this.instantiated = undefined;
     this.inheritedLookups = undefined;
+    this.list = undefined;
+    this.table = undefined;
   }
 
   state(position: number): MemberState {
@@ -351,6 +359,8 @@ export class PendingInstantiatedMembers extends PendingMembers {
 
   /** The own member `name` as in tsgo's instantiated table, or undefined. */
   ownMember(name: string): Symbol | undefined {
+    const table = this.table;
+    if (table !== undefined) return table.get(name);
     const position = this.positions.get(name);
     if (position === undefined || this.state(position) === MemberState.Skipped) return undefined;
     let instantiated = this.instantiated;
@@ -427,6 +437,7 @@ export class PendingInstantiatedMembers extends PendingMembers {
     const c = this.c;
     t.pendingMembers = undefined;
     const members = this.ownTable();
+    this.table = members;
     this.instantiated = undefined;
     this.inheritedLookups = undefined;
     if (!this.hasBases) {
@@ -445,6 +456,201 @@ export class PendingInstantiatedMembers extends PendingMembers {
     t.membersValue = members;
     t.propertiesValue = ownProperties ?? getNamedMembers(c, members, t.symbol);
   }
+
+  /**
+   * The properties of `t` (whose pending table this is, resolution complete) in the order of
+   * `t.properties`, without instantiating members: the table materialize would build, with
+   * getNamedMembers' filter and order applied to the source symbols. An instantiated member has the
+   * name, flags and declarations of its source, which is all that the order depends on (names are
+   * distinct, so compareSymbols never falls back to symbol ids).
+   */
+  propertyList(t: StructuredType): PropertyList {
+    const known = this.list;
+    if (known !== undefined) return known;
+    const c = this.c;
+    const symbols: Symbol[] = [];
+    const owners: (PendingInstantiatedMembers | undefined)[] = [];
+    const index = new Map<string, number>();
+    const list = this.sourceList;
+    if (list !== undefined) {
+      for (let i = 0; i < list.length; i++) {
+        const source = list[i]!;
+        const owner = this.state(i) === MemberState.Kept ? undefined : this;
+        const at = index.get(source.name);
+        if (at === undefined) {
+          index.set(source.name, symbols.length);
+          symbols.push(source);
+          owners.push(owner);
+        } else {
+          symbols[at] = source;
+          owners[at] = owner;
+        }
+      }
+    } else {
+      let i = 0;
+      for (const [id, source] of this.sourceTable!) {
+        const state = this.state(i++);
+        if (state === MemberState.Skipped) continue;
+        index.set(id, symbols.length);
+        symbols.push(source);
+        owners.push(state === MemberState.Kept ? undefined : this);
+      }
+    }
+    // addInheritedMembers for each base, in order.
+    const baseTypes = this.baseTypes;
+    for (let b = 0; b < baseTypes.length; b++) {
+      const base = baseTypes[b];
+      const inherited =
+        base !== undefined ? getPropertyListOfResolvedType(base) : new PropertyList(this.baseProperties[b]!, undefined);
+      for (let i = 0; i < inherited.symbols.length; i++) {
+        const symbol = inherited.symbols[i]!;
+        if (isStaticPrivateIdentifierProperty(symbol)) continue;
+        const owner = inherited.owners !== undefined ? inherited.owners[i] : undefined;
+        const at = index.get(symbol.name);
+        if (at === undefined) {
+          index.set(symbol.name, symbols.length);
+          symbols.push(symbol);
+          owners.push(owner);
+        } else if ((symbols[at]!.flags & SymbolFlags.Value) === 0) {
+          symbols[at] = symbol;
+          owners[at] = owner;
+        }
+      }
+    }
+    // getNamedMembers: value members whose names aren't reserved, those declared in the class or
+    // interface first, each part in declaration order.
+    const container = t.symbol;
+    const isClassOrInterface =
+      container !== undefined && (container.flags & (SymbolFlags.Class | SymbolFlags.Interface)) !== 0;
+    const contained: number[] = [];
+    const rest: number[] = [];
+    for (let i = 0; i < symbols.length; i++) {
+      const symbol = symbols[i]!;
+      if (isReservedMemberName(symbol.name) || !symbolIsValue(c, symbol)) continue;
+      if (isClassOrInterface && isDeclarationContainedBy(symbol, container!)) contained.push(i);
+      else rest.push(i);
+    }
+    sortSymbolPositions(c, symbols, contained);
+    sortSymbolPositions(c, symbols, rest);
+    let hasOwners = false;
+    const orderedSymbols: Symbol[] = [];
+    const orderedOwners: (PendingInstantiatedMembers | undefined)[] = [];
+    for (const part of [contained, rest])
+      for (const i of part) {
+        orderedSymbols.push(symbols[i]!);
+        const owner = owners[i];
+        orderedOwners.push(owner);
+        if (owner !== undefined) hasOwners = true;
+      }
+    const result = new PropertyList(orderedSymbols, hasOwners ? orderedOwners : undefined);
+    this.list = result;
+    return result;
+  }
+}
+
+/** Sorts positions into `symbols` as sortSymbols sorts the symbols at them. */
+function sortSymbolPositions(c: Checker, symbols: Symbol[], positions: number[]): void {
+  for (let i = 1; i < positions.length; i++)
+    if (compareSymbols(c, symbols[positions[i - 1]!]!, symbols[positions[i]!]!) > 0) {
+      positions.sort((a, b) => compareSymbols(c, symbols[a]!, symbols[b]!));
+      return;
+    }
+}
+
+// CheckFlags an instantiated symbol takes from its source (newInstantiatedSymbol).
+const instantiatedCheckFlags =
+  CheckFlags.Readonly | CheckFlags.Late | CheckFlags.OptionalParameter | CheckFlags.RestParameter;
+
+/**
+ * The properties of a type in order, as getPropertiesOfType returns them, readable without
+ * instantiating the members of a pending table. Property `i` is `symbols[i]` itself or, where
+ * `owners[i]` is set, the member of that pending table instantiated from `symbols[i]`, which has the
+ * same name, flags, declarations and value declaration. `symbol(i)` returns the property itself.
+ */
+export class PropertyList {
+  readonly symbols: Symbol[];
+  readonly owners: (PendingInstantiatedMembers | undefined)[] | undefined;
+  /** Positions by name, built on first use for long lists. */
+  positions: Map<string, number> | undefined;
+
+  constructor(symbols: Symbol[], owners: (PendingInstantiatedMembers | undefined)[] | undefined) {
+    this.symbols = symbols;
+    this.owners = owners;
+    this.positions = undefined;
+  }
+
+  get length(): number {
+    return this.symbols.length;
+  }
+
+  name(i: number): string {
+    return this.symbols[i]!.name;
+  }
+
+  flags(i: number): SymbolFlags {
+    return this.symbols[i]!.flags;
+  }
+
+  checkFlags(i: number): CheckFlags {
+    const owners = this.owners;
+    const flags = this.symbols[i]!.checkFlags;
+    return owners !== undefined && owners[i] !== undefined
+      ? CheckFlags.Instantiated | (flags & instantiatedCheckFlags)
+      : flags;
+  }
+
+  /** Property `i` itself, instantiated if it is a pending member. */
+  symbol(i: number): Symbol {
+    const owners = this.owners;
+    if (owners !== undefined) {
+      const owner = owners[i];
+      if (owner !== undefined) return owner.ownMember(this.symbols[i]!.name)!;
+    }
+    return this.symbols[i]!;
+  }
+
+  /** The position of the property named `name`, or -1. */
+  indexOf(name: string): number {
+    const symbols = this.symbols;
+    if (symbols.length < 16) {
+      for (let i = 0; i < symbols.length; i++) if (symbols[i]!.name === name) return i;
+      return -1;
+    }
+    let positions = this.positions;
+    if (positions === undefined) {
+      positions = new Map<string, number>();
+      for (let i = 0; i < symbols.length; i++) positions.set(symbols[i]!.name, i);
+      this.positions = positions;
+    }
+    const at = positions.get(name);
+    return at === undefined ? -1 : at;
+  }
+}
+
+const emptyPropertyList = new PropertyList(emptySymbols, undefined);
+
+/** The properties of a type whose members are resolved, as a PropertyList. */
+function getPropertyListOfResolvedType(t: StructuredType): PropertyList {
+  const pending = t.pendingMembers as PendingInstantiatedMembers | undefined;
+  if (pending !== undefined && !pending.resolving) return pending.propertyList(t);
+  const properties = t.properties;
+  return properties.length === 0 ? emptyPropertyList : new PropertyList(properties, undefined);
+}
+
+/** getPropertiesOfObjectType as a PropertyList: pending members stay pending. */
+export function getPropertyListOfObjectType(c: Checker, t: Type): PropertyList {
+  if ((t.flags & TypeFlags.Object) === 0) return emptyPropertyList;
+  return getPropertyListOfResolvedType(resolveStructuredTypeMembers(c, t));
+}
+
+/** getPropertiesOfType as a PropertyList: pending members stay pending. */
+export function getPropertyListOfType(c: Checker, t: Type): PropertyList {
+  t = getReducedApparentType(c, t);
+  if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
+    const properties = getPropertiesOfUnionOrIntersectionType(c, t as UnionOrIntersectionType);
+    return properties.length === 0 ? emptyPropertyList : new PropertyList(properties, undefined);
+  }
+  return getPropertyListOfObjectType(c, t);
 }
 
 /**
@@ -579,8 +785,10 @@ export function getResolvedMember(t: StructuredType, name: string): Symbol | und
 /** `t.properties.length !== 0` of a type whose members are resolved, without building a pending table. */
 export function hasResolvedProperties(t: StructuredType): boolean {
   const pending = t.pendingMembers as PendingInstantiatedMembers | undefined;
-  // Own members are all properties; with none, what the bases add decides.
-  if (pending !== undefined && !pending.resolving && pending.hasOwnMembers) return true;
+  if (pending !== undefined && !pending.resolving) {
+    // Own members are all properties; with none, what the bases add decides.
+    return pending.hasOwnMembers || pending.propertyList(t).length !== 0;
+  }
   return t.properties.length !== 0;
 }
 
@@ -602,6 +810,9 @@ export function resolvedPropertiesAreOptional(t: StructuredType): boolean {
     // A required own member is in the table whatever the bases add.
     if (pending.hasRequiredOwnMembers) return false;
     if (!pending.hasBases) return true;
+    const list = pending.propertyList(t);
+    for (let i = 0; i < list.length; i++) if ((list.flags(i) & SymbolFlags.Optional) === 0) return false;
+    return true;
   }
   return t.properties.every((p) => (p.flags & SymbolFlags.Optional) !== 0);
 }
@@ -1293,15 +1504,13 @@ export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrInt
     const checked = new Set<string>();
     const props: Symbol[] = [];
     for (const current of t.types) {
-      for (const prop of getPropertiesOfType(c, current)) {
-        if (checked.has(prop.name)) continue;
-        checked.add(prop.name);
-        const combined = getPropertyOfUnionOrIntersectionType(
-          c,
-          t,
-          prop.name,
-          (t.flags & TypeFlags.Intersection) !== 0,
-        );
+      // Only the names are read here (the properties come from the lookups by name).
+      const list = getPropertyListOfType(c, current);
+      for (let i = 0; i < list.length; i++) {
+        const name = list.name(i);
+        if (checked.has(name)) continue;
+        checked.add(name);
+        const combined = getPropertyOfUnionOrIntersectionType(c, t, name, (t.flags & TypeFlags.Intersection) !== 0);
         if (combined !== undefined) props.push(combined);
       }
       // Union properties are in every constituent: the first without index signatures suffices.

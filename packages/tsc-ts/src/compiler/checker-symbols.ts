@@ -1548,7 +1548,7 @@ export function symbolIsValue(c: Checker, symbol: Symbol): boolean {
   );
 }
 
-function isDeclarationContainedBy(symbol: Symbol, container: Symbol): boolean {
+export function isDeclarationContainedBy(symbol: Symbol, container: Symbol): boolean {
   const declaration = symbol.valueDeclaration;
   if (declaration !== undefined)
     for (const d of container.declarations) if (declaration.pos >= d.pos && declaration.end <= d.end) return true;

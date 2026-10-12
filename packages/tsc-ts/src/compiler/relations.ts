@@ -118,6 +118,10 @@ import {
   getResolvedMember,
   hasResolvedProperties,
   resolvedPropertiesAreOptional,
+  getPropertyListOfType,
+  getPropertyListOfObjectType,
+  hasPropertiesOfType,
+  type PropertyList,
 } from './checker-members.js';
 import {
   getParentOfSymbol,
@@ -1016,7 +1020,7 @@ export class Relater extends TypeComparer {
         source !== c.globalObjectType &&
         (target.flags & (TypeFlags.Object | TypeFlags.Intersection)) !== 0 &&
         isWeakType(c, target) &&
-        (getPropertiesOfType(c, source).length > 0 || typeHasCallOrConstructSignatures(c, source));
+        (hasPropertiesOfType(c, source) || typeHasCallOrConstructSignatures(c, source));
       const isComparingJsxAttributes = (source.objectFlags & ObjectFlags.JsxAttributes) !== 0;
       if (isPerformingCommonPropertyChecks && !hasCommonProperties(c, source, target, isComparingJsxAttributes)) {
         if (reportErrors) {
@@ -2176,8 +2180,9 @@ export class Relater extends TypeComparer {
   typeRelatedToDiscriminatedType(source: Type, target: UnionType): Ternary {
     const c = this.c;
     const discriminants: Symbol[] = [];
-    for (const p of getPropertiesOfType(c, source))
-      if (isDiscriminantProperty(c, target, p.name)) discriminants.push(p);
+    const sourceProps = getPropertyListOfType(c, source);
+    for (let i = 0; i < sourceProps.length; i++)
+      if (isDiscriminantProperty(c, target, sourceProps.name(i))) discriminants.push(sourceProps.symbol(i));
     if (discriminants.length === 0) return Ternary.False;
     // Check the number of combinations before building them.
     let combinations = 1;
@@ -2549,12 +2554,14 @@ export class Relater extends TypeComparer {
       return Ternary.False;
     }
     if (isObjectLiteralType(target)) {
-      for (const sourceProp of getPropertiesOfType(c, source)) {
-        if (excludedProperties !== undefined && excludedProperties.has(sourceProp.name)) continue;
-        if (getPropertyOfObjectType(c, target, sourceProp.name) === undefined) {
+      const sourceProps = getPropertyListOfType(c, source);
+      for (let i = 0; i < sourceProps.length; i++) {
+        const name = sourceProps.name(i);
+        if (excludedProperties !== undefined && excludedProperties.has(name)) continue;
+        if (getPropertyOfObjectType(c, target, name) === undefined) {
           if (reportErrors)
             this.reportError(Diagnostics.Property_0_does_not_exist_on_type_1, [
-              symbolToString(c, sourceProp),
+              symbolToString(c, sourceProps.symbol(i)),
               typeToString(c, target),
             ]);
           return Ternary.False;
@@ -2562,21 +2569,26 @@ export class Relater extends TypeComparer {
       }
     }
     const numericNamesOnly = isTupleType(source) && isTupleType(target);
-    for (const targetProp of getPropertiesOfType(c, target)) {
-      if (excludedProperties !== undefined && excludedProperties.has(targetProp.name)) continue;
-      const name = targetProp.name;
+    // A pending target member that the source lacks is never instantiated; one that the source has
+    // is (to compare identities and relate types).
+    const targetProps = getPropertyListOfType(c, target);
+    for (let i = 0; i < targetProps.length; i++) {
+      const name = targetProps.name(i);
+      if (excludedProperties !== undefined && excludedProperties.has(name)) continue;
+      const targetFlags = targetProps.flags(i);
       if (
-        (targetProp.flags & SymbolFlags.Prototype) === 0 &&
+        (targetFlags & SymbolFlags.Prototype) === 0 &&
         (!numericNamesOnly || isNumericLiteralName(name) || name === 'length') &&
-        (!optionalsOnly || (targetProp.flags & SymbolFlags.Optional) !== 0)
+        (!optionalsOnly || (targetFlags & SymbolFlags.Optional) !== 0)
       ) {
         const sourceProp = getPropertyOfType(c, source, name);
+        const targetProp = sourceProp !== undefined ? targetProps.symbol(i) : undefined;
         if (sourceProp !== undefined && sourceProp !== targetProp) {
           const related = this.propertyRelatedTo(
             source,
             target,
             sourceProp,
-            targetProp,
+            targetProp!,
             reportErrors,
             intersectionState,
             this.relation === c.comparableRelation,
@@ -2808,18 +2820,18 @@ export class Relater extends TypeComparer {
   propertiesIdenticalTo(source: Type, target: Type, excludedProperties: Set<string> | undefined): Ternary {
     const c = this.c;
     if ((source.flags & TypeFlags.Object) === 0 || (target.flags & TypeFlags.Object) === 0) return Ternary.False;
-    const exclude = (props: Symbol[]): Symbol[] =>
-      excludedProperties === undefined || excludedProperties.size === 0
-        ? props
-        : props.filter((p) => !excludedProperties.has(p.name));
-    const sourceProperties = exclude(getPropertiesOfObjectType(c, source));
-    const targetProperties = exclude(getPropertiesOfObjectType(c, target));
-    if (sourceProperties.length !== targetProperties.length) return Ternary.False;
+    // Counted and walked without instantiating pending members that aren't compared.
+    const sourceProperties = getPropertyListOfObjectType(c, source);
+    const targetProperties = getPropertyListOfObjectType(c, target);
+    if (countProperties(sourceProperties, excludedProperties) !== countProperties(targetProperties, excludedProperties))
+      return Ternary.False;
     let result = Ternary.True;
-    for (const sourceProp of sourceProperties) {
-      const targetProp = getPropertyOfObjectType(c, target, sourceProp.name);
+    for (let i = 0; i < sourceProperties.length; i++) {
+      const name = sourceProperties.name(i);
+      if (excludedProperties !== undefined && excludedProperties.has(name)) continue;
+      const targetProp = getPropertyOfObjectType(c, target, name);
       if (targetProp === undefined) return Ternary.False;
-      const related = comparePropertiesWith(c, sourceProp, targetProp, this);
+      const related = comparePropertiesWith(c, sourceProperties.symbol(i), targetProp, this);
       if (related === Ternary.False) return Ternary.False;
       result &= related;
     }
@@ -3535,8 +3547,9 @@ export function isWeakType(c: Checker, t: Type): boolean {
 }
 
 function hasCommonProperties(c: Checker, source: Type, target: Type, isComparingJsxAttributes: boolean): boolean {
-  for (const prop of getPropertiesOfType(c, source))
-    if (isKnownProperty(c, target, prop.name, isComparingJsxAttributes)) return true;
+  const props = getPropertyListOfType(c, source);
+  for (let i = 0; i < props.length; i++)
+    if (isKnownProperty(c, target, props.name(i), isComparingJsxAttributes)) return true;
   return false;
 }
 
@@ -3675,7 +3688,9 @@ function findMatchingDiscriminantType(c: Checker, source: Type, target: Type, re
   const match = getMatchingUnionConstituentForType(c, target as UnionType, source);
   if (match !== undefined) return match;
   const discriminants: Symbol[] = [];
-  for (const p of getPropertiesOfType(c, source)) if (isDiscriminantProperty(c, target, p.name)) discriminants.push(p);
+  const sourceProps = getPropertyListOfType(c, source);
+  for (let i = 0; i < sourceProps.length; i++)
+    if (isDiscriminantProperty(c, target, sourceProps.name(i))) discriminants.push(sourceProps.symbol(i));
   if (discriminants.length === 0) return undefined;
   // Constituents whose discriminant types the source's values relate to.
   let types = typesOf(target);
@@ -3834,15 +3849,18 @@ export function getUnmatchedProperty(
   requireOptionalProperties: boolean,
   matchDiscriminantProperties: boolean,
 ): Symbol | undefined {
-  for (const targetProp of getPropertiesOfType(c, target)) {
-    if (isStaticPrivateIdentifierProperty(targetProp)) continue;
+  // Pending members of the target are instantiated only when they are returned or their types read.
+  const targetProps = getPropertyListOfType(c, target);
+  for (let i = 0; i < targetProps.length; i++) {
+    if (isStaticPrivateIdentifierProperty(targetProps.symbols[i]!)) continue;
     if (
       requireOptionalProperties ||
-      ((targetProp.flags & SymbolFlags.Optional) === 0 && (targetProp.checkFlags & CheckFlags.Partial) === 0)
+      ((targetProps.flags(i) & SymbolFlags.Optional) === 0 && (targetProps.checkFlags(i) & CheckFlags.Partial) === 0)
     ) {
-      const sourceProp = getPropertyOfType(c, source, targetProp.name);
-      if (sourceProp === undefined) return targetProp;
+      const sourceProp = getPropertyOfType(c, source, targetProps.name(i));
+      if (sourceProp === undefined) return targetProps.symbol(i);
       if (matchDiscriminantProperties) {
+        const targetProp = targetProps.symbol(i);
         // A unit-typed (discriminant) property whose literal differs in the source is unmatched.
         const targetType = getTypeOfSymbol(c, targetProp);
         if ((targetType.flags & TypeFlags.Unit) !== 0) {
@@ -3868,15 +3886,24 @@ export function getUnmatchedProperties(
   requireOptionalProperties: boolean,
 ): Symbol[] {
   const result: Symbol[] = [];
-  for (const targetProp of getPropertiesOfType(c, target)) {
-    if (isStaticPrivateIdentifierProperty(targetProp)) continue;
+  const targetProps = getPropertyListOfType(c, target);
+  for (let i = 0; i < targetProps.length; i++) {
+    if (isStaticPrivateIdentifierProperty(targetProps.symbols[i]!)) continue;
     if (
       requireOptionalProperties ||
-      ((targetProp.flags & SymbolFlags.Optional) === 0 && (targetProp.checkFlags & CheckFlags.Partial) === 0)
+      ((targetProps.flags(i) & SymbolFlags.Optional) === 0 && (targetProps.checkFlags(i) & CheckFlags.Partial) === 0)
     )
-      if (getPropertyOfType(c, source, targetProp.name) === undefined) result.push(targetProp);
+      if (getPropertyOfType(c, source, targetProps.name(i)) === undefined) result.push(targetProps.symbol(i));
   }
   return result;
+}
+
+/** The number of properties in `list` whose names aren't excluded. */
+function countProperties(list: PropertyList, excludedProperties: Set<string> | undefined): number {
+  if (excludedProperties === undefined || excludedProperties.size === 0) return list.length;
+  let count = 0;
+  for (let i = 0; i < list.length; i++) if (!excludedProperties.has(list.name(i))) count++;
+  return count;
 }
 
 function getDeclaringClass(c: Checker, prop: Symbol): Type | undefined {

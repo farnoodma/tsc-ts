@@ -131,7 +131,7 @@ import {
   getConstraintOfType,
   getIndexInfoOfType,
   getIndexInfosOfType,
-  getPropertiesOfObjectType,
+  getPropertyListOfObjectType,
   getPropertiesOfType,
   getPropertyOfType,
   getReducedType,
@@ -1110,13 +1110,17 @@ class InferenceState {
 
   inferFromProperties(source: Type, target: Type): void {
     const c = this.c;
-    for (const targetProp of getPropertiesOfObjectType(c, target)) {
-      const sourceProp = getPropertyOfType(c, source, targetProp.name);
-      if (sourceProp !== undefined)
+    // Target members that the source lacks aren't instantiated.
+    const targetProps = getPropertyListOfObjectType(c, target);
+    for (let i = 0; i < targetProps.length; i++) {
+      const sourceProp = getPropertyOfType(c, source, targetProps.name(i));
+      if (sourceProp !== undefined) {
+        const targetProp = targetProps.symbol(i);
         this.inferFromTypes(
           removeMissingType(c, getTypeOfSymbol(c, sourceProp), (sourceProp.flags & SymbolFlags.Optional) !== 0),
           removeMissingType(c, getTypeOfSymbol(c, targetProp), (targetProp.flags & SymbolFlags.Optional) !== 0),
         );
+      }
     }
   }
 
