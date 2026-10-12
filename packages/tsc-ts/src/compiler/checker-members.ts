@@ -632,12 +632,9 @@ export function compactMembers(c: Checker, t: StructuredType, checkKeys: boolean
 /** The shape of the names of `properties` (which are distinct), shared by the checker's types. */
 function getMemberShape(c: Checker, properties: readonly Symbol[]): MemberShape {
   const count = properties.length;
+  // The lengths of the names: cheap, and candidates are compared name by name anyway.
   let hash = count;
-  for (let i = 0; i < count; i++) {
-    const name = properties[i]!.name;
-    hash = Math.imul(hash ^ name.length, 0x01000193);
-    if (name.length !== 0) hash = Math.imul(hash ^ name.charCodeAt(0), 0x01000193);
-  }
+  for (let i = 0; i < count; i++) hash = Math.imul(hash ^ properties[i]!.name.length, 0x01000193);
   let candidates = c.memberShapes.get(hash);
   if (candidates !== undefined) {
     for (const shape of candidates) {
