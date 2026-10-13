@@ -245,7 +245,7 @@ export function codePointAt(text: string, pos: number, end: number): NoThrow<num
 }
 
 /** Length of `text` in UTF-8 bytes. A lone surrogate counts as U+FFFD, as `Buffer` encodes it. */
-export function utf8Length(text: string): NoThrow<number> {
+export function utf8Length(text: string): number {
   return Buffer.byteLength(text, 'utf8');
 }
 
