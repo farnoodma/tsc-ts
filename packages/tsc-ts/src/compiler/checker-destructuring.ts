@@ -32,7 +32,7 @@ import {
   isPrivateIdentifierClassElementDeclaration,
 } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
-import { CheckFlags, SymbolFlags, type Symbol } from './symbol.js';
+import { CheckFlags, SymbolFlags, type Symbol, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -189,7 +189,7 @@ export function getTypeForBindingElementParent(c: Checker, node: Node, checkMode
     // A resolved type can be used when it includes no optionality.
     const symbol = getSymbolOfDeclaration(c, node);
     if (symbol !== undefined) {
-      const cached = c.symbolLinks(symbol).type;
+      const cached = c.symbolTypes.get(getSymbolId(symbol));
       if (cached !== undefined && !(c.strictNullChecks && isOptionalDeclaration(node))) return cached;
     }
   }
@@ -355,7 +355,7 @@ function getTypeFromObjectBindingPattern(
     }
     const flags = SymbolFlags.Property | (e.initializer !== undefined ? SymbolFlags.Optional : 0);
     const symbol = c.newSymbol(flags, getPropertyNameFromType(exprType));
-    c.symbolLinks(symbol).type = getTypeFromBindingElement(c, e, includePatternInType, reportErrors);
+    c.symbolTypes.set(getSymbolId(symbol), getTypeFromBindingElement(c, e, includePatternInType, reportErrors));
     members.set(symbol.name, symbol);
   }
   const result = createAnonymousType(c, undefined, members, [], [], indexInfos);
@@ -467,7 +467,7 @@ function padObjectLiteralType(c: Checker, t: Type, pattern: Node): Type {
   for (const prop of getPropertiesOfObjectType(c, t)) members.set(prop.name, prop);
   for (const e of missingElements) {
     const symbol = c.newSymbol(SymbolFlags.Property | SymbolFlags.Optional, getPropertyNameFromBindingElement(c, e)!);
-    c.symbolLinks(symbol).type = getTypeFromBindingElement(c, e, false, false);
+    c.symbolTypes.set(getSymbolId(symbol), getTypeFromBindingElement(c, e, false, false));
     members.set(symbol.name, symbol);
   }
   const result = createAnonymousType(c, t.symbol, members, [], [], getIndexInfosOfType(c, t));
@@ -786,11 +786,11 @@ export function getSpreadSymbol(c: Checker, prop: Symbol, readonly: boolean): Sy
     prop.name,
     (prop.checkFlags & CheckFlags.Late) | (readonly ? CheckFlags.Readonly : 0),
   );
-  const links = c.symbolLinks(result);
-  links.type = isSetonlyAccessor ? c.undefinedType : getTypeOfSymbol(c, prop);
+  const id = getSymbolId(result);
+  c.symbolTypes.set(id, isSetonlyAccessor ? c.undefinedType : getTypeOfSymbol(c, prop));
   result.declarations = prop.declarations;
-  links.nameType = c.symbolLinks(prop).nameType;
-  links.syntheticOrigin = prop;
+  c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(prop)));
+  c.symbolSyntheticOrigins.set(id, prop);
   return result;
 }
 

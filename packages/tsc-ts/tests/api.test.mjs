@@ -155,6 +155,83 @@ test('tsc-ts --api tracks projects and open files like tsc --api', { skip, timeo
   report(d);
 });
 
+// `await (legacy())` parses as a call of `await` until the file turns out to be a module, so
+// its statement is reparsed in an await context; the statements around it are retained with
+// the JSDoc parsed the first time, including `@deprecated`.
+test(
+  'tsc-ts --api keeps JSDoc of statements retained by top-level await reparsing',
+  { skip, timeout: 300_000 },
+  async () => {
+    const dir = tempDir('tsc-ts-api-');
+    writeFileSync(
+      join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          allowJs: true,
+          checkJs: true,
+          noEmit: true,
+          strict: true,
+          module: 'esnext',
+          target: 'esnext',
+          types: [],
+        },
+        files: ['main.js'],
+      }),
+    );
+    const file = join(dir, 'main.js');
+    const source = [
+      '/**',
+      ' * Computes the legacy value.',
+      ' * @deprecated Use `current` instead.',
+      ' * @returns {Promise<number>}',
+      ' */',
+      'export async function legacy() {',
+      '  return 1;',
+      '}',
+      '',
+      '/** @type {string} */',
+      'export const label = 1;',
+      '',
+      '/** @deprecated Reparsed. */',
+      'const value = await (legacy());',
+      'legacy();',
+      'value;',
+      'export { value };',
+      '',
+    ].join('\n');
+    writeFileSync(file, source);
+    const d = new Differential([realTsc], tscTs, dir, env);
+    try {
+      await d.call('initialize');
+      const update = await d.call('updateSnapshot', { openProjects: [join(dir, 'tsconfig.json')] });
+      const base = { snapshot: update.snapshot, project: update.projects[0].id };
+      await d.call('getSourceFile', { ...base, file });
+      await d.call('getSyntacticDiagnostics', { ...base, file });
+      await d.call('getSemanticDiagnostics', { ...base, file });
+      const suggestions = await d.call('getSuggestionDiagnostics', { ...base, file });
+      // The reference reports the deprecated calls, so the comparison is not vacuous.
+      assert.ok(
+        suggestions.some((s) => s.reportsDeprecated),
+        `expected a deprecation suggestion from tsc: ${JSON.stringify(suggestions)}`,
+      );
+      const positions = Array.from({ length: source.length }, (_, i) => i);
+      const symbols = new Map();
+      for (const symbol of (await d.call('getSymbolsAtPositions', { ...base, file, positions })) ?? [])
+        if (symbol !== null) symbols.set(symbol.id, symbol);
+      let deprecatedTags = 0;
+      for (const symbol of symbols.values()) {
+        const tags = await d.call('getJsDocTags', { ...base, symbol: symbol.id });
+        if (tags?.some((t) => t.name === 'deprecated')) deprecatedTags++;
+        await d.call('getDocumentationComment', { ...base, symbol: symbol.id });
+      }
+      assert.ok(deprecatedTags > 0, 'expected tsc to report the @deprecated tag of legacy');
+    } finally {
+      await d.close();
+    }
+    report(d);
+  },
+);
+
 // Completions at every position of each user file, and with symbols and trigger characters
 // where a trigger character was just typed.
 async function compareCompletions(d, base, file) {

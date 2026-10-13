@@ -251,37 +251,17 @@ export function getBaseFileName(path: string): string {
 function hasRelativePathSegment(p: string): boolean {
   const n = p.length;
   if (n === 0) return false;
-  if (p === '.' || p === '..') return true;
+  // A `.` or `..` segment either starts the path or follows a `/`; substring searches run natively,
+  // which beats reading every code unit of these long, mostly ASCII paths.
   if (p.charCodeAt(0) === DOT) {
-    if (n >= 2 && p.charCodeAt(1) === SLASH) return true;
-    if (n >= 3 && p.charCodeAt(1) === DOT && p.charCodeAt(2) === SLASH) return true;
+    if (n === 1 || p.charCodeAt(1) === SLASH) return true;
+    if (p.charCodeAt(1) === DOT && (n === 2 || p.charCodeAt(2) === SLASH)) return true;
   }
   if (p.charCodeAt(n - 1) === DOT) {
     if (n >= 2 && p.charCodeAt(n - 2) === SLASH) return true;
     if (n >= 3 && p.charCodeAt(n - 2) === DOT && p.charCodeAt(n - 3) === SLASH) return true;
   }
-  let prevSlash = false;
-  let segmentLength = 0;
-  let dotCount = 0;
-  for (let i = 0; i < n; i++) {
-    const c = p.charCodeAt(i);
-    if (c === SLASH) {
-      if (prevSlash) return true;
-      if ((segmentLength === 1 && dotCount === 1) || (segmentLength === 2 && dotCount === 2)) return true;
-      prevSlash = true;
-      segmentLength = 0;
-      dotCount = 0;
-      continue;
-    }
-    if (c === DOT) {
-      if (dotCount >= 0) dotCount++;
-    } else {
-      dotCount = -1;
-    }
-    segmentLength++;
-    prevSlash = false;
-  }
-  return (segmentLength === 1 && dotCount === 1) || (segmentLength === 2 && dotCount === 2);
+  return p.indexOf('//') >= 0 || p.indexOf('/./') >= 0 || p.indexOf('/../') >= 0;
 }
 
 /** Normalizes paths that only need `/./` or a leading `./` removed; `undefined` otherwise. */

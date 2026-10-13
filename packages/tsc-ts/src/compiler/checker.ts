@@ -30,6 +30,7 @@
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
+import { IntLinkTable, LinkTable } from './link-tables.js';
 import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
 import {
   Diagnostic,
@@ -66,6 +67,7 @@ import {
   TypePredicateKind,
   emptyTypes,
   VarianceFlags,
+  TypeListCache,
 } from './checker-types.js';
 import {
   createArrayType,
@@ -93,7 +95,7 @@ import {
   mergeAmbientModulesAndAugmentations,
 } from './checker-symbols.js';
 import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapper } from './instantiation.js';
-import { Relation, RelationKey, type Relater, TypeComparer } from './relations.js';
+import { Relation, RelationKey, type InternedRelationKey, type Relater, TypeComparer } from './relations.js';
 import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
 import { InferenceCaches } from './checker-inference.js';
 import { AssignmentMarker, type FlowLoopInfo, type FlowState } from './checker-narrowing.js';
@@ -246,21 +248,17 @@ export class SymbolAccessibilityCaches {
   readonly containers = new Map<number, Symbol[]>();
   /** The name tables of named class expressions, by node id. */
   readonly classExpressionNames = new Map<number, SymbolTable>();
-  readonly declarationVisibility = new Map<number, boolean>();
-  /** Declarations marked visible by declaration emit, by the checker slot of the emitted file. */
-  readonly markedVisible = new Map<number, Node[]>();
+  /** Computed declaration visibility by node id (see isDeclarationVisible), 0 if not computed. */
+  readonly declarationVisibility = new IntLinkTable();
+  /** The checker slots (bit `slot + 1`) whose declaration emit marked a node visible, by node id. */
+  readonly markedSlots = new IntLinkTable();
+  /** The checker slot of the file in declaration emit, -1 before declaration emit. */
   markedSlot = -1;
+  /** Counts the times declaration emit left a checker slot. */
+  visibilityEpoch = 0;
+  /** The epoch at which each slot (index `slot + 1`) was last left. */
+  readonly slotsLeftAt: number[] = [0, 0, 0, 0, 0];
 }
-
-/** Links are stored in pages of 256 ids. */
-const enum LinkPaging {
-  Bits = 8,
-  Size = 1 << Bits,
-  Mask = Size - 1,
-}
-
-/** A page of links, indexed by the low bits of an id; undefined until a link in it is stored. */
-type LinkPage<T> = (T | undefined)[] | undefined;
 
 export class Checker {
   readonly host: CheckerHost;
@@ -285,6 +283,10 @@ export class Checker {
   // Counters for type and signature ids.
   typeCount = 0;
   signatureCount = 0;
+  /** Positions of members by name in the tables and lists that lazily instantiated members come from. */
+  readonly memberPositionsInLists = new Map<Symbol[], Map<string, number>>();
+  /** Long lists of inherited properties, by name. */
+  readonly propertiesByName = new Map<Symbol[], Map<string, Symbol>>();
   /** Number of `typeToString` calls in progress. */
   serializationLevel = 0;
   /** Whether `globalObjectType` is set; global type lookups before it can't suggest `typeof`. */
@@ -299,11 +301,36 @@ export class Checker {
   /** Specifier generation for hosts without a program. */
   fallbackModuleSpecifierHost: ModuleSpecifierHost | undefined = undefined;
 
-  // Links of symbols and nodes by symbol and node id, in pages of `LinkPaging.Size` ids created on
-  // first use. Lookups are array reads, and a checker that touches part of a program (as each of
-  // several parallel checkers does) stores only the pages it touches.
-  readonly symbolLinkPages: LinkPage<SymbolLinks>[] = [];
-  readonly nodeLinkPages: LinkPage<NodeLinks>[] = [];
+  // Links of symbols and nodes by symbol and node id (see link-tables.ts). Values that many symbols
+  // or nodes have are columns of their own; the rest share one links object per symbol or node,
+  // created on first use.
+  readonly symbolLinkTable = new LinkTable<SymbolLinks>();
+  readonly nodeLinkTable = new LinkTable<NodeLinks>();
+  /** The type of a value symbol. */
+  readonly symbolTypes = new LinkTable<Type>();
+  /** For instantiated and synthetic symbols, the symbol they come from. */
+  readonly symbolTargets = new LinkTable<Symbol>();
+  /** The mapper of an instantiated symbol or a mapped type property. */
+  readonly symbolMappers = new LinkTable<TypeMapper>();
+  /** The literal type of a property name. */
+  readonly symbolNameTypes = new LinkTable<Type>();
+  /** The mapped type of a mapped type property, or the union/intersection of a synthetic property. */
+  readonly symbolContainingTypes = new LinkTable<Type>();
+  /** The key type of a mapped type property. */
+  readonly symbolKeyTypes = new LinkTable<Type>();
+  /** The property a mapped, spread or synthetic property comes from. */
+  readonly symbolSyntheticOrigins = new LinkTable<Symbol>();
+  /** The left and right properties a spread property combines. */
+  readonly symbolLeftSpreads = new LinkTable<Symbol>();
+  readonly symbolRightSpreads = new LinkTable<Symbol>();
+  /** Bits of SymbolFlags for the meanings in which a symbol was referenced. */
+  readonly symbolReferenceKinds = new IntLinkTable();
+  /** The resolved symbol of an identifier, entity name or call. */
+  readonly resolvedSymbols = new LinkTable<Symbol>();
+  /** The resolved type of a type node or expression. */
+  readonly resolvedTypes = new LinkTable<Type>();
+  /** The resolved signature of a call-like node or a signature declaration. */
+  readonly resolvedSignatures = new LinkTable<Signature>();
   /** Merged symbols, indexed by the id of the symbol merged into them. */
   readonly mergedSymbols: Map<number, Symbol>;
   /** Globals merged from the default libraries, shared with other checkers. */
@@ -340,13 +367,15 @@ export class Checker {
   readonly unionTypesByHash = new Map<number, Type>();
   readonly unionTypes = new Map<string, Type>();
   readonly unionOfUnionTypes = new Map<string, Type>();
-  readonly intersectionTypes = new Map<string, Type>();
+  /** `unionOfUnionTypes` without an alias, by both ids and the reduction packed into one number. */
+  readonly unionOfUnionTypesById = new Map<number, Type>();
+  readonly intersectionTypes = new TypeListCache<Type>();
   readonly tupleTypes = new Map<string, Type>();
   readonly indexedAccessTypes = new Map<string, Type>();
   readonly templateLiteralTypes = new Map<string, Type>();
   readonly stringMappingTypes = new Map<string, Type>();
   readonly substitutionTypes = new Map<string, Type>();
-  readonly subtypeReductionCache = new Map<string, Type[]>();
+  readonly subtypeReductionCache = new TypeListCache<Type[]>();
   readonly cachedTypes = new Map<string, Type>();
   /** Cached types by `cachedTypeKey` and by `cachedTypePairKey`, without spelled keys. */
   readonly cachedTypesById = new Map<number, Type>();
@@ -494,6 +523,10 @@ export class Checker {
   readonly relationScratchKey = new RelationKey();
   /** Numbers for relation keys that are spelled as strings (see getRelationKey). */
   readonly relationKeyIds = new Map<string, number>();
+  /** Numbers for generic relation keys spelled as tokens, by a hash of the tokens. */
+  readonly relationKeyTokens = new Map<number, InternedRelationKey>();
+  /** The number of interned relation keys of both kinds. */
+  relationKeyCount = 0;
   readonly markerTypes = new Set<Type>();
   readonly arrayVariances: VarianceFlags[] = [VarianceFlags.Covariant];
   nanLiteralType: LiteralType | undefined = undefined;
@@ -664,7 +697,7 @@ export class Checker {
       ? getUnionType(this, [this.undefinedType, this.nullType, this.unknownEmptyObjectType])
       : this.unknownType;
     this.emptyGenericType = newAnonymousType(this, undefined);
-    this.emptyGenericType.instantiations = new Map<string, Type>();
+    this.emptyGenericType.instantiations = new TypeListCache<Type>();
     this.anyFunctionType = newAnonymousType(this, undefined);
     this.anyFunctionType.objectFlags |= ObjectFlags.NonInferrableType;
     this.noConstraintType = newAnonymousType(this, undefined);
@@ -718,10 +751,13 @@ export class Checker {
 
     // initializeChecker
     initializeGlobals(this);
-    this.symbolLinks(this.undefinedSymbol).type = this.undefinedWideningType;
-    this.symbolLinks(this.argumentsSymbol).type = getGlobalType(this, 'IArguments', 0, true);
-    this.symbolLinks(this.unknownSymbol).type = this.errorType;
-    this.symbolLinks(this.globalThisSymbol).type = newObjectType(this, ObjectFlags.Anonymous, this.globalThisSymbol);
+    this.symbolTypes.set(getSymbolId(this.undefinedSymbol), this.undefinedWideningType);
+    this.symbolTypes.set(getSymbolId(this.argumentsSymbol), getGlobalType(this, 'IArguments', 0, true));
+    this.symbolTypes.set(getSymbolId(this.unknownSymbol), this.errorType);
+    this.symbolTypes.set(
+      getSymbolId(this.globalThisSymbol),
+      newObjectType(this, ObjectFlags.Anonymous, this.globalThisSymbol),
+    );
     this.globalArrayType = getGlobalType(this, 'Array', 1, true);
     this.globalObjectType = getGlobalType(this, 'Object', 0, true);
     this.hasGlobalObjectType = true;
@@ -767,33 +803,36 @@ export class Checker {
 
   // ---- Links
 
+  /** The rarely used links of `symbol`, created on first use. */
   symbolLinks(symbol: Symbol): SymbolLinks {
     const id = getSymbolId(symbol);
-    const page = this.symbolLinkPages[id >> LinkPaging.Bits];
-    let links = page !== undefined ? page[id & LinkPaging.Mask] : undefined;
+    let links = this.symbolLinkTable.get(id);
     if (links === undefined) {
       links = new SymbolLinks();
-      setLinks(this.symbolLinkPages, id, links);
+      this.symbolLinkTable.set(id, links);
     }
     return links;
   }
 
   /** The links of `symbol` if it has any, without creating them. */
   existingSymbolLinks(symbol: Symbol): SymbolLinks | undefined {
-    const id = symbol.id;
-    const page = this.symbolLinkPages[id >> LinkPaging.Bits];
-    return page !== undefined ? page[id & LinkPaging.Mask] : undefined;
+    return this.symbolLinkTable.get(symbol.id);
   }
 
+  /** The rarely used links of `node`, created on first use. */
   nodeLinks(node: Node): NodeLinks {
     const id = node.id;
-    const page = this.nodeLinkPages[id >> LinkPaging.Bits];
-    let links = page !== undefined ? page[id & LinkPaging.Mask] : undefined;
+    let links = this.nodeLinkTable.get(id);
     if (links === undefined) {
       links = new NodeLinks();
-      setLinks(this.nodeLinkPages, id, links);
+      this.nodeLinkTable.set(id, links);
     }
     return links;
+  }
+
+  /** The links of `node` if it has any, without creating them. */
+  existingNodeLinks(node: Node): NodeLinks | undefined {
+    return this.nodeLinkTable.get(node.id);
   }
 
   // ---- Constructors for types, symbols and signatures
@@ -872,28 +911,27 @@ export class Checker {
   }
 }
 
-/** Stores `links` at `id`, filling the gap below it so the store stays a dense array. */
-/** Stores `links` at `id`, creating its page (and filling the gap below it) as needed. */
-function setLinks<T>(pages: LinkPage<T>[], id: number, links: T): void {
-  const index = id >> LinkPaging.Bits;
-  while (pages.length <= index) pages.push(undefined);
-  let page = pages[index];
-  if (page === undefined) {
-    page = [];
-    for (let i = 0; i < LinkPaging.Size; i++) page.push(undefined);
-    pages[index] = page;
-  }
-  page[id & LinkPaging.Mask] = links;
-}
-
 /**
  * Drops a checker's links and type caches. Native builds free memory by reference counting, and
  * the checker's caches, types and mappers reference each other; releasing them early lets most of
  * them go without a cycle collection.
  */
 export function disposeChecker(c: Checker): void {
-  c.symbolLinkPages.length = 0;
-  c.nodeLinkPages.length = 0;
+  c.symbolLinkTable.clear();
+  c.nodeLinkTable.clear();
+  c.symbolTypes.clear();
+  c.symbolTargets.clear();
+  c.symbolMappers.clear();
+  c.symbolNameTypes.clear();
+  c.symbolContainingTypes.clear();
+  c.symbolKeyTypes.clear();
+  c.symbolSyntheticOrigins.clear();
+  c.symbolLeftSpreads.clear();
+  c.symbolRightSpreads.clear();
+  c.symbolReferenceKinds.clear();
+  c.resolvedSymbols.clear();
+  c.resolvedTypes.clear();
+  c.resolvedSignatures.clear();
   c.spareRelater = undefined;
   if (c.globalChanges !== undefined) returnLibGlobals(c);
   else {
@@ -901,6 +939,8 @@ export function disposeChecker(c: Checker): void {
     c.globals.clear();
   }
   c.sharedSymbolCopies.clear();
+  c.memberPositionsInLists.clear();
+  c.propertiesByName.clear();
   c.symbolAccessibilityCaches = undefined;
   c.unresolvedSymbols.clear();
   c.undefinedProperties.clear();
@@ -912,6 +952,7 @@ export function disposeChecker(c: Checker): void {
   c.unionTypesByHash.clear();
   c.unionTypes.clear();
   c.unionOfUnionTypes.clear();
+  c.unionOfUnionTypesById.clear();
   c.intersectionTypes.clear();
   c.tupleTypes.clear();
   c.indexedAccessTypes.clear();

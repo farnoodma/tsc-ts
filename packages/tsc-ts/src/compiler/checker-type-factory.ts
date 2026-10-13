@@ -48,7 +48,9 @@ import {
   type StringMappingType,
   emptyIndexInfos,
   emptySignatures,
+  emptySymbols,
   emptyTypes,
+  TypeListCache,
 } from './checker-types.js';
 import { getNamedMembers, getMembersOfSymbol } from './checker-symbols.js';
 import {
@@ -59,6 +61,7 @@ import {
   getTypeOfPropertyOfType,
   isArrayLikeType,
   resolveStructuredTypeMembers,
+  hasResolvedProperties,
 } from './checker-members.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getDeclaredTypeOfSymbol, getParentOfSymbol } from './checker-declared-types.js';
@@ -154,6 +157,35 @@ function unionKeyHash(types: Type[], origin: Type | undefined, alias: TypeAlias 
   return (h1 >>> 0) * 0x100000 + ((h2 ^ list.length) & 0xfffff);
 }
 
+/**
+ * The hash a `TypeListCache` finds `types`, `alias` and `tag` by: two 32-bit hashes of the ids,
+ * combined below 2^53. Takes the alias symbol's id as `aliasKey` would.
+ */
+export function typeListHash(types: readonly Type[], alias: TypeAlias | undefined, tag: number): number {
+  let h1 = 0x811c9dc5 ^ tag;
+  let h2 = 0x9e3779b9 + tag;
+  for (let i = 0; i < types.length; i++) {
+    const id = types[i]!.id;
+    h1 = Math.imul(h1 ^ id, 0x01000193);
+    h2 = Math.imul(h2 + id, 0x85ebca6b) ^ (h2 >>> 15);
+  }
+  if (alias !== undefined) {
+    h1 = Math.imul(h1 ^ (getSymbolId(alias.symbol) + 0x40000000), 0x01000193);
+    for (const t of alias.typeArguments) {
+      h1 = Math.imul(h1 ^ t.id, 0x01000193);
+      h2 = Math.imul(h2 + t.id, 0x85ebca6b) ^ (h2 >>> 15);
+    }
+    h2 = Math.imul(h2 ^ alias.typeArguments.length, 0xc2b2ae35);
+  }
+  h1 ^= h1 >>> 16;
+  h1 = Math.imul(h1, 0x7feb352d);
+  h1 ^= h1 >>> 15;
+  return (h1 >>> 0) * 0x100000 + ((h2 ^ types.length) & 0xfffff);
+}
+
+/** Ids below this pack in pairs into exact numbers (`getUnionTypeEx`). */
+const UnionPairIdLimit = 1 << 24;
+
 function sameTypeLists(a: readonly Type[], b: readonly Type[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i]! !== b[i]!) return false;
@@ -227,11 +259,14 @@ export function setStructuredTypeMembers(
   indexInfos: IndexInfo[],
 ): void {
   type.objectFlags |= ObjectFlags.MembersResolved;
+  type.pendingMembers = undefined;
   type.members = members;
-  type.properties = getNamedMembers(c, members, type.symbol);
-  type.callSignatures = callSignatures;
-  type.constructSignatures = constructSignatures;
-  type.indexInfos = indexInfos;
+  // Resolved member lists are never modified, so every empty one shares one array.
+  const properties = getNamedMembers(c, members, type.symbol);
+  type.properties = properties.length === 0 ? emptySymbols : properties;
+  type.callSignatures = callSignatures.length === 0 ? emptySignatures : callSignatures;
+  type.constructSignatures = constructSignatures.length === 0 ? emptySignatures : constructSignatures;
+  type.indexInfos = indexInfos.length === 0 ? emptyIndexInfos : indexInfos;
 }
 
 export function newUnionType(c: Checker, objectFlags: ObjectFlags, types: Type[]): UnionType {
@@ -899,6 +934,16 @@ export function getUnionTypeEx(
       id1 = id2;
       id2 = t;
     }
+    // Without an alias, both ids and the reduction pack into one exact number.
+    if (alias === undefined && id2 < UnionPairIdLimit) {
+      const id = (id1 * UnionPairIdLimit + id2) * 4 + unionReduction;
+      let result = c.unionOfUnionTypesById.get(id);
+      if (result === undefined) {
+        result = getUnionTypeWorker(c, types, unionReduction, alias, undefined);
+        c.unionOfUnionTypesById.set(id, result);
+      }
+      return result;
+    }
     const key = id1 + ',' + id2 + ',' + unionReduction + aliasKey(alias);
     let result = c.unionOfUnionTypes.get(key);
     if (result === undefined) {
@@ -1146,16 +1191,46 @@ function removeStringLiteralsMatchedByTemplateLiterals(c: Checker, types: Type[]
   const templates: Type[] = [];
   for (const t of types) if (isPatternLiteralType(c, t)) templates.push(t);
   if (templates.length === 0) return;
+  // Every string literal is tested against every template, and most fail the first test of
+  // inferTypesFromTemplateLiteralType: the literal starts with the template's first text, ends with
+  // its last, and is long enough for both. Apply that test here with the texts read once per
+  // template; only literals that pass it take the full match. (String mapping templates keep the
+  // full test: their start and end are empty.)
+  const starts: string[] = [];
+  const ends: string[] = [];
+  const minLengths: number[] = [];
+  for (const template of templates) {
+    if ((template.flags & TypeFlags.TemplateLiteral) !== 0) {
+      const texts = (template as TemplateLiteralType).texts;
+      const start = texts[0]!;
+      const end = texts[texts.length - 1]!;
+      starts.push(start);
+      ends.push(end);
+      minLengths.push(start.length + end.length);
+    } else {
+      starts.push('');
+      ends.push('');
+      minLengths.push(0);
+    }
+  }
   let i = types.length;
   while (i > 0) {
     i--;
     const t = types[i]!;
     if ((t.flags & TypeFlags.StringLiteral) === 0) continue;
-    for (const template of templates)
-      if (isTypeMatchedByTemplateLiteralOrStringMapping(c, t, template)) {
+    const text = (t as LiteralType).stringValue;
+    const length = text.length;
+    for (let j = 0; j < templates.length; j++) {
+      if (length < minLengths[j]!) continue;
+      const start = starts[j]!;
+      if (start.length !== 0 && !text.startsWith(start)) continue;
+      const end = ends[j]!;
+      if (end.length !== 0 && !text.endsWith(end)) continue;
+      if (isTypeMatchedByTemplateLiteralOrStringMapping(c, t, templates[j]!)) {
         types.splice(i, 1);
         break;
       }
+    }
   }
 }
 
@@ -1205,9 +1280,11 @@ function removeConstrainedTypeVariables(c: Checker, types: Type[]): void {
 
 function removeSubtypes(c: Checker, types: Type[], hasObjectTypes: boolean): Type[] | undefined {
   if (types.length < 2) return types;
-  const key = typeListKey(types);
-  const cached = c.subtypeReductionCache.get(key);
+  const hash = typeListHash(types, undefined, 0);
+  const cached = c.subtypeReductionCache.get(hash, types, undefined, 0);
   if (cached !== undefined) return cached;
+  // The reduction removes from `types`; the key is the list before.
+  const keyTypes = types.slice();
   let hasEmptyObject = false;
   if (hasObjectTypes)
     for (const t of types)
@@ -1281,7 +1358,7 @@ function removeSubtypes(c: Checker, types: Type[], hasObjectTypes: boolean): Typ
       }
     }
   }
-  c.subtypeReductionCache.set(key, types);
+  c.subtypeReductionCache.set(hash, keyTypes, undefined, 0, types);
   return types;
 }
 
@@ -1294,7 +1371,7 @@ export function getTargetType(type: Type): Type {
 export function isEmptyResolvedType(c: Checker, t: StructuredType): boolean {
   return (
     t !== c.anyFunctionType &&
-    t.properties.length === 0 &&
+    !hasResolvedProperties(t) &&
     t.callSignatures.length === 0 &&
     t.constructSignatures.length === 0 &&
     t.indexInfos.length === 0
@@ -1504,10 +1581,16 @@ export function getIntersectionTypeEx(
       }
     }
   }
-  const key = typeListKey(typeSet) + ((flags & IntersectionFlags.NoConstraintReduction) === 0 ? aliasKey(alias) : '*');
-  let result = c.intersectionTypes.get(key);
+  // Keys without constraint reduction ignore the alias.
+  const keyAlias = (flags & IntersectionFlags.NoConstraintReduction) === 0 ? alias : undefined;
+  const keyTag = (flags & IntersectionFlags.NoConstraintReduction) === 0 ? 0 : 1;
+  const hash = typeListHash(typeSet, keyAlias, keyTag);
+  let result = c.intersectionTypes.get(hash, typeSet, keyAlias, keyTag);
+  let keyTypes = typeSet;
   if (result === undefined) {
     if ((includes & TypeFlags.Union) !== 0) {
+      // The distributions below change `typeSet`; the key is the list before.
+      keyTypes = typeSet.slice();
       if (intersectUnionsOfPrimitiveTypes(c, typeSet)) {
         // Restart with fresh flags; reduction happens at most once.
         result = getIntersectionTypeEx(c, typeSet, flags, alias);
@@ -1560,7 +1643,7 @@ export function getIntersectionTypeEx(
       result = newIntersectionType(c, objectFlags | getPropagatingFlagsOfTypes(types, TypeFlags.Nullable), typeSet);
       result.alias = alias;
     }
-    c.intersectionTypes.set(key, result);
+    c.intersectionTypes.set(hash, keyTypes, keyAlias, keyTag, result);
   }
   return result;
 }
@@ -1751,14 +1834,14 @@ export function createTypeReference(c: Checker, target: Type, typeArguments: Typ
 }
 
 export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: Type[], objectFlags: ObjectFlags): Type {
-  const key = typeListKey(typeArguments);
+  const hash = typeListHash(typeArguments, undefined, 0);
   const generic = target as InterfaceType;
   let instantiations = generic.instantiations;
   if (instantiations === undefined) {
-    instantiations = new Map<string, Type>();
+    instantiations = new TypeListCache<Type>();
     generic.instantiations = instantiations;
   }
-  const existing = instantiations.get(key);
+  const existing = instantiations.get(hash, typeArguments, undefined, 0);
   if (existing !== undefined) return existing;
   const type = newObjectType(
     c,
@@ -1767,7 +1850,7 @@ export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: T
   ) as TypeReference;
   type.target = target;
   type.resolvedTypeArguments = typeArguments;
-  instantiations.set(key, type);
+  instantiations.set(hash, typeArguments, undefined, 0, type);
   return type;
 }
 
@@ -1938,7 +2021,7 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
         String(i),
         readonly ? CheckFlags.Readonly : CheckFlags.None,
       );
-      c.symbolLinks(property).type = typeParameter;
+      c.symbolTypes.set(getSymbolId(property), typeParameter);
       members.set(property.name, property);
     }
   }
@@ -1948,11 +2031,11 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
     'length',
     readonly ? CheckFlags.Readonly : CheckFlags.None,
   );
-  if ((combinedFlags & ElementFlags.Variable) !== 0) c.symbolLinks(lengthSymbol).type = c.numberType;
+  if ((combinedFlags & ElementFlags.Variable) !== 0) c.symbolTypes.set(getSymbolId(lengthSymbol), c.numberType);
   else {
     const literalTypes: Type[] = [];
     for (let i = minLength; i <= arity; i++) literalTypes.push(getNumberLiteralType(c, i));
-    c.symbolLinks(lengthSymbol).type = getUnionType(c, literalTypes);
+    c.symbolTypes.set(getSymbolId(lengthSymbol), getUnionType(c, literalTypes));
   }
   members.set(lengthSymbol.name, lengthSymbol);
   const type = newObjectType(c, ObjectFlags.Tuple | ObjectFlags.Reference, undefined) as TupleType;
@@ -1962,9 +2045,9 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
   type.thisType = thisType;
   typeParameters.push(thisType);
   type.allTypeParameters = typeParameters;
-  type.instantiations = new Map<string, Type>();
+  type.instantiations = new TypeListCache<Type>();
   const ownParameters = type.typeParameters();
-  type.instantiations.set(typeListKey(ownParameters), type);
+  type.instantiations.set(typeListHash(ownParameters, undefined, 0), ownParameters, undefined, 0, type);
   type.target = type;
   type.resolvedTypeArguments = ownParameters;
   type.declaredMembersResolved = true;

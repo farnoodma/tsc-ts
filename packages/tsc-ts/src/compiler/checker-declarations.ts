@@ -58,7 +58,7 @@ import {
   isClassLike,
 } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
+import { InternalSymbolName, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { IntrinsicTypeKind, getLiteralTypeFromPropertyName, intrinsicTypeKind } from './checker-type-operators.js';
@@ -726,7 +726,7 @@ export function checkTypeAliasDeclaration(c: Checker, node: Node): void {
 export function checkTypeArgumentConstraintsOfReference(c: Checker, node: Node): void {
   const typeArgumentNodes = getTypeArguments(node);
   if (typeArgumentNodes === undefined) return;
-  const symbol = c.nodeLinks(node).resolvedSymbol;
+  const symbol = c.resolvedSymbols.get(node.id);
   if (symbol === undefined || symbol === c.unknownSymbol) return;
   let typeParameters: readonly Type[] | undefined = undefined;
   if ((symbol.flags & (SymbolFlags.Class | SymbolFlags.Interface)) !== 0)
@@ -1143,7 +1143,7 @@ export function getEffectiveDeclarationFlags(node: Node, flagsToCheck: ModifierF
 export function checkUnusedRenamedBindingElements(c: Checker): void {
   for (const element of c.renamedBindingElementsInTypes) {
     const symbol = getSymbolOfDeclaration(c, element);
-    if (symbol !== undefined && c.symbolLinks(symbol).referenceKinds !== 0) continue;
+    if (symbol !== undefined && c.symbolReferenceKinds.get(getSymbolId(symbol)) !== 0) continue;
     const file = getSourceFileOfNode(element);
     const name = (element as BindingElement).name!;
     const propertyName = declarationNameToString(file, (element as BindingElement).propertyName);

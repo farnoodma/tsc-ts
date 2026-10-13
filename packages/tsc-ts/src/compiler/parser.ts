@@ -98,6 +98,7 @@ import {
   MethodSignatureDeclaration,
   MissingDeclaration,
   ModifierFlags,
+  MissingNodeList,
   ModifierList,
   ModuleBlock,
   ModuleDeclaration,
@@ -375,32 +376,6 @@ export class ParserState extends ScannerState {
   }
 }
 
-/** Sets the parent of every visited node to `node`. */
-class ParentSetter extends NodeVisitor {
-  node: Node;
-  // `node` as stored in `parent` fields. Optional object fields are boxed natively, so the box is
-  // created on the first child and shared by the rest; leaves need none.
-  parent: Node | undefined;
-  boxed: boolean;
-
-  constructor() {
-    super();
-    this.node = new Token(SyntaxKind.Unknown);
-    this.parent = undefined;
-    this.boxed = false;
-  }
-
-  visitNode(node: Node): boolean {
-    // A flag rather than `this.parent === undefined`: a narrowed read would box again per child.
-    if (!this.boxed) {
-      this.parent = this.node;
-      this.boxed = true;
-    }
-    node.parent = this.parent;
-    return false;
-  }
-}
-
 function appendRange(to: Node[], from: readonly Node[], start: number, end: number): void {
   // `i += 1`: scriptc rejects `i++` here (the bounds come from array elements).
   for (let i = start; i < end; i += 1) to.push(from[i]!);
@@ -482,7 +457,7 @@ export class Parser extends ScannerErrorReporter {
   hasDeprecatedTag: boolean;
   hasParseError: boolean;
 
-  /** Identifier and interned literal texts, in parse order with repeats. */
+  /** Identifier and interned literal texts in parse order, each identifier text once (other texts may repeat). */
   identifierTexts: string[];
   identifierCount: number;
   nodeCount: number;
@@ -492,16 +467,21 @@ export class Parser extends ScannerErrorReporter {
   possibleAwaitSpans: number[];
   /** Nodes produced by JSDoc reparsing to insert before the current list element. */
   reparseList: Node[];
+  // One reparse list per nesting depth of `parseListIndex`, reused by sibling lists: a list rarely
+  // receives reparsed nodes, and a fresh array per parsed list would be one more allocation each.
+  private readonly reparseLists: Node[][];
+  private reparseDepth: number;
   reparsedClones: Node[];
   /** Nodes with eagerly parsed JSDoc, for rewinding. */
   jsDocInfos: Node[];
+  /** The eagerly parsed JSDoc of this file's nodes by node id; becomes `SourceFile.jsDocs`. */
+  jsDocTable: Map<number, Node[]> | undefined;
 
   // State for `ListElement.SignatureParameter`.
   signatureParameterInAwaitContext: boolean;
   signatureParameterAllowAmbiguity: boolean;
   signatureParameterFlags: ParseFlags;
 
-  private readonly parentSetter: ParentSetter;
   /** Parses JSDoc comments and, in JavaScript files, reparses their tags. */
   readonly jsdoc: JSDocParser;
   /**
@@ -546,12 +526,14 @@ export class Parser extends ScannerErrorReporter {
     this.notParenthesizedArrow = new Set<number>();
     this.possibleAwaitSpans = [];
     this.reparseList = [];
+    this.reparseLists = [this.reparseList];
+    this.reparseDepth = 0;
     this.reparsedClones = [];
     this.jsDocInfos = [];
+    this.jsDocTable = undefined;
     this.signatureParameterInAwaitContext = false;
     this.signatureParameterAllowAmbiguity = false;
     this.signatureParameterFlags = ParseFlags.None;
-    this.parentSetter = new ParentSetter();
     this.jsdoc = new JSDocParser(this);
     this.noElement = new Token(SyntaxKind.Unknown);
     this.speculation = [];
@@ -616,6 +598,17 @@ export class Parser extends ScannerErrorReporter {
     );
   }
 
+  /** Attaches eagerly parsed JSDoc to `node`, undone by `rewind`. */
+  setJSDoc(node: Node, jsDoc: Node[]): void {
+    let table = this.jsDocTable;
+    if (table === undefined) {
+      table = new Map<number, Node[]>();
+      this.jsDocTable = table;
+    }
+    table.set(node.id, jsDoc);
+    this.jsDocInfos.push(node);
+  }
+
   rewind(state: ParserState): void {
     this.scanner.rewind(state);
     this.currentToken = this.scanner.getToken();
@@ -626,7 +619,7 @@ export class Parser extends ScannerErrorReporter {
     const jsDocInfos = this.jsDocInfos;
     while (jsDocInfos.length > state.jsDocInfosLength) {
       const node = jsDocInfos.pop();
-      if (node !== undefined) node.jsDoc = undefined;
+      if (node !== undefined && this.jsDocTable !== undefined) this.jsDocTable.delete(node.id);
     }
     if (this.reparsedClones.length !== state.reparsedClonesLength)
       this.reparsedClones.length = state.reparsedClonesLength;
@@ -758,13 +751,7 @@ export class Parser extends ScannerErrorReporter {
   }
 
   overrideParentInImmediateChildren(node: Node): void {
-    const setter = this.parentSetter;
-    setter.node = node;
-    node.forEachChild(setter);
-    if (setter.boxed) {
-      setter.parent = undefined;
-      setter.boxed = false;
-    }
+    node.setParentOfChildren();
   }
 
   // Source files
@@ -800,7 +787,11 @@ export class Parser extends ScannerErrorReporter {
     }
     collectExternalModuleReferences(result);
     if (result.isJS()) result.jsDiagnostics = attachFileToDiagnostics(this.jsDiagnostics, result);
-    result.computeCaches();
+    // The scanner holds the text's code units unless a nested parse cut its text short.
+    const scanner = this.scanner;
+    if (scanner.text === result.text && scanner.end === result.text.length)
+      result.computeCachesFromUnits(scanner.chars);
+    else result.computeCaches();
     return result;
   }
 
@@ -831,6 +822,9 @@ export class Parser extends ScannerErrorReporter {
     result.identifierCount = this.identifierCount;
     // JSDoc of TypeScript files is parsed on first use.
     result.hasLazyJSDoc = !this.isJavaScript();
+    // The table stays with the parser: when top-level await reparsing produces a second source
+    // file, it finishes with the same table, which still holds the JSDoc of retained statements.
+    result.jsDocs = this.jsDocTable;
     const clones = this.reparsedClones.slice();
     clones.sort(compareNodePositions);
     result.reparsedClones = clones;
@@ -976,31 +970,34 @@ export class Parser extends ScannerErrorReporter {
   parseListIndex(kind: ParsingContext, element: ListElement): Node[] {
     const saveParsingContexts = this.parsingContexts;
     this.parsingContexts |= 1 << kind;
-    let outerReparseList = this.reparseList;
-    this.reparseList = [];
+    const outerReparseList = this.reparseList;
+    const depth = ++this.reparseDepth;
+    if (depth === this.reparseLists.length) this.reparseLists.push([]);
+    const reparseList = this.reparseLists[depth]!;
+    this.reparseList = reparseList;
     const list: Node[] = [];
     while (!this.isListTerminator(kind)) {
       if (this.isListElement(kind, false)) {
         const elt = this.parseListElement(element, list.length);
-        if (this.reparseList.length !== 0) {
-          for (const e of this.reparseList) {
+        if (reparseList.length !== 0) {
+          for (const e of reparseList) {
             // Propagate @typedef aliases and @import declarations to a context that permits them.
             if (
               (e.kind === SyntaxKind.JSTypeAliasDeclaration || e.kind === SyntaxKind.JSImportDeclaration) &&
               kind !== ParsingContext.SourceElements &&
               kind !== ParsingContext.BlockStatements
-            ) {
-              if (outerReparseList.length === 0) outerReparseList = [];
+            )
               outerReparseList.push(e);
-            } else list.push(e);
+            else list.push(e);
           }
-          this.reparseList = [];
+          reparseList.length = 0;
         }
         if (elt !== this.noElement) list.push(elt);
         continue;
       }
       if (this.abortParsingListOrMoveToNextToken(kind)) break;
     }
+    this.reparseDepth = depth - 1;
     this.reparseList = outerReparseList;
     this.parsingContexts = saveParsingContexts;
     return list;
@@ -1071,9 +1068,7 @@ export class Parser extends ScannerErrorReporter {
   }
 
   createMissingList(): NodeList {
-    const result = this.parseEmptyNodeList();
-    result.isMissingList = true;
-    return result;
+    return new MissingNodeList(this.nodePos(), this.nodePos(), []);
   }
 
   /** Reports an error for the current token; returns true if parsing the list should stop. */
@@ -5881,8 +5876,10 @@ export class Parser extends ScannerErrorReporter {
     if (isIdentifier) {
       const pos = this.scanner.hasPrecedingJSDocLeadingAsterisks() ? this.scanner.getTokenStart() : this.nodePos();
       const text = this.scanner.getIdentifierValue();
+      const record = this.scanner.recordIdentifierValue(text);
       this.nextTokenWithoutCheck();
-      const result = this.newIdentifier(this.internIdentifier(text));
+      if (record) this.identifierTexts.push(text);
+      const result = this.newIdentifier(text);
       this.finishNode(result, pos);
       return result;
     }
@@ -6830,9 +6827,13 @@ export class Parser extends ScannerErrorReporter {
 
 /** The JSDoc nodes of `node`, parsing them on first use in TypeScript files. */
 export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
-  const jsDoc = node.jsDoc;
-  if (jsDoc !== undefined) return jsDoc;
-  if ((node.flags & NodeFlags.HasJSDoc) === 0 || !file.hasLazyJSDoc) return noNodes;
+  if ((node.flags & NodeFlags.HasJSDoc) === 0) return noNodes;
+  const jsDocs = file.jsDocs;
+  if (jsDocs !== undefined) {
+    const jsDoc = jsDocs.get(node.id);
+    if (jsDoc !== undefined) return jsDoc;
+  }
+  if (!file.hasLazyJSDoc) return noNodes;
   let parser = lazyJSDocParser;
   if (parser === undefined || lazyJSDocFile !== file) {
     parser = new Parser(file.fileName, file.path, file.text, file.scriptKind, file.externalModuleIndicatorOptions);
@@ -6840,8 +6841,30 @@ export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
     lazyJSDocFile = file;
   }
   const result = parser.jsdoc.parseJSDocForNode(node);
-  node.jsDoc = result;
+  if (jsDocs !== undefined) jsDocs.set(node.id, result);
+  else {
+    const table = new Map<number, Node[]>();
+    table.set(node.id, result);
+    file.jsDocs = table;
+  }
   return result;
+}
+
+/**
+ * The JSDoc already attached to `node` (parsed eagerly, or lazily by `getJSDoc`), without parsing:
+ * `undefined` when there is none.
+ */
+export function getAttachedJSDoc(node: Node): readonly Node[] | undefined {
+  if ((node.flags & NodeFlags.HasJSDoc) === 0) return undefined;
+  let root = node;
+  for (;;) {
+    const parent: Node | undefined = root.parent;
+    if (parent === undefined) break;
+    root = parent;
+  }
+  if (root.kind !== SyntaxKind.SourceFile) return undefined;
+  const jsDocs = (root as SourceFile).jsDocs;
+  return jsDocs === undefined ? undefined : jsDocs.get(node.id);
 }
 
 const noNodes: readonly Node[] = [];
@@ -7413,28 +7436,17 @@ function hasModifierFlag(node: Node, flags: ModifierFlags): boolean {
   return modifiers !== undefined && (modifiers.modifierFlags & flags) !== 0;
 }
 
-/** The position of the next `import` or `require` at or after `start`, or -1. */
-function findImportOrRequire(text: string, start: number): number {
-  let index = Math.max(start, 0);
-  const n = text.length;
-  while (index < n) {
-    const ch = text.charCodeAt(index);
-    if (ch === CharacterCodes.i) {
-      if (text.startsWith('import', index)) return index;
-    } else if (ch === CharacterCodes.r) {
-      if (text.startsWith('require', index)) return index;
-    }
-    index++;
-  }
-  return -1;
-}
-
 /** Adds the specifiers of `import(…)` calls, `import("…")` types and, in JS files, `require(…)` calls. */
 function collectDynamicImportOrRequireCalls(file: SourceFile): void {
   const text = file.text;
   const isJavaScriptFile = isInJSFile(file);
-  let index = findImportOrRequire(text, 0);
-  while (index >= 0) {
+  // Visit every `import` and `require` in text order. Native substring searches find them faster
+  // than reading each code unit; each search resumes only once the visit has passed its match.
+  let nextImport = text.indexOf('import');
+  let nextRequire = text.indexOf('require');
+  while (nextImport >= 0 || nextRequire >= 0) {
+    const isImport = nextRequire < 0 || (nextImport >= 0 && nextImport < nextRequire);
+    const index = isImport ? nextImport : nextRequire;
     const node = getNodeAtPosition(file, index, isJavaScriptFile);
     if (isJavaScriptFile && node instanceof CallExpression && isRequireCall(node, true)) {
       file.imports.push((node as CallExpression).arguments.nodes[0]!);
@@ -7450,7 +7462,9 @@ function collectDynamicImportOrRequireCalls(file: SourceFile): void {
       if (literal !== undefined) file.imports.push(literal);
     }
     // Skip past `import` or `require`.
-    index = findImportOrRequire(text, index + (text.charCodeAt(index) === CharacterCodes.i ? 6 : 7));
+    const resume = index + (isImport ? 6 : 7);
+    if (nextImport >= 0 && nextImport < resume) nextImport = text.indexOf('import', resume);
+    if (nextRequire >= 0 && nextRequire < resume) nextRequire = text.indexOf('require', resume);
   }
 }
 
@@ -7483,7 +7497,10 @@ export function getNodeAtPosition(file: SourceFile, position: number, includeJSD
   for (;;) {
     let child: Node | undefined;
     if (includeJSDoc) {
-      const jsDoc = current.jsDoc;
+      const jsDoc =
+        (current.flags & NodeFlags.HasJSDoc) === 0 || file.jsDocs === undefined
+          ? undefined
+          : file.jsDocs.get(current.id);
       if (jsDoc !== undefined)
         for (const doc of jsDoc)
           if (nodeContainsPosition(doc, position)) {

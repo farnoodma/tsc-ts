@@ -49,7 +49,7 @@ import {
 } from './binder-utilities.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { Diagnostic, DiagnosticCategory, Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
+import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import { getResolvedSymbol } from './checker-expressions.js';
@@ -183,8 +183,9 @@ export function markPropertyAsReferenced(
       containingMethod = containingMethod.parent;
     if (containingMethod !== undefined && getSymbol(containingMethod) === prop) return;
   }
-  const target = (prop.checkFlags & CheckFlags.Instantiated) !== 0 ? c.symbolLinks(prop).target! : prop;
-  c.symbolLinks(target).referenceKinds |= SymbolFlags.All;
+  const target = (prop.checkFlags & CheckFlags.Instantiated) !== 0 ? c.symbolTargets.get(getSymbolId(prop))! : prop;
+  const id = getSymbolId(target);
+  c.symbolReferenceKinds.set(id, c.symbolReferenceKinds.get(id) | SymbolFlags.All);
 }
 
 /** Marks the property a destructuring name selects from `objectType` as referenced. */
@@ -319,12 +320,12 @@ const enum UnusedKind {
 }
 
 function isReferenced(c: Checker, symbol: Symbol): boolean {
-  return c.symbolLinks(symbol).referenceKinds !== 0;
+  return c.symbolReferenceKinds.get(getSymbolId(symbol)) !== 0;
 }
 
 function referenceKindsOfDeclaration(c: Checker, node: Node): SymbolFlags {
   const symbol = getSymbolOfDeclaration(c, node);
-  return symbol === undefined ? SymbolFlags.None : c.symbolLinks(symbol).referenceKinds;
+  return symbol === undefined ? SymbolFlags.None : c.symbolReferenceKinds.get(getSymbolId(symbol));
 }
 
 function reportUnused(c: Checker, location: Node, kind: UnusedKind, diagnostic: Diagnostic): void {
@@ -403,7 +404,7 @@ function checkUnusedLocalsAndParameters(c: Checker, node: Node): void {
   const variableParents = new Set<Node>();
   const importClauses = new Map<Node, Node[]>();
   for (const local of locals.values()) {
-    const referenceKinds = c.symbolLinks(local).referenceKinds;
+    const referenceKinds = c.symbolReferenceKinds.get(getSymbolId(local));
     if ((local.flags & SymbolFlags.TypeParameter) !== 0) {
       if ((local.flags & SymbolFlags.Variable) === 0 || (referenceKinds & SymbolFlags.Variable) !== 0) continue;
     } else if (
@@ -601,7 +602,7 @@ function checkUnusedTypeParameters(c: Checker, node: Node): void {
 
 function isUnreferencedTypeParameter(c: Checker, typeParameter: Node): boolean {
   const symbol = getSymbol(typeParameter);
-  const referenceKinds = symbol === undefined ? 0 : c.symbolLinks(getMergedSymbol(c, symbol)).referenceKinds;
+  const referenceKinds = symbol === undefined ? 0 : c.symbolReferenceKinds.get(getSymbolId(getMergedSymbol(c, symbol)));
   return (
     (referenceKinds & SymbolFlags.TypeParameter) === 0 && !isIdentifierThatStartsWithUnderscore(getName(typeParameter))
   );

@@ -397,7 +397,7 @@ function getTypeParameterConstraintAcrossSignatures(c: Checker, signatures: Sign
 function getTypeParametersForTypeReferenceOrImport(c: Checker, node: Node): readonly Type[] | undefined {
   const t = getTypeFromTypeNode(c, node);
   if (isErrorType(c, t)) return undefined;
-  const symbol = c.nodeLinks(node).resolvedSymbol;
+  const symbol = c.resolvedSymbols.get(node.id);
   if (symbol === undefined || symbol === c.unknownSymbol) return undefined;
   if ((symbol.flags & SymbolFlags.TypeAlias) !== 0) {
     getDeclaredTypeOfSymbol(c, symbol);
@@ -421,9 +421,9 @@ export function getRootSymbols(c: Checker, symbol: Symbol): Symbol[] {
 }
 
 function getImmediateRootSymbols(c: Checker, symbol: Symbol): Symbol[] {
-  const links = c.existingSymbolLinks(symbol);
+  const id = symbol.id;
   if ((symbol.checkFlags & CheckFlags.Synthetic) !== 0) {
-    const containingType = links?.containingType;
+    const containingType = c.symbolContainingTypes.get(id);
     const result: Symbol[] = [];
     if (containingType !== undefined)
       for (const t of typesOf(containingType)) {
@@ -432,13 +432,16 @@ function getImmediateRootSymbols(c: Checker, symbol: Symbol): Symbol[] {
       }
     return result;
   }
-  if ((symbol.flags & SymbolFlags.Transient) !== 0 && links !== undefined) {
-    if (links.leftSpread !== undefined && links.rightSpread !== undefined) return [links.leftSpread, links.rightSpread];
-    if (links.syntheticOrigin !== undefined) return [links.syntheticOrigin];
+  if ((symbol.flags & SymbolFlags.Transient) !== 0) {
+    const left = c.symbolLeftSpreads.get(id);
+    const right = c.symbolRightSpreads.get(id);
+    if (left !== undefined && right !== undefined) return [left, right];
+    const origin = c.symbolSyntheticOrigins.get(id);
+    if (origin !== undefined) return [origin];
     let target: Symbol | undefined;
-    for (let next = links.target; next !== undefined;) {
+    for (let next = c.symbolTargets.get(id); next !== undefined;) {
       target = next;
-      next = c.existingSymbolLinks(next)?.target;
+      next = c.symbolTargets.get(next.id);
     }
     if (target !== undefined) return [target];
   }

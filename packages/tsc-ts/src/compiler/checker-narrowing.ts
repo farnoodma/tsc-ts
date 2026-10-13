@@ -504,7 +504,7 @@ function getInitialType(c: Checker, node: Node): Type {
 
 /** The type of an initializer: the type a variable was inferred from, else computed without caching. */
 export function getTypeOfInitializer(c: Checker, node: Node): Type {
-  return c.nodeLinks(node).resolvedType ?? getTypeOfExpression(c, node);
+  return c.resolvedTypes.get(node.id) ?? getTypeOfExpression(c, node);
 }
 
 function getInitialTypeOfBindingElement(c: Checker, node: BindingElement): Type {
@@ -766,7 +766,7 @@ function getExplicitTypeOfSymbol(c: Checker, original: Symbol): Type | undefined
     return getTypeOfSymbol(c, symbol);
   if ((symbol.flags & (SymbolFlags.Variable | SymbolFlags.Property)) !== 0) {
     if ((symbol.checkFlags & CheckFlags.Mapped) !== 0) {
-      const origin = c.symbolLinks(symbol).syntheticOrigin;
+      const origin = c.symbolSyntheticOrigins.get(getSymbolId(symbol));
       if (origin !== undefined && getExplicitTypeOfSymbol(c, origin) !== undefined) return getTypeOfSymbol(c, symbol);
     }
     const declaration = symbol.valueDeclaration;
@@ -896,14 +896,29 @@ function getUnionOfFlowTypes(c: Checker, f: FlowState, types: Type[], reduction:
     for (const t of types) elementTypes.push(getElementTypeOfEvolvingArrayType(c, t));
     return getEvolvingArrayType(c, getUnionType(c, elementTypes));
   }
-  const finalized: Type[] = [];
-  for (const t of types) finalized.push(finalizeEvolvingArrayType(c, t));
+  // Finalizing changes only evolving arrays; without one, the list itself is unioned (getUnionTypeEx
+  // does not keep or change it).
+  let finalized = types;
+  for (const t of types)
+    if ((t.objectFlags & ObjectFlags.EvolvingArray) !== 0) {
+      finalized = [];
+      for (const u of types) finalized.push(finalizeEvolvingArrayType(c, u));
+      break;
+    }
   const result = recombineUnknownType(c, getUnionTypeEx(c, finalized, reduction, undefined, undefined));
   const declared = f.declaredType;
   if (result !== declared && (result.flags & declared.flags & TypeFlags.Union) !== 0) {
     const a = (result as UnionType).types;
     const b = (declared as UnionType).types;
-    if (a.length === b.length && a.every((t, i) => t === b[i]!)) return declared;
+    if (a.length === b.length) {
+      let same = true;
+      for (let i = 0; i < a.length; i++)
+        if (a[i]! !== b[i]!) {
+          same = false;
+          break;
+        }
+      if (same) return declared;
+    }
   }
   return result;
 }
@@ -2298,7 +2313,7 @@ export function isConstantReference(c: Checker, node: Node): boolean {
     case SyntaxKind.PropertyAccessExpression:
     case SyntaxKind.ElementAccessExpression: {
       if (!isConstantReference(c, getExpression(node)!)) return false;
-      const symbol = c.nodeLinks(node).resolvedSymbol;
+      const symbol = c.resolvedSymbols.get(node.id);
       return symbol !== undefined && isReadonlySymbol(c, symbol);
     }
     case SyntaxKind.ObjectBindingPattern:
@@ -2581,7 +2596,11 @@ function ensureAssignmentsMarked(c: Checker, symbol: Symbol): void {
   // An enclosing function already marked everything inside it.
   let outer = parent.parent;
   while (outer !== undefined) {
-    if (isFunctionOrSourceFile(outer) && (c.nodeLinks(outer).flags & NodeCheckFlags.AssignmentsMarked) !== 0) return;
+    if (
+      isFunctionOrSourceFile(outer) &&
+      ((c.existingNodeLinks(outer)?.flags ?? 0) & NodeCheckFlags.AssignmentsMarked) !== 0
+    )
+      return;
     outer = outer.parent;
   }
   c.assignmentMarker.visitNode(parent);

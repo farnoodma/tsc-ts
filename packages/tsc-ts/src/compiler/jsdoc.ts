@@ -164,8 +164,7 @@ export class JSDocParser {
       p.hasDeprecatedTag = false;
       node.flags |= NodeFlags.PossiblyContainsDeprecatedTag;
     }
-    node.jsDoc = jsDoc;
-    p.jsDocInfos.push(node);
+    p.setJSDoc(node, jsDoc);
     if (p.isJavaScript()) this.reparser.reparseTags(node, jsDoc);
     return true;
   }
@@ -666,7 +665,7 @@ export class JSDocParser {
         : linkType === 'linkcode'
           ? new JSDocLinkCode(name, text)
           : new JSDocLinkPlain(name, text);
-    return p.finishNodeWithEnd(link, start, p.scanner.getTokenEnd());
+    return p.finishNodeWithEnd(link, start | 0, p.scanner.getTokenEnd());
   }
 
   parseJSDocLinkName(): EntityName | undefined {
@@ -1357,22 +1356,9 @@ function trimEndUnicodeSpace(s: string): string {
   return s.substring(0, end);
 }
 
-/** The UTF-8 length of `s`, as tsgo measures text. */
+/** The UTF-8 length of `s`, as tsgo measures text (a lone surrogate counts as U+FFFD). */
 function utf8Length(s: string): number {
-  let length = 0;
-  for (let i = 0; i < s.length; i++) {
-    const ch = s.charCodeAt(i);
-    if (ch < 0x80) length += 1;
-    else if (ch < 0x800) length += 2;
-    else if (ch >= 0xd800 && ch <= 0xdbff && i + 1 < s.length) {
-      const low = s.charCodeAt(i + 1);
-      if (low >= 0xdc00 && low <= 0xdfff) {
-        length += 4;
-        i++;
-      } else length += 3;
-    } else length += 3;
-  }
-  return length;
+  return Buffer.byteLength(s, 'utf8');
 }
 
 /** `s` from the UTF-8 byte offset `offset` on (rounded up to a character boundary). */

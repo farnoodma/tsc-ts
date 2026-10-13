@@ -202,7 +202,7 @@ export function checkDeleteExpression(c: Checker, node: Node): Type {
     (expr as PropertyAccessExpression).name.kind === SyntaxKind.PrivateIdentifier
   )
     c.error(expr, Diagnostics.The_operand_of_a_delete_operator_cannot_be_a_private_identifier);
-  const resolved = c.nodeLinks(expr).resolvedSymbol;
+  const resolved = c.resolvedSymbols.get(expr.id);
   if (resolved !== undefined) {
     const symbol = getExportSymbolOfValueSymbolIfExported(c, resolved);
     if (isReadonlySymbol(c, symbol))
@@ -942,7 +942,7 @@ function checkInExpression(c: Checker, left: Node, right: Node, leftType: Type, 
   if (leftType === c.silentNeverType || rightType === c.silentNeverType) return c.silentNeverType;
   if (left.kind === SyntaxKind.PrivateIdentifier) {
     // With the right side's type known, a private name that doesn't resolve is reported as missing on it.
-    if (c.nodeLinks(left).resolvedSymbol === undefined && getContainingClass(left) !== undefined)
+    if (c.resolvedSymbols.get(left.id) === undefined && getContainingClass(left) !== undefined)
       reportNonexistentProperty(c, left, rightType);
   } else checkTypeAssignableTo(c, checkNonNullType(c, leftType, left), c.stringNumberSymbolType, left, undefined);
   if (checkTypeAssignableTo(c, checkNonNullType(c, rightType, right), c.nonPrimitiveType, right, undefined)) {
@@ -1187,7 +1187,7 @@ function checkTestingKnownTruthyTypeWorker(c: Checker, condExpr: Node, condType:
   }
   const t = location !== condExpr ? checkExpression(c, location) : condType;
   if ((t.flags & TypeFlags.EnumLiteral) !== 0 && location.kind === SyntaxKind.PropertyAccessExpression) {
-    const leftSymbol = c.nodeLinks((location as PropertyAccessExpression).expression).resolvedSymbol;
+    const leftSymbol = c.resolvedSymbols.get((location as PropertyAccessExpression).expression.id);
     if (leftSymbol !== undefined && (leftSymbol.flags & SymbolFlags.Enum) !== 0) {
       // An enum member with a known value is always truthy or always falsy.
       const value = t as LiteralType;

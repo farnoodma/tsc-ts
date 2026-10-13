@@ -291,13 +291,12 @@ function getTypeFromTypeNodeWorker(c: Checker, node: Node): Type {
     case SyntaxKind.ConditionalType:
       return getTypeFromConditionalTypeNode(c, node);
     case SyntaxKind.InferType: {
-      const links = c.nodeLinks(node);
-      if (links.resolvedType === undefined)
-        links.resolvedType = getDeclaredTypeOfTypeParameter(
-          c,
-          getSymbolOfDeclaration(c, (node as InferTypeNode).typeParameter)!,
-        );
-      return links.resolvedType;
+      let type = c.resolvedTypes.get(node.id);
+      if (type === undefined) {
+        type = getDeclaredTypeOfTypeParameter(c, getSymbolOfDeclaration(c, (node as InferTypeNode).typeParameter)!);
+        c.resolvedTypes.set(node.id, type);
+      }
+      return type;
     }
     case SyntaxKind.ImportType:
       return getTypeFromImportTypeNode(c, node);
@@ -306,9 +305,12 @@ function getTypeFromTypeNodeWorker(c: Checker, node: Node): Type {
 }
 
 export function getTypeFromThisTypeNode(c: Checker, node: Node): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) links.resolvedType = getThisType(c, node);
-  return links.resolvedType;
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
+    type = getThisType(c, node);
+    c.resolvedTypes.set(node.id, type);
+  }
+  return type;
 }
 
 function getThisType(c: Checker, node: Node): Type {
@@ -330,58 +332,63 @@ function isDescendant(node: Node, ancestor: Node | undefined): boolean {
 
 function getTypeFromLiteralTypeNode(c: Checker, node: LiteralTypeNode): Type {
   if (node.literal.kind === SyntaxKind.NullKeyword) return c.nullType;
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined)
-    links.resolvedType = getRegularTypeOfLiteralType(c, checkExpression(c, node.literal));
-  return links.resolvedType;
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
+    type = getRegularTypeOfLiteralType(c, checkExpression(c, node.literal));
+    c.resolvedTypes.set(node.id, type);
+  }
+  return type;
 }
 
 function getTypeFromTypeLiteralOrFunctionOrConstructorTypeNode(c: Checker, node: Node): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
     // Members resolve lazily.
     const alias = getAliasForTypeNode(c, node);
     const symbol = getSymbol(node);
     if (symbol === undefined || (getMembersOfSymbol(c, symbol).size === 0 && alias === undefined))
-      links.resolvedType = c.emptyTypeLiteralType;
+      type = c.emptyTypeLiteralType;
     else {
       const t = newObjectType(c, ObjectFlags.Anonymous, symbol);
       t.alias = alias;
-      links.resolvedType = t;
+      type = t;
     }
+    c.resolvedTypes.set(node.id, type);
   }
-  return links.resolvedType;
+  return type;
 }
 
 function getTypeFromIndexedAccessTypeNode(c: Checker, node: IndexedAccessTypeNode): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
     const objectType = getTypeFromTypeNode(c, node.objectType);
     const indexType = getTypeFromTypeNode(c, node.indexType);
-    links.resolvedType = getIndexedAccessTypeEx(c, objectType, indexType, 0, node, getAliasForTypeNode(c, node));
+    type = getIndexedAccessTypeEx(c, objectType, indexType, 0, node, getAliasForTypeNode(c, node));
+    c.resolvedTypes.set(node.id, type);
   }
-  return links.resolvedType;
+  return type;
 }
 
 function getTypeFromTypeOperatorNode(c: Checker, node: TypeOperatorNode): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
     const argType = node.type;
     switch (node.operator) {
       case SyntaxKind.KeyOfKeyword:
-        links.resolvedType = getIndexType(c, getTypeFromTypeNode(c, argType));
+        type = getIndexType(c, getTypeFromTypeNode(c, argType));
         break;
       case SyntaxKind.UniqueKeyword:
-        links.resolvedType =
+        type =
           argType.kind === SyntaxKind.SymbolKeyword
             ? getESSymbolLikeTypeForNode(c, walkUpParenthesizedTypes(node.parent!))
             : c.errorType;
         break;
       default:
-        links.resolvedType = getTypeFromTypeNode(c, argType);
+        type = getTypeFromTypeNode(c, argType);
     }
+    c.resolvedTypes.set(node.id, type);
   }
-  return links.resolvedType;
+  return type;
 }
 
 function walkUpParenthesizedTypes(node: Node): Node {
@@ -442,25 +449,27 @@ function isAssertionExpression(node: Node | undefined): boolean {
 }
 
 export function getTypeFromTypeReference(c: Checker, node: Node): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
     if (isConstTypeReference(node) && isAssertionExpression(node.parent))
-      links.resolvedType = checkExpressionCached(c, getExpression(node.parent!)!);
+      type = checkExpressionCached(c, getExpression(node.parent!)!);
     else
-      links.resolvedType =
+      type =
         getIntendedTypeFromJSDocTypeReference(c, node) ??
         getTypeReferenceType(c, node, getSymbolFromTypeReference(c, node));
+    c.resolvedTypes.set(node.id, type);
   }
-  return links.resolvedType;
+  return type;
 }
 
 export function getSymbolFromTypeReference(c: Checker, node: Node): Symbol {
-  const links = c.nodeLinks(node);
-  if (links.resolvedSymbol === undefined) {
-    if (isConstTypeReference(node) && isAssertionExpression(node.parent)) links.resolvedSymbol = c.unknownSymbol;
-    else links.resolvedSymbol = resolveTypeReferenceName(c, node, SymbolFlags.Type, false);
+  let symbol = c.resolvedSymbols.get(node.id);
+  if (symbol === undefined) {
+    if (isConstTypeReference(node) && isAssertionExpression(node.parent)) symbol = c.unknownSymbol;
+    else symbol = resolveTypeReferenceName(c, node, SymbolFlags.Type, false);
+    c.resolvedSymbols.set(node.id, symbol);
   }
-  return links.resolvedSymbol;
+  return symbol;
 }
 
 function getTypeReferenceName(node: Node): Node | undefined {
@@ -816,10 +825,12 @@ export function getTypeAliasInstantiation(
 // ---- Other type nodes
 
 function getTypeFromTypeQueryNode(c: Checker, node: Node): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined)
-    links.resolvedType = getRegularTypeOfLiteralType(c, getWidenedType(c, checkExpressionWithTypeArguments(c, node)));
-  return links.resolvedType;
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
+    type = getRegularTypeOfLiteralType(c, getWidenedType(c, checkExpressionWithTypeArguments(c, node)));
+    c.resolvedTypes.set(node.id, type);
+  }
+  return type;
 }
 
 export function getTupleElementFlags(c: Checker, node: Node): ElementFlags {
@@ -879,29 +890,33 @@ function getArrayOrTupleTargetType(c: Checker, node: Node): Type {
 }
 
 function getTypeFromArrayOrTupleTypeNode(c: Checker, node: Node): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType !== undefined) return links.resolvedType;
+  const type = c.resolvedTypes.get(node.id);
+  if (type !== undefined) return type;
   const target = getArrayOrTupleTargetType(c, node);
-  if (target === c.emptyGenericType) links.resolvedType = c.emptyObjectType;
+  if (target === c.emptyGenericType) c.resolvedTypes.set(node.id, c.emptyObjectType);
   else if (
     !(node.kind === SyntaxKind.TupleType && hasVariadicTupleElement(c, node as TupleTypeNode)) &&
     isDeferredTypeReferenceNode(c, node, false)
   )
-    links.resolvedType =
+    c.resolvedTypes.set(
+      node.id,
       node.kind === SyntaxKind.TupleType && (node as TupleTypeNode).elements.nodes.length === 0
         ? target
-        : createDeferredTypeReference(c, target, node, undefined, getAliasForTypeNode(c, node));
+        : createDeferredTypeReference(c, target, node, undefined, getAliasForTypeNode(c, node)),
+    );
   else {
     const elementTypes =
       node.kind === SyntaxKind.ArrayType
         ? [getTypeFromTypeNode(c, (node as ArrayTypeNode).elementType)]
         : getTypesFromTypeNodes(c, (node as TupleTypeNode).elements.nodes);
-    links.resolvedType =
+    c.resolvedTypes.set(
+      node.id,
       (target.objectFlags & ObjectFlags.Tuple) !== 0
         ? createNormalizedTupleType(c, target as TupleType, elementTypes, ObjectFlags.FromTypeNode)
-        : createTypeReferenceEx(c, target, elementTypes, ObjectFlags.FromTypeNode);
+        : createTypeReferenceEx(c, target, elementTypes, ObjectFlags.FromTypeNode),
+    );
   }
-  return links.resolvedType;
+  return c.resolvedTypes.get(node.id)!;
 }
 
 function hasVariadicTupleElement(c: Checker, node: TupleTypeNode): boolean {
@@ -933,13 +948,15 @@ export function getTypeArgumentsOfDeferredReference(c: Checker, node: Node, targ
 }
 
 function getTypeFromNamedTupleTypeNode(c: Checker, node: NamedTupleMember): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined)
-    links.resolvedType =
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
+    type =
       node.dotDotDotToken !== undefined
         ? getTypeFromRestTypeNode(c, node)
         : addOptionality(c, getTypeFromTypeNode(c, node.type), true, node.questionToken !== undefined);
-  return links.resolvedType;
+    c.resolvedTypes.set(node.id, type);
+  }
+  return type;
 }
 
 function getTypeFromRestTypeNode(c: Checker, node: Node): Type {
@@ -948,21 +965,22 @@ function getTypeFromRestTypeNode(c: Checker, node: Node): Type {
 }
 
 function getTypeFromUnionTypeNode(c: Checker, node: UnionTypeNode): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined)
-    links.resolvedType = getUnionTypeEx(
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
+    type = getUnionTypeEx(
       c,
       getTypesFromTypeNodes(c, node.types.nodes),
       UnionReduction.Literal,
       getAliasForTypeNode(c, node),
       undefined,
     );
-  return links.resolvedType;
+    c.resolvedTypes.set(node.id, type);
+  }
+  return type;
 }
 
 function getTypeFromIntersectionTypeNode(c: Checker, node: IntersectionTypeNode): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  if (c.resolvedTypes.get(node.id) === undefined) {
     const alias = getAliasForTypeNode(c, node);
     const types = getTypesFromTypeNodes(c, node.types.nodes);
     // `string & {}` and friends keep literal completions in unions.
@@ -976,19 +994,21 @@ function getTypeFromIntersectionTypeNode(c: Checker, node: IntersectionTypeNode)
           ((t.flags & TypeFlags.TemplateLiteral) !== 0 && isPatternLiteralType(c, t));
       }
     }
-    links.resolvedType = getIntersectionTypeEx(
-      c,
-      types,
-      noSupertypeReduction ? IntersectionFlags.NoSupertypeReduction : IntersectionFlags.None,
-      alias,
+    c.resolvedTypes.set(
+      node.id,
+      getIntersectionTypeEx(
+        c,
+        types,
+        noSupertypeReduction ? IntersectionFlags.NoSupertypeReduction : IntersectionFlags.None,
+        alias,
+      ),
     );
   }
-  return links.resolvedType;
+  return c.resolvedTypes.get(node.id)!;
 }
 
 function getTypeFromTemplateTypeNode(c: Checker, node: TemplateLiteralTypeNode): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  if (c.resolvedTypes.get(node.id) === undefined) {
     const spans = node.templateSpans.nodes;
     const texts: string[] = [getText(node.head)];
     const types: Type[] = [];
@@ -996,9 +1016,9 @@ function getTypeFromTemplateTypeNode(c: Checker, node: TemplateLiteralTypeNode):
       texts.push(getText((span as TemplateLiteralTypeSpan).literal));
       types.push(getTypeFromTypeNode(c, (span as TemplateLiteralTypeSpan).type));
     }
-    links.resolvedType = getTemplateLiteralType(c, texts, types);
+    c.resolvedTypes.set(node.id, getTemplateLiteralType(c, texts, types));
   }
-  return links.resolvedType;
+  return c.resolvedTypes.get(node.id)!;
 }
 
 /** The symbol an identifier resolves to, cached on the identifier. */

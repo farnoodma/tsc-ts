@@ -116,11 +116,13 @@ export class CheckerNameResolver extends NameResolver {
   }
 
   symbolReferenced(symbol: Symbol, meaning: SymbolFlags): void {
-    this.checker.symbolLinks(symbol).referenceKinds |= meaning;
+    const kinds = this.checker.symbolReferenceKinds;
+    const id = getSymbolId(symbol);
+    kinds.set(id, kinds.get(id) | meaning);
   }
 
   getRequiresScopeChangeCache(node: Node): Tristate {
-    return this.checker.nodeLinks(node).declarationRequiresScopeChange as Tristate;
+    return (this.checker.existingNodeLinks(node)?.declarationRequiresScopeChange ?? 0) as Tristate;
   }
 
   setRequiresScopeChangeCache(node: Node, value: Tristate): void {
@@ -1366,12 +1368,14 @@ export function resolveAlias(c: Checker, symbol: Symbol): Symbol {
 /** The combined flags of `symbol` and every alias target; All when an alias resolves to unknown. */
 export function getSymbolFlags(c: Checker, symbol: Symbol): SymbolFlags {
   let flags = symbol.flags;
-  const seen = new Set<Symbol>();
+  // Created for the first alias of an alias, as tsgo's zero-value set.
+  let seen: Set<Symbol> | undefined = undefined;
   while ((symbol.flags & SymbolFlags.Alias) !== 0) {
     const target = getExportSymbolOfValueSymbolIfExported(c, resolveAlias(c, symbol));
     if (target === c.unknownSymbol) return SymbolFlags.All;
     if ((target.flags & SymbolFlags.Alias) !== 0) {
-      if (target === symbol || seen.has(target)) break;
+      if (target === symbol || (seen !== undefined && seen.has(target))) break;
+      if (seen === undefined) seen = new Set<Symbol>();
       seen.add(symbol);
       seen.add(target);
     }
@@ -1472,10 +1476,10 @@ export function combineSymbolTables(c: Checker, first: SymbolTable, second: Symb
 
 /** Binds a member with a computed name whose type is a literal or unique symbol under that name. */
 function lateBindMember(c: Checker, parent: Symbol, early: SymbolTable, late: SymbolTable, decl: Node): Symbol {
-  const links = c.nodeLinks(decl);
-  if (links.resolvedSymbol !== undefined) return links.resolvedSymbol;
+  const cached = c.resolvedSymbols.get(decl.id);
+  if (cached !== undefined) return cached;
   // A recursive request falls back to the early-bound symbol.
-  links.resolvedSymbol = getSymbol(decl);
+  c.resolvedSymbols.set(decl.id, getSymbol(decl));
   const declName = getLateBindableNameOfDeclaration(decl)!;
   const type =
     declName.kind === SyntaxKind.ElementAccessExpression
@@ -1499,12 +1503,12 @@ function lateBindMember(c: Checker, parent: Symbol, early: SymbolTable, late: Sy
       c.error(declName, Diagnostics.Duplicate_identifier_0, name);
       lateSymbol = c.newSymbolWithCheckFlags(SymbolFlags.None, memberName, CheckFlags.Late);
     }
-    c.symbolLinks(lateSymbol).nameType = type;
+    c.symbolNameTypes.set(getSymbolId(lateSymbol), type);
     addDeclarationToLateBoundSymbol(c, lateSymbol, decl, symbolFlags);
     if (lateSymbol.parent === undefined) lateSymbol.parent = parent;
-    links.resolvedSymbol = lateSymbol;
+    c.resolvedSymbols.set(decl.id, lateSymbol);
   }
-  return links.resolvedSymbol!;
+  return c.resolvedSymbols.get(decl.id)!;
 }
 
 /** Adds a member whose computed name has a non-literal key type to the index symbol. */
@@ -1857,7 +1861,7 @@ export function findResolutionCycleStartIndex(
 function resolutionHasProperty(c: Checker, target: ResolutionTarget, propertyName: number): boolean {
   switch (propertyName) {
     case TypeSystemPropertyName.Type:
-      return c.symbolLinks(target as Symbol).type !== undefined;
+      return c.symbolTypes.get(getSymbolId(target as Symbol)) !== undefined;
     case TypeSystemPropertyName.DeclaredType:
       return c.symbolLinks(target as Symbol).declaredType !== undefined;
     case TypeSystemPropertyName.ResolvedTypeArguments:
@@ -1871,7 +1875,7 @@ function resolutionHasProperty(c: Checker, target: ResolutionTarget, propertyNam
     case TypeSystemPropertyName.ResolvedBaseConstraint:
       return (target as Type).resolvedBaseConstraint !== undefined;
     case TypeSystemPropertyName.InitializerIsUndefined:
-      return (c.nodeLinks(target as Node).flags & (1 << 25)) !== 0;
+      return ((c.existingNodeLinks(target as Node)?.flags ?? 0) & (1 << 25)) !== 0;
     case TypeSystemPropertyName.WriteType:
       return c.symbolLinks(target as Symbol).writeType !== undefined;
     case TypeSystemPropertyName.AliasTarget:

@@ -35,6 +35,7 @@ import {
   type TypePredicate,
   TypePredicateKind,
   type TypeReference,
+  type UnionOrIntersectionType,
   type UnionType,
   VarianceFlags,
   emptyTypes,
@@ -115,6 +116,9 @@ import {
   isDiscriminantWithNeverType,
   isConflictingPrivateProperty,
   resolveStructuredTypeMembers,
+  getResolvedMember,
+  hasResolvedProperties,
+  resolvedPropertiesAreOptional,
 } from './checker-members.js';
 import {
   getParentOfSymbol,
@@ -415,6 +419,39 @@ export function isSimpleTypeRelatedTo(
   relation: Relation,
   reporter: Relater | undefined,
 ): boolean {
+  // Every rule below that can succeed needs one of these target flags, one of these source flags, or
+  // the wildcard source. Most pairs (objects, type parameters, intersections) have none of them; the
+  // test is small enough to inline into callers.
+  if (
+    (target.flags &
+      (TypeFlags.Any |
+        TypeFlags.Unknown |
+        TypeFlags.String |
+        TypeFlags.StringLiteral |
+        TypeFlags.Number |
+        TypeFlags.NumberLiteral |
+        TypeFlags.BigInt |
+        TypeFlags.Boolean |
+        TypeFlags.ESSymbol |
+        TypeFlags.Enum |
+        TypeFlags.EnumLiteral |
+        TypeFlags.NonPrimitive |
+        TypeFlags.Union)) ===
+      0 &&
+    (source.flags & (TypeFlags.Any | TypeFlags.Never | TypeFlags.Undefined | TypeFlags.Null)) === 0 &&
+    source !== c.wildcardType
+  )
+    return false;
+  return isSimpleTypeRelatedToWorker(c, source, target, relation, reporter);
+}
+
+function isSimpleTypeRelatedToWorker(
+  c: Checker,
+  source: Type,
+  target: Type,
+  relation: Relation,
+  reporter: Relater | undefined,
+): boolean {
   const s = source.flags;
   const t = target.flags;
   if ((t & TypeFlags.Any) !== 0 || (s & TypeFlags.Never) !== 0 || source === c.wildcardType) return true;
@@ -630,10 +667,69 @@ const RelationKeyIdLimit = 1 << 24;
 function internRelationKey(c: Checker, text: string): number {
   let key = c.relationKeyIds.get(text);
   if (key === undefined) {
-    key = -(c.relationKeyIds.size + 1);
+    key = -++c.relationKeyCount;
     c.relationKeyIds.set(text, key);
   }
   return key;
+}
+
+/** An interned generic relation key (`writeTypeReference`'s tokens) and the next one with the same hash. */
+export class InternedRelationKey {
+  readonly tokens: number[];
+  readonly key: number;
+  next: InternedRelationKey | undefined = undefined;
+
+  constructor(tokens: number[], key: number) {
+    this.tokens = tokens;
+    this.key = key;
+  }
+}
+
+/** `internRelationKey` for a generic relation key spelled as tokens, without building its string. */
+function internRelationKeyTokens(c: Checker, tokens: number[]): number {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x9e3779b9;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    h1 = Math.imul(h1 ^ t, 0x01000193);
+    h2 = Math.imul(h2 + t, 0x85ebca6b) ^ (h2 >>> 15);
+  }
+  h1 ^= h1 >>> 16;
+  h1 = Math.imul(h1, 0x7feb352d);
+  h1 ^= h1 >>> 15;
+  const hash = (h1 >>> 0) * 0x100000 + ((h2 ^ tokens.length) & 0xfffff);
+  const head = c.relationKeyTokens.get(hash);
+  for (let e = head; e !== undefined; e = e.next) {
+    const other = e.tokens;
+    if (other.length !== tokens.length) continue;
+    let same = true;
+    for (let i = 0; i < tokens.length; i++)
+      if (other[i]! !== tokens[i]!) {
+        same = false;
+        break;
+      }
+    if (same) return e.key;
+  }
+  const entry = new InternedRelationKey(tokens, -++c.relationKeyCount);
+  if (head === undefined) c.relationKeyTokens.set(hash, entry);
+  else {
+    entry.next = head.next;
+    head.next = entry;
+  }
+  return entry.key;
+}
+
+// The tokens of a generic relation key: what the key string would spell, as numbers. Ids and type
+// parameter positions carry their kind in the low two bits; the markers end in 3.
+const enum RelationKeyToken {
+  TargetId = 0,
+  ArgumentId = 1,
+  TypeParameterIndex = 2,
+  Open = 3,
+  Close = 7,
+  Separator = 11,
+  /** Plus 4 x the intersection state. */
+  End = 15,
 }
 
 export function getRelationKey(
@@ -653,11 +749,12 @@ export function getRelationKey(
   result.constrained = false;
   if (isTypeReferenceWithGenericArguments(c, source) && isTypeReferenceWithGenericArguments(c, target)) {
     const typeParameters: Type[] = [];
-    const parts: string[] = ['g'];
-    writeTypeReference(c, source, 0, typeParameters, parts, ignoreConstraints, result);
-    parts.push(',');
-    writeTypeReference(c, target, 0, typeParameters, parts, ignoreConstraints, result);
-    result.key = internRelationKey(c, parts.join('') + ':' + intersectionState);
+    const tokens: number[] = [];
+    writeTypeReference(c, source, 0, typeParameters, tokens, ignoreConstraints, result);
+    tokens.push(RelationKeyToken.Separator);
+    writeTypeReference(c, target, 0, typeParameters, tokens, ignoreConstraints, result);
+    tokens.push(RelationKeyToken.End + 4 * intersectionState);
+    result.key = internRelationKeyTokens(c, tokens);
   } else {
     // The common case packs both ids and the intersection state (two bits) into one exact number,
     // so the relation caches need no key strings.
@@ -676,11 +773,11 @@ function writeTypeReference(
   ref: Type,
   depth: number,
   typeParameters: Type[],
-  parts: string[],
+  tokens: number[],
   ignoreConstraints: boolean,
   result: RelationKey,
 ): void {
-  parts.push(String((ref as TypeReference).target!.id));
+  tokens.push((ref as TypeReference).target!.id * 4 + RelationKeyToken.TargetId);
   for (const t of (ref as TypeReference).resolvedTypeArguments ?? getTypeArguments(c, ref)) {
     if ((t.flags & TypeFlags.TypeParameter) !== 0) {
       if (ignoreConstraints || getConstraintFromTypeParameter(c, t) === undefined) {
@@ -689,17 +786,17 @@ function writeTypeReference(
           index = typeParameters.length;
           typeParameters.push(t);
         }
-        parts.push('=' + index);
+        tokens.push(index * 4 + RelationKeyToken.TypeParameterIndex);
         continue;
       }
       result.constrained = true;
     } else if (depth < 4 && isTypeReferenceWithGenericArguments(c, t)) {
-      parts.push('<');
-      writeTypeReference(c, t, depth + 1, typeParameters, parts, ignoreConstraints, result);
-      parts.push('>');
+      tokens.push(RelationKeyToken.Open);
+      writeTypeReference(c, t, depth + 1, typeParameters, tokens, ignoreConstraints, result);
+      tokens.push(RelationKeyToken.Close);
       continue;
     }
-    parts.push('-' + t.id);
+    tokens.push(t.id * 4 + RelationKeyToken.ArgumentId);
   }
 }
 
@@ -888,6 +985,11 @@ export class Relater extends TypeComparer {
   relationCount = 0;
   /** The intersection state passed to `compare` during signature comparisons. */
   signatureIntersectionState: IntersectionState = IntersectionState.None;
+  // What `relateVariances` changes in its caller's state when it falls back to structure.
+  varianceSetsCheckFailed = false;
+  varianceCheckFailed = false;
+  varianceSetsErrorChain = false;
+  varianceErrorChain: ErrorChain | undefined = undefined;
 
   constructor(c: Checker, relation: Relation, errorNode: Node | undefined) {
     super();
@@ -1575,6 +1677,47 @@ export class Relater extends TypeComparer {
     return result;
   }
 
+  /**
+   * Relates the type arguments of `structuredTypeRelatedToWorker`'s source and target by variance:
+   * a result when variance decides, else undefined to fall back to structure, with the caller's
+   * `varianceCheckFailed` and original error chain to update in the fields above. (A method rather
+   * than a closure over the caller's locals, which native builds would allocate on every call.)
+   */
+  relateVariances(
+    sourceArgs: Type[],
+    targetArgs: Type[],
+    variances: VarianceFlags[],
+    reportErrors: boolean,
+    intersectionState: IntersectionState,
+    saveChain: ErrorChain | undefined,
+    saveRelated: Diagnostic[],
+  ): Ternary | undefined {
+    const result = this.typeArgumentsRelatedTo(sourceArgs, targetArgs, variances, reportErrors, intersectionState);
+    if (result !== Ternary.False) return result;
+    if (someVarianceHasFlags(variances, VarianceFlags.AllowsStructuralFallback)) {
+      // Unmeasurable or unreliable variance: elide variance errors and compare structurally.
+      this.varianceSetsCheckFailed = false;
+      this.varianceSetsErrorChain = true;
+      this.varianceErrorChain = undefined;
+      this.errorChain = saveChain;
+      this.relatedInfo = saveRelated;
+      return undefined;
+    }
+    const allowStructuralFallback = hasCovariantVoidArgument(targetArgs, variances);
+    this.varianceSetsCheckFailed = true;
+    this.varianceCheckFailed = !allowStructuralFallback;
+    this.varianceSetsErrorChain = false;
+    if (variances.length !== 0 && !allowStructuralFallback) {
+      // With invariant parameters, compare structurally to explain why.
+      if (!(reportErrors && someVarianceIsInvariant(variances))) return Ternary.False;
+      this.varianceSetsErrorChain = true;
+      this.varianceErrorChain = this.errorChain;
+      this.errorChain = saveChain;
+      this.relatedInfo = saveRelated;
+    }
+    return undefined;
+  }
+
   structuredTypeRelatedToWorker(
     source: Type,
     target: Type,
@@ -1587,38 +1730,6 @@ export class Relater extends TypeComparer {
     let result: Ternary = Ternary.False;
     let varianceCheckFailed = false;
     let originalErrorChain: ErrorChain | undefined;
-    const restore = (): void => {
-      this.errorChain = saveChain;
-      this.relatedInfo = saveRelated;
-    };
-    // Returns a result when decided by variance; undefined to fall back to structure.
-    const relateVariances = (
-      sourceArgs: Type[],
-      targetArgs: Type[],
-      variances: VarianceFlags[],
-    ): Ternary | undefined => {
-      result = this.typeArgumentsRelatedTo(sourceArgs, targetArgs, variances, reportErrors, intersectionState);
-      if (result !== Ternary.False) return result;
-      if (variances.some((v) => (v & VarianceFlags.AllowsStructuralFallback) !== 0)) {
-        // Unmeasurable or unreliable variance: elide variance errors and compare structurally.
-        originalErrorChain = undefined;
-        restore();
-        return undefined;
-      }
-      const allowStructuralFallback = hasCovariantVoidArgument(targetArgs, variances);
-      varianceCheckFailed = !allowStructuralFallback;
-      if (variances.length !== 0 && !allowStructuralFallback) {
-        // With invariant parameters, compare structurally to explain why.
-        if (
-          varianceCheckFailed &&
-          !(reportErrors && variances.some((v) => (v & VarianceFlags.VarianceMask) === VarianceFlags.Invariant))
-        )
-          return Ternary.False;
-        originalErrorChain = this.errorChain;
-        restore();
-      }
-      return undefined;
-    };
     if (this.relation === c.identityRelation) {
       // Flags are known to be identical.
       if ((source.flags & TypeFlags.UnionOrIntersection) !== 0) {
@@ -1723,8 +1834,19 @@ export class Relater extends TypeComparer {
         (source.alias.symbol.valueDeclaration.flags & (1 << 16)) !== 0;
       const sourceTypes = fillMissingTypeArguments(c, source.alias.typeArguments, params, minParams, inJS);
       const targetTypes = fillMissingTypeArguments(c, target.alias.typeArguments, params, minParams, inJS);
-      const varianceResult = relateVariances(sourceTypes, targetTypes, variances);
+      const varianceResult = this.relateVariances(
+        sourceTypes,
+        targetTypes,
+        variances,
+        reportErrors,
+        intersectionState,
+        saveChain,
+        saveRelated,
+      );
       if (varianceResult !== undefined) return varianceResult;
+      result = Ternary.False;
+      if (this.varianceSetsCheckFailed) varianceCheckFailed = this.varianceCheckFailed;
+      if (this.varianceSetsErrorChain) originalErrorChain = this.varianceErrorChain;
     }
     // [...U] relates where U does, and U to readonly [...T] or to [...T] for mutable array constraints.
     if (isSingleElementGenericTupleType(source) && !tupleTargetOf(source).readonly) {
@@ -1789,7 +1911,10 @@ export class Relater extends TypeComparer {
           const accessFlags = (1 << 2) | (baseObjectType !== t.objectType ? 1 << 1 : 0);
           const constraint = getIndexedAccessTypeOrUndefined(c, baseObjectType, baseIndexType, accessFlags);
           if (constraint !== undefined) {
-            if (reportErrors && originalErrorChain !== undefined) restore();
+            if (reportErrors && originalErrorChain !== undefined) {
+              this.errorChain = saveChain;
+              this.relatedInfo = saveRelated;
+            }
             result = this.isRelatedToEx(
               source,
               constraint,
@@ -1916,7 +2041,8 @@ export class Relater extends TypeComparer {
       const r = this.relateToGenericMappedType(source, target as MappedType, reportErrors);
       if (r !== Ternary.False) return r;
       originalErrorChain = this.errorChain;
-      restore();
+      this.errorChain = saveChain;
+      this.relatedInfo = saveRelated;
     }
     if ((source.flags & TypeFlags.TypeVariable) !== 0) {
       // Indexed access against indexed access is handled above.
@@ -2086,8 +2212,19 @@ export class Relater extends TypeComparer {
         // References to the same generic type relate by variance.
         const variances = getVariances(c, (source as TypeReference).target!);
         if (variances.length === 0) return Ternary.Unknown;
-        const varianceResult = relateVariances(getTypeArguments(c, source), getTypeArguments(c, target), variances);
+        const varianceResult = this.relateVariances(
+          getTypeArguments(c, source),
+          getTypeArguments(c, target),
+          variances,
+          reportErrors,
+          intersectionState,
+          saveChain,
+          saveRelated,
+        );
         if (varianceResult !== undefined) return varianceResult;
+        result = Ternary.False;
+        if (this.varianceSetsCheckFailed) varianceCheckFailed = this.varianceCheckFailed;
+        if (this.varianceSetsErrorChain) originalErrorChain = this.varianceErrorChain;
       } else if (
         isArrayType(c, target) &&
         ((isReadonlyArrayType(c, target) && everyType(source, (u) => isArrayOrTupleType(c, u))) ||
@@ -3519,8 +3656,8 @@ export function isWeakType(c: Checker, t: Type): boolean {
       resolved.callSignatures.length === 0 &&
       resolved.constructSignatures.length === 0 &&
       resolved.indexInfos.length === 0 &&
-      resolved.properties.length > 0 &&
-      resolved.properties.every((p) => (p.flags & SymbolFlags.Optional) !== 0)
+      hasResolvedProperties(resolved) &&
+      resolvedPropertiesAreOptional(resolved)
     );
   }
   if ((t.flags & TypeFlags.Substitution) !== 0) return isWeakType(c, (t as SubstitutionType).baseType);
@@ -3642,7 +3779,7 @@ function getTypeOfPropertyInType(c: Checker, t: Type, name: string): Type {
   t = getApparentType(c, t);
   const prop =
     (t.flags & TypeFlags.UnionOrIntersection) !== 0
-      ? getPropertyOfUnionOrIntersectionType(c, t as IntersectionType, name, false)
+      ? getPropertyOfUnionOrIntersectionType(c, t as UnionOrIntersectionType, name, false)
       : getPropertyOfObjectType(c, t, name);
   if (prop !== undefined) return getTypeOfSymbol(c, prop);
   const indexInfo = getApplicableIndexInfoForName(c, t, name);
@@ -3905,7 +4042,7 @@ function isPropertyInClassDerivedFrom(c: Checker, prop: Symbol, baseClass: Type 
 /** Calls `callback` with a property, or with the underlying properties of a synthetic one, until it returns true. */
 function forEachProperty(c: Checker, prop: Symbol, callback: (p: Symbol) => boolean): boolean {
   if ((prop.checkFlags & CheckFlags.Synthetic) === 0) return callback(prop);
-  const containingType = c.symbolLinks(prop).containingType;
+  const containingType = c.symbolContainingTypes.get(getSymbolId(prop));
   if (containingType === undefined) return false;
   for (const t of typesOf(containingType)) {
     const p = getPropertyOfType(c, t, prop.name);
@@ -4157,6 +4294,16 @@ export function getTypeParameterModifiers(tp: Type): ModifierFlags {
   let flags = 0;
   if (tp.symbol !== undefined) for (const d of tp.symbol.declarations) flags |= getCombinedModifierFlags(d);
   return flags & (ModifierFlags.In | ModifierFlags.Out | ModifierFlags.Const);
+}
+
+function someVarianceHasFlags(variances: readonly VarianceFlags[], flags: VarianceFlags): boolean {
+  for (const v of variances) if ((v & flags) !== 0) return true;
+  return false;
+}
+
+function someVarianceIsInvariant(variances: readonly VarianceFlags[]): boolean {
+  for (const v of variances) if ((v & VarianceFlags.VarianceMask) === VarianceFlags.Invariant) return true;
+  return false;
 }
 
 function hasCovariantVoidArgument(typeArguments: readonly Type[], variances: readonly VarianceFlags[]): boolean {
@@ -4698,7 +4845,7 @@ function isFunctionObjectType(c: Checker, t: Type): boolean {
   return (
     resolved.callSignatures.length !== 0 ||
     resolved.constructSignatures.length !== 0 ||
-    (resolved.members?.has('bind') === true && isTypeSubtypeOf(c, t, c.globalFunctionType))
+    (getResolvedMember(resolved, 'bind') !== undefined && isTypeSubtypeOf(c, t, c.globalFunctionType))
   );
 }
 

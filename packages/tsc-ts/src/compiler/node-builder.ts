@@ -1699,7 +1699,7 @@ export class NodeBuilder {
         const parentIsClass =
           propertySymbol.parent !== undefined && (propertySymbol.parent.flags & SymbolFlags.Class) !== 0;
         if (propertyType !== writeType || (parentIsClass && propDeclaration === undefined)) {
-          const symbolMapper = c.symbolLinks(propertySymbol).mapper;
+          const symbolMapper = c.symbolMappers.get(getSymbolId(propertySymbol));
           const getterDeclaration = getDeclarationOfKind(propertySymbol, SyntaxKind.GetAccessor);
           if (getterDeclaration !== undefined) {
             let getterSignature = getSignatureFromDeclaration(c, getterDeclaration);
@@ -1744,7 +1744,7 @@ export class NodeBuilder {
           this.setCommentRange(fakeGetter, propDeclaration);
           typeElements.push(fakeGetter);
           const setterParam = c.newSymbol(SymbolFlags.FunctionScopedVariable, 'arg');
-          c.symbolLinks(setterParam).type = writeType;
+          c.symbolTypes.set(getSymbolId(setterParam), writeType);
           const fakeSetterSignature = c.newSignature(
             SignatureFlags.None,
             undefined,
@@ -2809,7 +2809,7 @@ export function canReuseExistingJSTypeNode(b: NodeBuilder, existing: Node, t: Ty
   if (getIntendedTypeFromJSDocTypeReference(c, existing) !== undefined) return false;
   if ((t.objectFlags & ObjectFlags.Reference) === 0 || !(existing instanceof TypeReferenceNode)) return true;
   getTypeFromTypeNode(c, existing);
-  const symbol = c.nodeLinks(existing).resolvedSymbol;
+  const symbol = c.resolvedSymbols.get(existing.id);
   if (symbol === undefined) return true;
   const existingTarget = getDeclaredTypeOfSymbol(c, symbol);
   if (existingTarget !== (t as TypeReference).target) return true;
@@ -3100,7 +3100,10 @@ function expandSignatureParametersWithTupleMembers(
     else if ((flags & ElementFlags.Optional) !== 0) checkFlags = CheckFlags.OptionalParameter;
     const symbol = c.newSymbolWithCheckFlags(SymbolFlags.FunctionScopedVariable, names[i]!, checkFlags);
     const elementType = elementTypes[i]!;
-    c.symbolLinks(symbol).type = (flags & ElementFlags.Rest) !== 0 ? createArrayType(c, elementType) : elementType;
+    c.symbolTypes.set(
+      getSymbolId(symbol),
+      (flags & ElementFlags.Rest) !== 0 ? createArrayType(c, elementType) : elementType,
+    );
     result.push(symbol);
   }
   return result;

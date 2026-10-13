@@ -144,11 +144,12 @@ export const enum CheckFlags {
   Partial = ReadPartial | WritePartial,
 }
 
-/**
- * The declarations of a symbol that has none yet, shared by all such symbols and never mutated: tsgo
- * leaves the slice nil. Add declarations with addDeclaration.
- */
-const noDeclarations: Node[] = [];
+/** Fields of Symbol that few symbols set (about one in twenty), allocated on first write. */
+export class SymbolRareFields {
+  members: SymbolTable | undefined = undefined;
+  exports: SymbolTable | undefined = undefined;
+  exportSymbol: Symbol | undefined = undefined;
+}
 
 export class Symbol {
   flags: SymbolFlags;
@@ -156,11 +157,8 @@ export class Symbol {
   readonly name: string;
   declarations: Node[];
   valueDeclaration: Node | undefined;
-  members: SymbolTable | undefined;
-  exports: SymbolTable | undefined;
   parent: Symbol | undefined;
-  /** For the local symbol of an exported declaration, the exported symbol. */
-  exportSymbol: Symbol | undefined;
+  private rareFields: SymbolRareFields | undefined;
   /** Assigned on first use by `getSymbolId`; 0 until then. */
   id: Int32;
 
@@ -170,11 +168,49 @@ export class Symbol {
     this.name = name;
     this.declarations = noDeclarations;
     this.valueDeclaration = undefined;
-    this.members = undefined;
-    this.exports = undefined;
     this.parent = undefined;
-    this.exportSymbol = undefined;
+    this.rareFields = undefined;
     this.id = 0;
+  }
+
+  private rareFieldsOrNew(): SymbolRareFields {
+    let group = this.rareFields;
+    if (group === undefined) {
+      group = new SymbolRareFields();
+      this.rareFields = group;
+    }
+    return group;
+  }
+
+  get members(): SymbolTable | undefined {
+    const group = this.rareFields;
+    return group === undefined ? undefined : group.members;
+  }
+
+  set members(value: SymbolTable | undefined) {
+    if (value === undefined && this.rareFields === undefined) return;
+    this.rareFieldsOrNew().members = value;
+  }
+
+  get exports(): SymbolTable | undefined {
+    const group = this.rareFields;
+    return group === undefined ? undefined : group.exports;
+  }
+
+  set exports(value: SymbolTable | undefined) {
+    if (value === undefined && this.rareFields === undefined) return;
+    this.rareFieldsOrNew().exports = value;
+  }
+
+  /** For the local symbol of an exported declaration, the exported symbol. */
+  get exportSymbol(): Symbol | undefined {
+    const group = this.rareFields;
+    return group === undefined ? undefined : group.exportSymbol;
+  }
+
+  set exportSymbol(value: Symbol | undefined) {
+    if (value === undefined && this.rareFields === undefined) return;
+    this.rareFieldsOrNew().exportSymbol = value;
   }
 
   /** Whether this is the symbol of an external module, named by its quoted path. */
@@ -191,13 +227,20 @@ export class Symbol {
 
 export type SymbolTable = Map<string, Symbol>;
 
-let nextSymbolId: Int32 = 0;
+/**
+ * The declarations of a symbol without any: shared, so never modified. Add declarations with
+ * `addDeclaration`, which gives the symbol its own array on the first one.
+ */
+const noDeclarations: Node[] = [];
 
-/** Appends `node` to the declarations of `symbol`, which may still share the empty `noDeclarations`. */
+/** Appends `node` to the declarations of `symbol`. */
 export function addDeclaration(symbol: Symbol, node: Node): void {
-  if (symbol.declarations.length === 0) symbol.declarations = [node];
-  else symbol.declarations.push(node);
+  const declarations = symbol.declarations;
+  if (declarations.length === 0) symbol.declarations = [node];
+  else declarations.push(node);
 }
+
+let nextSymbolId: Int32 = 0;
 
 /** A program-wide id, assigned to each symbol when first requested. */
 export function getSymbolId(symbol: Symbol): number {

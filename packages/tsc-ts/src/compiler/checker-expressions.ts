@@ -300,14 +300,15 @@ function isInRightSideOfImportOrExportAssignment(name: Node): boolean {
 
 /** The type of `node`, computed once. */
 export function checkExpressionCached(c: Checker, node: Node): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  let type = c.resolvedTypes.get(node.id);
+  if (type === undefined) {
     const saveFlowTypeCache = c.flowTypeCache;
     c.flowTypeCache = undefined;
-    links.resolvedType = checkExpression(c, node);
+    type = checkExpression(c, node);
+    c.resolvedTypes.set(node.id, type);
     c.flowTypeCache = saveFlowTypeCache;
   }
-  return links.resolvedType;
+  return type;
 }
 
 /** The type of an expression, cached when computing it needed flow analysis; may skip some diagnostics. */
@@ -415,8 +416,8 @@ function getReturnTypeOfSingleNonGenericSignature(c: Checker, funcType: Type, ki
 }
 
 export function checkComputedPropertyName(c: Checker, node: Node): Type {
-  const links = c.nodeLinks((node as ComputedPropertyName).expression);
-  if (links.resolvedType === undefined) {
+  const nodeId = (node as ComputedPropertyName).expression.id;
+  if (c.resolvedTypes.get(nodeId) === undefined) {
     const expression = (node as ComputedPropertyName).expression;
     const container = node.parent!.parent!;
     // `[x in y]` in a type member is a mapped type written in the wrong place, reported by the parser.
@@ -429,11 +430,11 @@ export function checkComputedPropertyName(c: Checker, node: Node): Type {
       node.parent!.kind !== SyntaxKind.GetAccessor &&
       node.parent!.kind !== SyntaxKind.SetAccessor
     ) {
-      links.resolvedType = c.errorType;
-      return links.resolvedType;
+      c.resolvedTypes.set(nodeId, c.errorType);
+      return c.resolvedTypes.get(nodeId)!;
     }
     const t = checkExpression(c, expression);
-    links.resolvedType = t;
+    c.resolvedTypes.set(nodeId, t);
     // Allows string, number, symbol and any, as well as enums, unknown and unions of them.
     if (
       (t.flags & TypeFlags.Nullable) !== 0 ||
@@ -442,7 +443,7 @@ export function checkComputedPropertyName(c: Checker, node: Node): Type {
     )
       c.error(node, Diagnostics.A_computed_property_name_must_be_of_type_string_number_symbol_or_any);
   }
-  return links.resolvedType;
+  return c.resolvedTypes.get(nodeId)!;
 }
 
 /** A parameter's declared type without `undefined` when its initializer can't be `undefined`. */
@@ -516,25 +517,24 @@ export function checkTypeQueryExpression(c: Checker, node: Node): Type {
 
 /** The symbol an identifier refers to as a value; reports unresolved names. */
 export function getResolvedSymbol(c: Checker, node: Node): Symbol {
-  const links = c.nodeLinks(node);
-  if (links.resolvedSymbol === undefined) {
-    let symbol = c.unknownSymbol;
-    if (getText(node) !== '') {
-      const text = getText(node);
-      const found = resolveName(
-        c,
-        node,
-        text,
-        SymbolFlags.Value | SymbolFlags.ExportValue,
-        getCannotFindNameDiagnosticForName(c, node),
-        !isWriteOnlyAccess(node),
-        false,
-      );
-      if (found !== undefined) symbol = found;
-    }
-    links.resolvedSymbol = symbol;
+  const cached = c.resolvedSymbols.get(node.id);
+  if (cached !== undefined) return cached;
+  let symbol = c.unknownSymbol;
+  if (getText(node) !== '') {
+    const text = getText(node);
+    const found = resolveName(
+      c,
+      node,
+      text,
+      SymbolFlags.Value | SymbolFlags.ExportValue,
+      getCannotFindNameDiagnosticForName(c, node),
+      !isWriteOnlyAccess(node),
+      false,
+    );
+    if (found !== undefined) symbol = found;
   }
-  return links.resolvedSymbol;
+  c.resolvedSymbols.set(node.id, symbol);
+  return symbol;
 }
 
 // ---- Dispatch
@@ -1568,7 +1568,7 @@ function checkElementAccessExpression(c: Checker, node: ElementAccessExpression,
     getIndexedAccessTypeOrUndefinedEx(c, objectType, effectiveIndexType, accessFlags, node, undefined) ?? c.errorType;
   const t = checkIndexedAccessIndexType(
     c,
-    getFlowTypeOfAccessExpression(c, node, c.nodeLinks(node).resolvedSymbol, indexedAccessType, indexExpression),
+    getFlowTypeOfAccessExpression(c, node, c.resolvedSymbols.get(node.id), indexedAccessType, indexExpression),
     node,
   );
   return propagateOptionalTypeMarker(c, t, node, wasOptional);

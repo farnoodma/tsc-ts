@@ -154,11 +154,11 @@ import {
   Symbol,
   SymbolFlags,
   type SymbolTable,
+  addDeclaration,
   getExports,
   getMembers,
   getSymbolId,
   internalSymbolNamePrefix,
-  addDeclaration,
 } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 

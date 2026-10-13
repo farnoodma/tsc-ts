@@ -314,8 +314,7 @@ export class Reparser {
   attachReparsedJSDoc(node: Node, jsDoc: Node): boolean {
     const docs: Node[] = [];
     docs.push(jsDoc);
-    node.jsDoc = docs;
-    this.p.jsDocInfos.push(node);
+    this.p.setJSDoc(node, docs);
     node.flags |= NodeFlags.HasJSDoc;
     return true;
   }
@@ -510,8 +509,7 @@ export class Reparser {
     propJSDoc.parent = node;
     const docs: Node[] = [];
     docs.push(propJSDoc);
-    node.jsDoc = docs;
-    this.p.jsDocInfos.push(node);
+    this.p.setJSDoc(node, docs);
     node.flags |= NodeFlags.HasJSDoc;
     return true;
   }

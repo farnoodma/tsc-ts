@@ -430,7 +430,7 @@ class ExistingNodeReuser extends VisitorBase {
     const b = this.b;
     if (isConstTypeReference(node)) return undefined;
     getTypeFromTypeNode(b.c, node);
-    const symbol = b.c.nodeLinks(node).resolvedSymbol;
+    const symbol = b.c.resolvedSymbols.get(node.id);
     if (symbol === undefined) return undefined;
     if ((symbol.flags & SymbolFlags.TypeParameter) !== 0) {
       const declaredType = getDeclaredTypeOfSymbol(b.c, symbol);
@@ -691,7 +691,7 @@ function getModuleSpecifierOverride(b: NodeBuilder, parent: ImportTypeNode, lite
   const originalName = getText(literal);
   let name = originalName;
   getTypeFromTypeNode(c, parent);
-  const nodeSymbol = c.nodeLinks(parent).resolvedSymbol;
+  const nodeSymbol = c.resolvedSymbols.get(parent.id);
   const meaning = parent.isTypeOf ? SymbolFlags.Value : SymbolFlags.Type;
   const parentSymbol =
     nodeSymbol !== undefined &&

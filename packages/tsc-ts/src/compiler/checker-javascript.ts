@@ -497,6 +497,6 @@ export function isUndefinedAssignmentToCommonJSExport(c: Checker, left: Node, ri
   const assignment: BinaryExpression = parent;
   if (assignment.symbol === undefined) return false;
   if (getAssignmentDeclarationKind(assignment) !== JSDeclarationKind.ExportsProperty) return false;
-  const symbol = c.nodeLinks(left).resolvedSymbol;
+  const symbol = c.resolvedSymbols.get(left.id);
   return symbol !== undefined && symbol.declarations.length > 1 && (rightType.flags & TypeFlags.Undefined) !== 0;
 }

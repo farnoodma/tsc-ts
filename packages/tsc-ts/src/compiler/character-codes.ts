@@ -244,19 +244,9 @@ export function codePointAt(text: string, pos: number, end: number): NoThrow<num
   return ch;
 }
 
-/** Length of `text` in UTF-8 bytes. A lone surrogate counts as U+FFFD. */
+/** Length of `text` in UTF-8 bytes. A lone surrogate counts as U+FFFD, as `Buffer` encodes it. */
 export function utf8Length(text: string): NoThrow<number> {
-  let length = 0;
-  for (let i = 0; i < text.length; i++) {
-    const c = text.charCodeAt(i);
-    if (c < 0x80) length += 1;
-    else if (c < 0x800) length += 2;
-    else if (isHighSurrogate(c) && i + 1 < text.length && isLowSurrogate(text.charCodeAt(i + 1))) {
-      length += 4;
-      i++;
-    } else length += 3;
-  }
-  return length;
+  return Buffer.byteLength(text, 'utf8');
 }
 
 /** The code point ending just before `pos`, combining a surrogate pair; -1 at the start. */

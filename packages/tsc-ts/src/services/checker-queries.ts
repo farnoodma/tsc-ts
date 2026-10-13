@@ -17,7 +17,7 @@ import { checkRightHandSideOfForOf } from '../compiler/checker-statements.js';
 import { getMembersOfSymbol, getSymbolOfMeaning } from '../compiler/checker-symbols.js';
 import { getStringLiteralType, isLiteralType } from '../compiler/checker-type-factory.js';
 import { getLiteralTypeFromPropertyName } from '../compiler/checker-type-operators.js';
-import { CheckFlags, type Symbol, SymbolFlags } from '../compiler/symbol.js';
+import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from '../compiler/symbol.js';
 import { CheckMode, type Type, TypeFlags, UnionOrIntersectionType } from '../compiler/checker-types.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName } from '../compiler/checker-utilities.js';
 import { getTypeOfExpression } from '../compiler/checker-expressions.js';
@@ -41,7 +41,7 @@ export function getRootSymbols(c: Checker, symbol: Symbol): Symbol[] {
 function getImmediateRootSymbols(c: Checker, symbol: Symbol): Symbol[] {
   if ((symbol.checkFlags & CheckFlags.Synthetic) !== 0) {
     const result: Symbol[] = [];
-    const containingType = c.symbolLinks(symbol).containingType;
+    const containingType = c.symbolContainingTypes.get(getSymbolId(symbol));
     if (!(containingType instanceof UnionOrIntersectionType)) return result;
     for (const t of containingType.types) {
       const prop = getPropertyOfType(c, t, symbol.name);
@@ -50,11 +50,15 @@ function getImmediateRootSymbols(c: Checker, symbol: Symbol): Symbol[] {
     return result;
   }
   if ((symbol.flags & SymbolFlags.Transient) !== 0) {
-    const links = c.symbolLinks(symbol);
-    if (links.leftSpread !== undefined && links.rightSpread !== undefined) return [links.leftSpread, links.rightSpread];
-    if (links.syntheticOrigin !== undefined) return [links.syntheticOrigin];
+    const id = getSymbolId(symbol);
+    const left = c.symbolLeftSpreads.get(id);
+    const right = c.symbolRightSpreads.get(id);
+    if (left !== undefined && right !== undefined) return [left, right];
+    const origin = c.symbolSyntheticOrigins.get(id);
+    if (origin !== undefined) return [origin];
     let target: Symbol | undefined;
-    for (let next = links.target; next !== undefined; next = c.symbolLinks(next).target) target = next;
+    for (let next = c.symbolTargets.get(id); next !== undefined; next = c.symbolTargets.get(getSymbolId(next)))
+      target = next;
     if (target !== undefined) return [target];
   }
   return [];

@@ -126,7 +126,7 @@ import {
 } from './checker-type-nodes.js';
 import { CheckMode, type Signature, type Type } from './checker-types.js';
 import { getNodeAtPosition } from './parser.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
+import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 
 // ---- Symbols at locations
@@ -307,7 +307,7 @@ function getSymbolOfNameOrPropertyAccessExpression(c: Checker, nameIn: Node): Sy
     const possibleImportNode = isImportTypeQualifierPart(name);
     if (possibleImportNode !== undefined) {
       getTypeFromTypeNode(c, possibleImportNode);
-      const symbol = c.nodeLinks(name).resolvedSymbol;
+      const symbol = c.resolvedSymbols.get(name.id);
       return symbol === c.unknownSymbol ? undefined : symbol;
     }
   }
@@ -354,21 +354,24 @@ function getSymbolOfNameOrPropertyAccessExpression(c: Checker, nameIn: Node): Sy
     }
     if (name.kind === SyntaxKind.PrivateIdentifier) return getSymbolForPrivateIdentifierExpression(c, name);
     if (name.kind === SyntaxKind.PropertyAccessExpression || name.kind === SyntaxKind.QualifiedName) {
-      const links = c.nodeLinks(name);
-      if (links.resolvedSymbol !== undefined) return links.resolvedSymbol;
+      const cached = c.resolvedSymbols.get(name.id);
+      if (cached !== undefined) return cached;
       if (name.kind === SyntaxKind.PropertyAccessExpression) {
         const access = name as PropertyAccessExpression;
         checkPropertyAccessExpression(c, access, false);
-        if (links.resolvedSymbol === undefined && access.name.kind !== SyntaxKind.PrivateIdentifier)
-          links.resolvedSymbol = getApplicableIndexSymbol(
-            c,
-            checkExpressionCached(c, access.expression),
-            getLiteralTypeFromPropertyName(c, access.name) ?? c.errorType,
+        if (c.resolvedSymbols.get(name.id) === undefined && access.name.kind !== SyntaxKind.PrivateIdentifier)
+          c.resolvedSymbols.set(
+            name.id,
+            getApplicableIndexSymbol(
+              c,
+              checkExpressionCached(c, access.expression),
+              getLiteralTypeFromPropertyName(c, access.name) ?? c.errorType,
+            ),
           );
       } else checkQualifiedName(c, name as QualifiedName);
-      if (links.resolvedSymbol === undefined && isJSDoc && name.kind === SyntaxKind.QualifiedName)
+      if (c.resolvedSymbols.get(name.id) === undefined && isJSDoc && name.kind === SyntaxKind.QualifiedName)
         return resolveJSDocMemberName(c, name);
-      return links.resolvedSymbol;
+      return c.resolvedSymbols.get(name.id);
     }
   } else if (isEntityName(name) && isTypeReferenceIdentifier(name)) {
     const meaning = name.parent!.kind === SyntaxKind.TypeReference ? SymbolFlags.Type : SymbolFlags.Namespace;
@@ -397,7 +400,7 @@ function getApplicableIndexSymbol(c: Checker, t: Type, keyType: Type): Symbol | 
       symbol.declarations = declarations;
       symbol.valueDeclaration = declarations[0]!;
       symbol.parent = t.symbol;
-      c.symbolLinks(symbol).type = info.valueType;
+      c.symbolTypes.set(getSymbolId(symbol), info.valueType);
       info.indexSymbol = symbol;
     }
   }
@@ -411,7 +414,7 @@ function getGlobalImportMetaExpressionType(c: Checker): Type {
     const symbol = c.newSymbol(SymbolFlags.None, 'ImportMetaExpression');
     const metaProperty = c.newSymbolWithCheckFlags(SymbolFlags.Property, 'meta', CheckFlags.Readonly);
     metaProperty.parent = symbol;
-    c.symbolLinks(metaProperty).type = getCachedGlobalType(c, 'ImportMeta', 0, true);
+    c.symbolTypes.set(getSymbolId(metaProperty), getCachedGlobalType(c, 'ImportMeta', 0, true));
     const members = new Map<string, Symbol>();
     members.set('meta', metaProperty);
     symbol.members = members;
@@ -507,7 +510,7 @@ export function getTypeOfSymbolAtLocation(c: Checker, symbolIn: Symbol, location
       if (isRightSideOfQualifiedNameOrPropertyAccess(location)) location = location.parent!;
       if (isExpressionNode(location) && (!isAssignmentTarget(location) || isWriteAccess(location))) {
         const t = checkExpressionCached(c, location);
-        const resolved = c.nodeLinks(location).resolvedSymbol;
+        const resolved = c.resolvedSymbols.get(location.id);
         if (resolved !== undefined && getExportSymbolOfValueSymbolIfExported(c, resolved) === symbol)
           return removeOptionalTypeMarker(c, t);
       }
@@ -560,10 +563,9 @@ export function getExportSpecifierLocalTargetSymbol(c: Checker, node: Node): Sym
 /** The value of an enum member, or of a reference to a const enum member. */
 export function getConstantValue(c: Checker, node: Node): string | number | undefined {
   if (node.kind === SyntaxKind.EnumMember) return getEnumMemberValue(c, node);
-  const links = c.nodeLinks(node);
   // Checking the expression records the symbol it resolves to.
-  if (links.resolvedSymbol === undefined) checkExpressionCached(c, node);
-  let symbol = links.resolvedSymbol;
+  if (c.resolvedSymbols.get(node.id) === undefined) checkExpressionCached(c, node);
+  let symbol = c.resolvedSymbols.get(node.id);
   if (symbol === undefined && isEntityNameExpression(node))
     symbol = resolveEntityName(c, node, SymbolFlags.Value, true, false, undefined);
   if (symbol !== undefined && (symbol.flags & SymbolFlags.EnumMember) !== 0) {
@@ -616,7 +618,7 @@ export function getRestTypeOfSignature(c: Checker, signature: Signature): Type {
  * cached signature, so a call that was resolved gives its signature; other nodes throw.
  */
 export function querySignatureFromDeclaration(c: Checker, node: Node): Signature {
-  const cached = c.nodeLinks(node).resolvedSignature;
+  const cached = c.resolvedSignatures.get(node.id);
   if (cached !== undefined) return cached;
   if (!isFunctionLike(node)) throw new Error('getSignatureFromDeclaration expects a function-like declaration');
   return getSignatureFromDeclaration(c, node);
