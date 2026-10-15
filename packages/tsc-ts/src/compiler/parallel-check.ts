@@ -1,12 +1,14 @@
 /**
  * Checking on several threads (`--checkers N`).
  *
- * The main thread is checker 0; it starts N-1 checker threads. Every checker creates its own checker
- * over the program and takes files until none are left (`planSchedule`): the costliest files first,
+ * In scriptc builds the main thread starts N checker threads and only collects their results
+ * (`mainThreadChecks`); under Node.js it is checker 0 and starts N-1. Every checker creates its own
+ * checker over the program and takes files until none are left (`planSchedule`): the costliest files first,
  * and groups of files that share costly declarations as a whole (`checkGroups`), then a range of
  * neighboring files of its own, then the end of other checkers' ranges where that makes them finish
- * earlier (`takePosition`). Checkers beyond tsgo's four stop when the process's memory reaches its
- * limit, and the others take over their files (`retires`). The threads send back the semantic
+ * earlier (`takePosition`). Checkers beyond tsgo's four stop when the process's memory nears its
+ * limit, and checkers 1-3 when it is about to run out; the others take over their files
+ * (`retires`). The threads send back the semantic
  * diagnostics of their files (and under `noEmit` with declarations, their declaration diagnostics)
  * and their global diagnostics, and the main thread reports them like a single checker would. Which
  * checker checks a file does not change its diagnostics.
@@ -48,7 +50,8 @@ export function residentMB(): number[] {
 /**
  * Starts checker thread `index` (main.ts owns the worker entry point). `program` is the shared,
  * published program in scriptc builds and `undefined` under Node.js; ids continue above `nodeIds` and
- * `symbolIds`.
+ * `symbolIds`. `reserved` are the positions of a group the thread's predecessor on `index` left
+ * (`CheckerResult.reserved`).
  */
 export type CheckerSpawn = (
   program: Program | undefined,
@@ -57,6 +60,7 @@ export type CheckerSpawn = (
   order: number[],
   nodeIds: number,
   symbolIds: number,
+  reserved: number[],
 ) => Worker;
 
 export class ParallelCheck {
@@ -84,7 +88,186 @@ export class CheckerResult {
      * (user, system); process RSS MB when it finished.
      */
     readonly stats: number[],
+    /** Whether the thread stopped at its file limit (`recycleFiles`) with files possibly left. */
+    readonly more: boolean = false,
+    /** The positions of a group the thread took and had not checked when it stopped at its file limit. */
+    readonly reserved: number[] = [],
   ) {}
+}
+
+/**
+ * Whether checker threads send their results as plain data (`PackedResult`), which the message
+ * copies, instead of publishing them (TSC_TS_REGION, default on in scriptc builds). Then nothing a
+ * checker thread allocated is reachable from another thread, and the scriptc runtime discards the
+ * thread's whole heap when it ends: a finished or retired checker returns its memory.
+ */
+export const packsResults: boolean = sharesPublishedGraphs && process.env.TSC_TS_REGION !== '0';
+
+/**
+ * The number of files after which a checker thread ends and a new one takes over its schedule
+ * index (TSC_TS_RECYCLE=n; 0, the default, for none). A new checker starts empty, so with packed
+ * results the old one's types, links and caches go back to the system.
+ */
+export const recycleFiles: number = Math.max(0, Number(process.env.TSC_TS_RECYCLE ?? '0') | 0);
+
+/**
+ * A `CheckerResult` as plain data. `nums` holds, in order, the diagnostic lists of `files`, the
+ * declaration diagnostic lists, and the global diagnostics, each as a count followed by that many
+ * diagnostics; a diagnostic is file name (an index into `strs`, -1 for none), file text (index, -1
+ * when the program has the file), pos, end, code, category, message, skippedOnNoEmit, the argument
+ * count and indices, then its message chain and related information as counted lists.
+ */
+export type PackedResult = {
+  readonly index: number;
+  readonly files: number[];
+  readonly nums: number[];
+  readonly strs: string[];
+  readonly checkTime: number;
+  readonly stats: number[];
+  readonly more: boolean;
+  readonly reserved: number[];
+};
+
+class ResultPacker {
+  readonly nums: number[] = [];
+  readonly strs: string[] = [];
+  private readonly indices = new Map<string, number>();
+
+  constructor(private readonly program: Program) {}
+
+  private str(text: string): number {
+    let k = this.indices.get(text);
+    if (k === undefined) {
+      k = this.strs.length;
+      this.strs.push(text);
+      this.indices.set(text, k);
+    }
+    return k;
+  }
+
+  list(diagnostics: readonly Diagnostic[]): void {
+    this.nums.push(diagnostics.length);
+    for (const d of diagnostics) this.diagnostic(d);
+  }
+
+  private diagnostic(d: Diagnostic): void {
+    const nums = this.nums;
+    const file = d.file;
+    if (file === undefined) nums.push(-1, -1);
+    else
+      nums.push(
+        this.str(file.fileName),
+        this.program.getSourceFile(file.fileName) === undefined ? this.str(file.text) : -1,
+      );
+    nums.push(d.pos, d.end, d.code, d.category, d.message, d.skippedOnNoEmit ? 1 : 0, d.args.length);
+    for (const arg of d.args) nums.push(this.str(arg));
+    this.list(d.messageChain);
+    this.list(d.relatedInformation);
+  }
+}
+
+/** Packs `result` (on the checker thread) for `postMessage`. */
+export function packResult(result: CheckerResult, program: Program): PackedResult {
+  const packer = new ResultPacker(program);
+  for (const list of result.diagnostics) packer.list(list);
+  packer.nums.push(result.declarations.length);
+  for (const list of result.declarations) packer.list(list);
+  packer.list(result.globals);
+  return {
+    index: result.index,
+    files: result.files,
+    nums: packer.nums,
+    strs: packer.strs,
+    checkTime: result.checkTime,
+    stats: result.stats,
+    more: result.more,
+    reserved: result.reserved,
+  };
+}
+
+/** Rebuilds a packed result on the main thread against `program`'s files. */
+class ResultUnpacker {
+  private at = 0;
+
+  constructor(
+    private readonly packed: PackedResult,
+    private readonly program: Program,
+    private readonly files: Map<string, DiagnosticFile>,
+  ) {}
+
+  private next(): number {
+    return this.packed.nums[this.at++]!;
+  }
+
+  count(): number {
+    return this.next();
+  }
+
+  list(): Diagnostic[] {
+    const n = this.next();
+    const result: Diagnostic[] = [];
+    for (let k = 0; k < n; k++) result.push(this.diagnostic());
+    return result;
+  }
+
+  private diagnostic(): Diagnostic {
+    const strs = this.packed.strs;
+    const name = this.next();
+    const text = this.next();
+    let file: DiagnosticFile | undefined = undefined;
+    if (name >= 0) {
+      const fileName = strs[name]!;
+      file = this.files.get(fileName);
+      if (file === undefined) {
+        file =
+          text >= 0
+            ? new DiagnosticFile(fileName, strs[text]!)
+            : this.program.getSourceFile(fileName)!.diagnosticFile();
+        this.files.set(fileName, file);
+      }
+    }
+    const pos = this.next();
+    const end = this.next();
+    const code = this.next();
+    const category = this.next();
+    const message = this.next();
+    const skipped = this.next() === 1;
+    const argc = this.next();
+    const args: string[] = [];
+    for (let k = 0; k < argc; k++) args.push(strs[this.next()]!);
+    const result = new Diagnostic(file, pos, end, message, args);
+    result.code = code;
+    result.category = category;
+    result.skippedOnNoEmit = skipped;
+    result.messageChain = this.list();
+    result.relatedInformation = this.list();
+    return result;
+  }
+}
+
+export function unpackResult(
+  packed: PackedResult,
+  program: Program,
+  files: Map<string, DiagnosticFile>,
+): CheckerResult {
+  const unpacker = new ResultUnpacker(packed, program, files);
+  const diagnostics: Diagnostic[][] = [];
+  for (let k = 0; k < packed.files.length; k++) diagnostics.push(unpacker.list());
+  const declarations: Diagnostic[][] = [];
+  const nd = unpacker.count();
+  for (let k = 0; k < nd; k++) declarations.push(unpacker.list());
+  const globals = unpacker.list();
+  return new CheckerResult(
+    packed.index,
+    packed.files,
+    diagnostics,
+    declarations,
+    globals,
+    packed.checkTime,
+    packed.stats,
+    packed.more,
+    packed.reserved,
+  );
 }
 
 /**
@@ -149,17 +332,23 @@ export function parseThreads(checkers: number): number {
 }
 
 /**
- * Peak memory with one checker, per character of source text, for a typical program: measured
- * 44-107 bytes on the benchmark apps (the shared program 28-38, one checker's heap the rest; most
- * where checking instantiates many types, as in Sentry and T3 Code's Effect code, least for tRPC).
- * Programs that need more stay within memory by retiring checkers (`retires`).
+ * The program's memory per character of source text, where it can't be measured (`residentBytes`):
+ * 23-28 bytes on the benchmark apps when checking starts (parse threads' arenas included).
  */
-const peakBytesPerChar = 72;
+const programBytesPerChar = 32;
+
+/**
+ * What the first checker adds, as a share of the program's memory: measured 0.24 (tRPC), 0.7-0.9
+ * (TypeORM, Playwright, Excalidraw), 1.0 (VS Code) and 1.4 (Sentry). The first checker needs this
+ * whatever the count, so the estimate mostly decides how many further checkers fit; programs above
+ * it stay within memory by retiring checkers (`retires`).
+ */
+const firstCheckerShare = 1;
 
 /**
  * What each further checker adds, per character of declaration files, for a typical program:
- * measured 0.3-31 bytes (every checker resolves the declarations its files use; most for T3 Code's
- * Effect-based projects, 6 for VS Code, under 1 for tRPC).
+ * measured 6 bytes for VS Code, 9 for Excalidraw, 15 for Sentry and up to 31 for T3 Code's
+ * Effect-based projects (every checker resolves the declarations its files use; under 2 for tRPC).
  */
 const checkerBytesPerDeclarationChar = 24;
 
@@ -167,35 +356,129 @@ const checkerBytesPerDeclarationChar = 24;
 const memoryShare = 0.85;
 
 /**
- * The most checkers whose estimated peak memory (`peakBytesPerChar`,
- * `checkerBytesPerDeclarationChar`) fits `memoryShare` of the memory limit, of `memory` bytes; at
- * least 1.
+ * The share of the memory limit at which even checkers 1-3 retire, to finish on fewer threads rather
+ * than run out of memory (`retires`).
  */
-export function checkersFittingMemory(chars: number, declarationChars: number, memory: number): number {
-  const peak = chars * peakBytesPerChar;
+const lastResortShare = 0.95;
+
+/**
+ * The most checkers whose estimated peak memory fits `memoryShare` of the memory limit, of `memory`
+ * bytes, for a program of `programBytes` (`firstCheckerShare`, `checkerBytesPerDeclarationChar`);
+ * at least 1.
+ */
+export function checkersFittingMemory(programBytes: number, declarationChars: number, memory: number): number {
+  const peak = programBytes * (1 + firstCheckerShare);
   const perChecker = Math.max(1, declarationChars * checkerBytesPerDeclarationChar);
   return Math.max(1, 1 + Math.floor((memoryShare * memory - peak) / perChecker));
 }
 
-/** The memory this process may use: the smaller of its constrained memory and the total, in bytes. */
-function memoryLimit(): number {
+/**
+ * The memory this process may use, in bytes: the smallest of the total, its constrained memory, and
+ * the limits of its cgroup (`cgroupMemoryLimit`).
+ */
+export function memoryLimit(): number {
+  let limit = totalmem();
   const constrained = process.constrainedMemory();
-  return constrained > 0 ? Math.min(constrained, totalmem()) : totalmem();
+  if (constrained > 0 && constrained < limit) limit = constrained;
+  const cgroup = cgroupMemoryLimit();
+  if (cgroup > 0 && cgroup < limit) limit = cgroup;
+  return limit;
 }
 
-/** The most checkers whose estimated peak memory fits (`checkersFittingMemory`), for `program`. */
+/**
+ * The smallest memory limit of this process's cgroup and its ancestors (Linux), or 0 where there is
+ * none or it is unknown: `memory.max` and `memory.high` under cgroup v2, `memory.limit_in_bytes`
+ * under v1. `process.constrainedMemory()` does not always see these: libuv reads only the process's
+ * own cgroup, and scriptc's runtime only the root of the cgroup mount, which is the process's own
+ * cgroup only inside a cgroup namespace.
+ */
+export function cgroupMemoryLimit(): number {
+  let membership: string;
+  try {
+    membership = readFileSync('/proc/self/cgroup', 'utf8');
+  } catch {
+    return 0;
+  }
+  let limit = 0;
+  const lower = (value: number): void => {
+    if (value > 0 && (limit === 0 || value < limit)) limit = value;
+  };
+  for (const line of membership.split('\n')) {
+    // "0::/path" (v2), "N:memory:/path" or "N:cpu,memory:/path" (v1).
+    const first = line.indexOf(':');
+    const second = line.indexOf(':', first + 1);
+    if (first < 0 || second < 0) continue;
+    const controllers = line.substring(first + 1, second);
+    const path = line.substring(second + 1);
+    if (controllers === '') {
+      for (let dir = path; ; dir = dir.substring(0, dir.lastIndexOf('/'))) {
+        const base = '/sys/fs/cgroup' + (dir === '/' ? '' : dir);
+        lower(cgroupLimitValue(base + '/memory.max'));
+        lower(cgroupLimitValue(base + '/memory.high'));
+        if (dir === '/' || dir === '' || dir.lastIndexOf('/') < 0) break;
+      }
+    } else if (controllers.split(',').indexOf('memory') >= 0) {
+      lower(cgroupLimitValue('/sys/fs/cgroup/memory' + (path === '/' ? '' : path) + '/memory.limit_in_bytes'));
+    }
+  }
+  return limit;
+}
+
+/** A cgroup memory limit file's value in bytes, or 0 for `max`, an unreadable file or no number. */
+function cgroupLimitValue(file: string): number {
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8').trim();
+  } catch {
+    return 0;
+  }
+  if (text === '' || text === 'max') return 0;
+  const value = Number(text);
+  // cgroup v1 reports no limit as a page-aligned value near 2^63.
+  return Number.isFinite(value) && value > 0 && value < 2 ** 62 ? value : 0;
+}
+
+/** The program whose text lengths `textLengths` holds. */
+let lengthsProgram: Program | undefined = undefined;
+let lengthsOfProgram: number[] = [];
+
+/**
+ * The text length of each of `program`'s files, by index, computed once per program. In scriptc
+ * builds a thread caches the UTF-16 length of only the few non-ASCII strings it read last, so each
+ * read of a non-ASCII file's `text.length` scans its text again, and planning reads a file's length
+ * several times (its cost, the load of each group candidate importing it, its position).
+ */
+export function textLengths(program: Program): number[] {
+  if (lengthsProgram !== program) {
+    const lengths: number[] = [];
+    for (const file of program.getSourceFiles()) lengths.push(file.text.length);
+    lengthsProgram = program;
+    lengthsOfProgram = lengths;
+  }
+  return lengthsOfProgram;
+}
+
+/**
+ * The most checkers whose estimated peak memory fits (`checkersFittingMemory`), for `program`: its
+ * memory is this process's resident memory now (it is parsed and bound, and nothing is checked yet),
+ * or an estimate from its text where that is unknown.
+ */
 export function memoryCheckers(program: Program): number {
   let chars = 0;
   let declarationChars = 0;
-  for (const file of program.getSourceFiles()) {
-    chars += file.text.length;
-    if (file.isDeclarationFile) declarationChars += file.text.length;
+  const files = program.getSourceFiles();
+  const length = textLengths(program);
+  for (let i = 0; i < files.length; i++) {
+    chars += length[i]!;
+    if (files[i]!.isDeclarationFile) declarationChars += length[i]!;
   }
+  const resident = residentBytes();
+  const programBytes = resident > 0 ? resident : chars * programBytesPerChar;
   const memory = memoryLimit();
-  const fit = checkersFittingMemory(chars, declarationChars, memory);
+  const fit = checkersFittingMemory(programBytes, declarationChars, memory);
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
     process.stderr.write(
-      `checkers: ${chars} source chars (${declarationChars} in declaration files), memory ${Math.round(memory / 1048576)}MB fits ${fit} checkers\n`,
+      `checkers: ${chars} source chars (${declarationChars} in declaration files), program ${Math.round(programBytes / 1048576)}MB${resident > 0 ? '' : ' (estimated)'}, memory ${Math.round(memory / 1048576)}MB fits ${fit} checkers\n`,
     );
   return fit;
 }
@@ -221,7 +504,7 @@ class CheckCosts {
     readonly cost: number[],
     /** The libraries (indices) each file of `order` imports, by index. */
     readonly libraries: number[][],
-    /** What resolving a library costs a checker the first time (`libraryCostShare` of the text it reaches), by index. */
+    /** What resolving a library costs a checker the first time (`libraryFirstUseShare` of the text it reaches), by index. */
     readonly libraryCost: number[],
     /** The program files (indices) each file of `order` imports, by index. */
     readonly imports: (number[] | undefined)[],
@@ -241,6 +524,18 @@ function costOrder(checked: CheckedProgram): CheckCosts {
 /** How much of a library's text counts as checking cost of the files importing it. */
 const libraryCostShare = 0.25;
 
+/**
+ * How much of a library's text counts as the cost of a checker resolving it for the first time, in
+ * the steals of `takeCheapestEnd`: all of it. A checker pays that once for all the files importing
+ * the library, so the estimate of each file counts only a share (`libraryCostShare`); but a thief
+ * that takes files whose libraries it has not resolved pays for them all at once. Counted at a
+ * quarter, the end of a range was often taken in pieces by checkers that each paid for the
+ * library again: Playwright's 41 MCP tool files (zod, its MCP SDK and Playwright's own types)
+ * went to up to seven checkers, each paying 100-260 ms before its first tool file checked, often
+ * at the very end.
+ */
+const libraryFirstUseShare = 1;
+
 /** The estimated cost of checking each file of `order` (indices into the program files). */
 function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
   const program = checked.program;
@@ -253,7 +548,8 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     librariesOf.push([]);
     libraryCost.push(0);
   }
-  for (const i of order) cost[i] = files[i]!.text.length;
+  const length = textLengths(program);
+  for (const i of order) cost[i] = length[i]!;
   const indexOf = new Map<SourceFile, number>();
   for (let i = 0; i < files.length; i++) indexOf.set(files[i]!, i);
   // A file resolved by its own file name is that file (its path is the path of that name).
@@ -295,7 +591,7 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     const stack = [root];
     while (stack.length > 0) {
       const k = stack.pop()!;
-      total += files[k]!.text.length;
+      total += length[k]!;
       for (const t of edgesOf(k))
         if (!seen.has(t) && isLibrary(t)) {
           seen.add(t);
@@ -309,7 +605,7 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     const i = order[n]!;
     let share = 0;
     for (const k of librariesOf[i]!) {
-      libraryCost[k] = libraryCostShare * reachOf(k);
+      libraryCost[k] = libraryFirstUseShare * reachOf(k);
       share += reachOf(k) / importers.get(k)!;
     }
     cost[i] = cost[i]! + libraryCostShare * share;
@@ -566,13 +862,14 @@ function takeRetired(schedule: Int32Array, thief: number): number[] | undefined 
 const retirementSpacing = 1000;
 
 /**
- * Whether checker `index` stops taking files: it is not one of tsgo's four and holds no group, the
- * process's resident memory has reached `limit` bytes, and no other checker retired in the last
- * `retirementSpacing` ms. Its thread then ends, which returns its memory, and idle checkers take
- * the rest of its range.
+ * Whether checker `index` stops taking files: it is not checker 0 and holds no group, the process's
+ * resident memory has reached `limit` bytes (`retirementMemory`), and no other checker retired in the
+ * last `retirementSpacing` ms. Its thread then ends, which returns its memory (with ProgramLifetime
+ * classes, only its other objects: it still stops adding to it), and idle checkers take the rest of
+ * its range.
  */
 export function retires(schedule: Int32Array, index: number, limit: number, resident = residentBytes()): boolean {
-  if (index < tsgoCheckers || reservedBy(index).length > 0 || resident < limit) return false;
+  if (index === 0 || reservedBy(index).length > 0 || resident < limit) return false;
   const at = retirementAt(schedule);
   const now = (Date.now() % 0x7fffffff) + 1;
   const last = Atomics.load(schedule, at);
@@ -591,17 +888,21 @@ export function retires(schedule: Int32Array, index: number, limit: number, resi
 /** The process's resident memory in bytes (Linux), or 0 where it is unknown. */
 function residentBytes(): number {
   try {
-    const statm = readFileSync('/proc/self/statm', 'utf8');
-    const space = statm.indexOf(' ');
-    return Number(statm.substring(space + 1, statm.indexOf(' ', space + 1))) * 4096;
+    // VmRSS is in kB, so this holds on kernels with any page size (statm counts pages).
+    const rss = /VmRSS:\s+(\d+)/.exec(readFileSync('/proc/self/status', 'utf8'));
+    return rss === null ? 0 : Number(rss[1]) * 1024;
   } catch {
     return 0;
   }
 }
 
-/** The resident memory, in bytes, at which checkers retire: `memoryShare` of the memory limit. */
-export function retirementMemory(memory = memoryLimit()): number {
-  return memoryShare * memory;
+/**
+ * The resident memory, in bytes, at which checker `index` retires: `memoryShare` of the memory limit
+ * beyond tsgo's four, `lastResortShare` for checkers 1-3; checker 0 never retires.
+ */
+export function retirementMemory(index: number, memory = memoryLimit()): number {
+  if (index === 0) return 0;
+  return (index >= tsgoCheckers ? memoryShare : lastResortShare) * memory;
 }
 
 /** Takes the back half of the largest remaining range: its positions, or `undefined` if none is left. */
@@ -768,6 +1069,7 @@ export function checkGroups(
 ): number[][] {
   const files = checked.program.getSourceFiles();
   const n = files.length;
+  const length = textLengths(checked.program);
   const order = costs.order;
   const cost = costs.cost;
   const isChecked: boolean[] = [];
@@ -788,7 +1090,7 @@ export function checkGroups(
   // The checked files that each checked file imports, once each, and their importers.
   let total = 0;
   for (const i of order) {
-    total += files[i]!.text.length;
+    total += length[i]!;
     const own: number[] = [];
     for (const k of costs.imports[i] ?? []) {
       if (!isChecked[k]! || mark[k] === i) continue;
@@ -805,8 +1107,8 @@ export function checkGroups(
   for (const i of order) {
     const by = importers[i]?.length ?? 0;
     if (by < 1 || by > groupImporters) continue;
-    let load = files[i]!.text.length;
-    for (const k of imports[i]!) load += files[k]!.text.length;
+    let load = length[i]!;
+    for (const k of imports[i]!) load += length[k]!;
     if (load < threshold) continue;
     starts.push(i);
     isStart[i] = true;
@@ -864,8 +1166,8 @@ export function checkGroups(
     let largest = 0;
     let text = 0;
     for (const i of group) {
-      text += files[i]!.text.length;
-      largest = Math.max(largest, files[i]!.text.length);
+      text += length[i]!;
+      largest = Math.max(largest, length[i]!);
     }
     if (text - largest > total / count / 4) continue;
     group.sort((a, b) => cost[b]! - cost[a]! || a - b);
@@ -936,13 +1238,14 @@ export function planSchedule(checked: CheckedProgram, count: number): CheckPlan 
   }
   // The costs of each position, with the libraries numbered in order of first use.
   const files = checked.program.getSourceFiles();
+  const textLength = textLengths(checked.program);
   const libraryIds = new Map<number, number>();
   const libraryCosts: number[] = [];
   const lengths: number[] = [];
   const libraries: number[][] = [];
   let references = 0;
   for (const i of planned) {
-    lengths.push(files[i]!.text.length);
+    lengths.push(textLength[i]!);
     const ids: number[] = [];
     for (const k of costs.libraries[i]!) {
       let id = libraryIds.get(k);
@@ -977,17 +1280,24 @@ export function traceSingleChecker(checked: CheckedProgram): void {
     c.identityRelation.size();
   const cpu = process.threadCpuUsage();
   process.stderr.write(
-    `checkers: single types ${c.typeCount} inst ${c.totalInstantiations} user ${Math.round(cpu.user / 1000)} sys ${Math.round(cpu.system / 1000)} rss ${residentMB().join('/')}MB symlinks ${countLinks(c.symbolLinkPages)} nodelinks ${countLinks(c.nodeLinkPages)} sigs ${c.signatureCount} rel ${relations}\n`,
+    `checkers: single types ${c.typeCount} inst ${c.totalInstantiations} user ${Math.round(cpu.user / 1000)} sys ${Math.round(cpu.system / 1000)} rss ${residentMB().join('/')}MB symlinks ${countLinks(c.symbolLinkTable.pages)} nodelinks ${countLinks(c.nodeLinkTable.pages)} sigs ${c.signatureCount} rel ${relations}\n`,
   );
 }
 
-/** Checks files from the shared queue until it is empty; the main thread and checker threads alike. */
+/**
+ * Checks files from the shared queue until it is empty; the main thread and checker threads alike.
+ * A checker thread (`onMainThread` false) also sends back its global diagnostics. At `limit` files
+ * it stops; `reserved` are the positions of a group its predecessor on `index` had not checked then.
+ */
 export function checkFromQueue(
   checked: CheckedProgram,
   index: number,
   counter: Int32Array,
   order: number[],
   startedAt: number = Date.now(),
+  onMainThread: boolean = true,
+  limit: number = 0,
+  reserved: readonly number[] = [],
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1000,10 +1310,20 @@ export function checkFromQueue(
   // Declaration emit of a file right after checking it, with this checker.
   const emitter = checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
   const plan = schedulePlan(counter);
-  const retirement = index >= tsgoCheckers ? retirementMemory() : 0;
+  const retirement = retirementMemory(index);
   let memoryReadAt = 0;
+  let more = false;
+  let left: number[] = [];
+  for (const k of reserved) reservedBy(index).push(k);
   for (;;) {
-    // Beyond tsgo's four, read the process's memory every 20 ms at most.
+    // At its file limit the thread ends; a new one continues its schedule index, and the rest of the
+    // group it took, which no other checker takes.
+    if (limit > 0 && done.length >= limit) {
+      more = true;
+      left = reservedBy(index).splice(0);
+      break;
+    }
+    // Except on checker 0, read the process's memory every 20 ms at most.
     if (retirement > 0 && performance.now() - memoryReadAt >= 20) {
       memoryReadAt = performance.now();
       if (retires(counter, index, retirement)) break;
@@ -1027,7 +1347,7 @@ export function checkFromQueue(
   }
   mark(`checked ${done.length} files`);
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
-  const globals = index === 0 ? [] : checked.getGlobalDiagnostics().slice();
+  const globals = onMainThread ? [] : checked.getGlobalDiagnostics().slice();
   let stats: number[] = [];
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined) {
     const cpu = process.threadCpuUsage();
@@ -1047,18 +1367,41 @@ export function checkFromQueue(
       cpu.user / 1000,
       cpu.system / 1000,
       residentMB()[0]!,
-      countLinks(checker.symbolLinkPages),
-      countLinks(checker.nodeLinkPages),
+      countLinks(checker.symbolLinkTable.pages),
+      countLinks(checker.nodeLinkTable.pages),
       checker.signatureCount,
       relations,
     ];
   }
-  return new CheckerResult(index, done, diagnostics, declarations, globals, performance.now() - start, stats);
+  return new CheckerResult(
+    index,
+    done,
+    diagnostics,
+    declarations,
+    globals,
+    performance.now() - start,
+    stats,
+    more,
+    left,
+  );
 }
 
 /**
- * Checks `checked` with `count` checkers, this thread included, and calls `done` with the wall time
- * once `checked` holds every file's diagnostics.
+ * Whether the main thread is one of the checkers, given whether threads share the published program.
+ * In scriptc builds it is not: the main thread carries the memory state of loading the program, and
+ * checking there is slower than on a new thread (on Playwright the same files took 1.5 times as long
+ * on the main thread, its cycle collector took twice the share of a checker thread's, and a checker
+ * created on it after publishing was no faster), so the main thread often finished last. Starting
+ * one more thread costs well under a millisecond. Under Node.js, where every checker thread builds
+ * its own copy of the program, the main thread checks too.
+ */
+export function mainThreadChecks(shared: boolean): boolean {
+  return !shared;
+}
+
+/**
+ * Checks `checked` with `count` checkers and calls `done` with the wall time once `checked` holds
+ * every file's diagnostics.
  */
 export function startParallelCheck(checked: CheckedProgram, count: number, done: (checkTime: number) => void): void {
   const start = performance.now();
@@ -1100,7 +1443,9 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     perFileDeclarations.push(undefined);
   }
   const revival = shared ? undefined : new Revival(program);
-  let remaining = count - 1;
+  const mainChecks = mainThreadChecks(shared);
+  const firstThread = mainChecks ? 1 : 0;
+  let remaining = count - firstThread;
   let ownDone = false;
   const finish = (): void => {
     // A thread that failed may have taken files it never checked: check them here.
@@ -1133,7 +1478,8 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
     remaining--;
     if (remaining === 0 && ownDone) finish();
   };
-  for (let i = 1; i < count; i++) {
+  const diagnosticFiles = new Map<string, DiagnosticFile>();
+  const spawn = (i: number, reserved: number[]): void => {
     const worker = parallelCheck.spawn!(
       shared ? program : undefined,
       i,
@@ -1141,20 +1487,33 @@ export function startParallelCheck(checked: CheckedProgram, count: number, done:
       order,
       lastNodeIdValue(),
       lastSymbolIdValue(),
+      reserved,
     );
     worker.on('message', (message: unknown) => {
-      const result = (message as { result: CheckerResult }).result;
       mark(`result from c${i}`);
-      record(revival === undefined ? publish(result) : revival.result(result));
-      threadDone();
+      let result: CheckerResult;
+      if (packsResults) {
+        result = unpackResult(message as PackedResult, program, diagnosticFiles);
+        record(result);
+      } else {
+        result = (message as { result: CheckerResult }).result;
+        record(revival === undefined ? publish(result) : revival.result(result));
+      }
+      // A thread at its file limit hands its schedule index to a new one.
+      if (result.more) spawn(i, result.reserved);
+      else threadDone();
     });
     worker.on('error', (error: unknown) => {
       if (trace) process.stderr.write(`checkers: thread ${i} failed: ${String(error)}\n`);
       threadDone();
     });
-  }
+  };
+  for (let i = firstThread; i < count; i++) spawn(i, []);
   mark('checkers spawned');
-  record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
+  // This thread's checker (`CheckedProgram.checker`) merges the globals while the threads start.
+  void checked.checker;
+  mark('reporting checker created');
+  if (mainChecks) record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch));
   ownDone = true;
   if (remaining === 0) finish();
 }
@@ -1176,6 +1535,8 @@ class Revival {
       copy.globals.map((d) => this.diagnostic(d)),
       copy.checkTime,
       copy.stats,
+      copy.more,
+      copy.reserved,
     );
   }
 

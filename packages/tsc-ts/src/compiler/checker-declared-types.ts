@@ -38,6 +38,7 @@ import {
   type TypeReference,
   emptyTypes,
   newTypeMapper,
+  TypeListCache,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -53,6 +54,7 @@ import {
   newObjectType,
   typeListKey,
   typesOf,
+  typeListHash,
 } from './checker-type-factory.js';
 import {
   TypeSystemPropertyName,
@@ -138,8 +140,14 @@ export function getDeclaredTypeOfClassOrInterface(c: Checker, symbol: Symbol): I
       type.allTypeParameters = typeParameters;
       type.outerTypeParameterCount = outerTypeParameters.length;
       type.resolvedTypeArguments = type.typeParameters();
-      type.instantiations = new Map<string, Type>();
-      type.instantiations.set(typeListKey(type.resolvedTypeArguments), type);
+      type.instantiations = new TypeListCache<Type>();
+      type.instantiations.set(
+        typeListHash(type.resolvedTypeArguments, undefined, 0),
+        type.resolvedTypeArguments,
+        undefined,
+        0,
+        type,
+      );
       type.target = type;
     }
   }

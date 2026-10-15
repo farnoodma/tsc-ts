@@ -4,8 +4,16 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { runServer } from './api/server.js';
 import { reserveNodeIds, shareNodeIds } from './compiler/ast.js';
-import { CheckerResult, checkFromQueue, parallelCheck } from './compiler/parallel-check.js';
+import {
+  CheckerResult,
+  checkFromQueue,
+  packResult,
+  packsResults,
+  parallelCheck,
+  recycleFiles,
+} from './compiler/parallel-check.js';
 import { type LoadMessage, parallelParse } from './compiler/parallel-parse.js';
+import { useThreadTextCaches } from './compiler/diagnostics.js';
 import { useLazyJSDocTable } from './compiler/parser.js';
 import { CheckedProgram } from './compiler/program-checker.js';
 import type { Program } from './compiler/program.js';
@@ -38,14 +46,14 @@ else {
 
 /** Lets `--checkers N` start checker threads, and parse threads where threads share objects. */
 function startThreads(): void {
-  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds) =>
+  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds, reserved) =>
     new Worker(new URL(import.meta.url), {
-      workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds },
+      workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds, reserved },
     });
   if (sharesPublishedGraphs)
     parallelParse.spawn = (configFileName, counter, index) =>
       new Worker(new URL(import.meta.url), {
-        workerData: { kind: 'parse', configFileName, counter, index },
+        workerData: { kind: 'parse', configFileName, args, counter, index },
       });
 }
 
@@ -68,6 +76,7 @@ function runCheckerThread(): void {
     order: number[];
     nodeIds: number;
     symbolIds: number;
+    reserved: number[];
   };
   let program: Program | undefined = undefined;
   if (job.program !== undefined) {
@@ -77,6 +86,7 @@ function runCheckerThread(): void {
     reserveSymbolIds(job.symbolIds);
     assignSymbolIdsAtCreation();
     useLazyJSDocTable();
+    useThreadTextCaches();
     program = publish(job.program);
     mark('program received');
   } else program = programOfCommandLine(job.args, defaultLibraryPath);
@@ -84,21 +94,39 @@ function runCheckerThread(): void {
   const result =
     program === undefined
       ? new CheckerResult(job.index, [], [], [], [], 0, [])
-      : checkFromQueue(new CheckedProgram(program), job.index, new Int32Array(job.counter), job.order, startedAt);
-  parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
+      : checkFromQueue(
+          new CheckedProgram(program),
+          job.index,
+          new Int32Array(job.counter),
+          job.order,
+          startedAt,
+          false,
+          recycleFiles,
+          job.reserved,
+        );
+  // Packed results are copied: nothing this thread allocated stays reachable after it ends.
+  if (packsResults) parentPort!.postMessage(packResult(result, program!));
+  else parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
   mark('result posted');
 }
 
 /** A parse thread (parallel-parse.ts): loads the chunks the main thread posts until it posts `stop`. */
 function runParseThread(): void {
-  const job = workerData as { kind: string; configFileName: string; counter: SharedArrayBuffer; index: number };
+  const job = workerData as {
+    kind: string;
+    configFileName: string;
+    args: string[];
+    counter: SharedArrayBuffer;
+    index: number;
+  };
   setTimelineThread('p' + String(job.index));
   mark('thread start');
   // Ids, also of the nodes of the config, come in chunks from the counter shared with the other threads.
   shareNodeIds(new Int32Array(job.counter, 0, 1));
   shareSymbolIds(new Int32Array(job.counter, 4, 1));
   assignSymbolIdsAtCreation();
-  const thread = parseThreadOfCommandLine(args, job.configFileName, defaultLibraryPath);
+  // The command line comes from the main thread: native worker threads don't inherit process.argv.
+  const thread = parseThreadOfCommandLine(job.args, job.configFileName, defaultLibraryPath);
   mark('project read');
   const port = parentPort!;
   port.on('message', (message: unknown) => {

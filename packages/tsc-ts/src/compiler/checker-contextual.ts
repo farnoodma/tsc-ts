@@ -71,7 +71,7 @@ import {
   getSignaturesOfType,
 } from './checker-members.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
-import { CheckFlags, SymbolFlags } from './symbol.js';
+import { CheckFlags, SymbolFlags, getSymbolId } from './symbol.js';
 import {
   TypeSystemPropertyName,
   findResolutionCycleStartIndex,
@@ -232,7 +232,7 @@ export function popInferenceContext(c: Checker): void {
 export function getInferenceContext(c: Checker, node: Node): InferenceContext | undefined {
   const caches = c.inferenceCaches;
   for (let i = caches.inferenceNodes.length - 1; i >= 0; i--)
-    if (isNodeDescendantOf(node, caches.inferenceNodes[i]!)) return caches.inferenceContexts.at(i);
+    if (isNodeDescendantOf(node, caches.inferenceNodes[i]!)) return caches.inferenceContexts[i];
   return undefined;
 }
 
@@ -328,7 +328,7 @@ export function getContextualType(c: Checker, node: Node): Type | undefined {
 export function getContextualTypeEx(c: Checker, node: Node, contextFlags: ContextFlags): Type | undefined {
   // Cached contextual types were obtained without flags.
   const index = findContextualNode(c, node, contextFlags === ContextFlags.None);
-  if (index >= 0) return c.inferenceCaches.contextualTypes.at(index);
+  if (index >= 0) return c.inferenceCaches.contextualTypes[index];
   const parent = node.parent;
   if (parent === undefined) return undefined;
   switch (parent.kind) {
@@ -753,7 +753,7 @@ function getContextualTypeForObjectLiteralElement(
     const name = getPropertyNameOfObjectLiteralElement(c, element);
     if (name !== undefined) {
       const symbol = getSymbol(element);
-      let nameType = symbol !== undefined ? c.symbolLinks(symbol).nameType : undefined;
+      let nameType = symbol !== undefined ? c.symbolNameTypes.get(getSymbolId(symbol)) : undefined;
       // Late-bound members are named by the type of their computed name, like a unique symbol.
       const nameNode = getName(element)!;
       if (nameType === undefined && nameNode.kind === SyntaxKind.ComputedPropertyName)
@@ -795,57 +795,58 @@ function getTypeOfPropertyOfContextualTypeEx(
   name: string,
   nameType: Type | undefined,
 ): Type | undefined {
-  return mapTypeEx(
-    c,
-    t,
-    (u) => {
-      if ((u.flags & TypeFlags.Intersection) !== 0) {
-        let types: Type[] = [];
-        let indexInfoCandidates: Type[] = [];
-        let ignoreIndexInfos = false;
-        for (const constituent of typesOf(u)) {
-          if ((constituent.flags & TypeFlags.Object) === 0) continue;
-          if (
-            isGenericMappedType(c, constituent) &&
-            getMappedTypeNameTypeKind(c, constituent as MappedType) !== MappedTypeNameTypeKind.Remapping
-          ) {
-            types = appendContextualPropertyTypeConstituent(
-              c,
-              types,
-              getIndexedMappedTypeSubstitutedTypeOfContextualType(c, constituent as MappedType, name, nameType),
-            );
-            continue;
-          }
-          const propertyType = getTypeOfConcretePropertyOfContextualType(c, constituent, name);
-          if (propertyType === undefined) {
-            if (!ignoreIndexInfos) indexInfoCandidates.push(constituent);
-            continue;
-          }
-          ignoreIndexInfos = true;
-          indexInfoCandidates = [];
-          types = appendContextualPropertyTypeConstituent(c, types, propertyType);
-        }
-        for (const candidate of indexInfoCandidates)
-          types = appendContextualPropertyTypeConstituent(
-            c,
-            types,
-            getTypeFromIndexInfosOfContextualType(c, candidate, name, nameType),
-          );
-        if (types.length === 0) return undefined;
-        return types.length === 1 ? types[0]! : getIntersectionType(c, types);
-      }
-      if ((u.flags & TypeFlags.Object) === 0) return undefined;
+  // Most contextual types are not unions: map them without a closure (as mapTypeEx would).
+  if ((t.flags & TypeFlags.Union) === 0)
+    return (t.flags & TypeFlags.Never) !== 0 ? t : getTypeOfPropertyOfContextualConstituent(c, t, name, nameType);
+  return mapTypeEx(c, t, (u) => getTypeOfPropertyOfContextualConstituent(c, u, name, nameType), true);
+}
+
+function getTypeOfPropertyOfContextualConstituent(
+  c: Checker,
+  u: Type,
+  name: string,
+  nameType: Type | undefined,
+): Type | undefined {
+  if ((u.flags & TypeFlags.Intersection) !== 0) {
+    let types: Type[] = [];
+    let indexInfoCandidates: Type[] = [];
+    let ignoreIndexInfos = false;
+    for (const constituent of typesOf(u)) {
+      if ((constituent.flags & TypeFlags.Object) === 0) continue;
       if (
-        isGenericMappedType(c, u) &&
-        getMappedTypeNameTypeKind(c, u as MappedType) !== MappedTypeNameTypeKind.Remapping
-      )
-        return getIndexedMappedTypeSubstitutedTypeOfContextualType(c, u as MappedType, name, nameType);
-      return (
-        getTypeOfConcretePropertyOfContextualType(c, u, name) ??
-        getTypeFromIndexInfosOfContextualType(c, u, name, nameType)
+        isGenericMappedType(c, constituent) &&
+        getMappedTypeNameTypeKind(c, constituent as MappedType) !== MappedTypeNameTypeKind.Remapping
+      ) {
+        types = appendContextualPropertyTypeConstituent(
+          c,
+          types,
+          getIndexedMappedTypeSubstitutedTypeOfContextualType(c, constituent as MappedType, name, nameType),
+        );
+        continue;
+      }
+      const propertyType = getTypeOfConcretePropertyOfContextualType(c, constituent, name);
+      if (propertyType === undefined) {
+        if (!ignoreIndexInfos) indexInfoCandidates.push(constituent);
+        continue;
+      }
+      ignoreIndexInfos = true;
+      indexInfoCandidates = [];
+      types = appendContextualPropertyTypeConstituent(c, types, propertyType);
+    }
+    for (const candidate of indexInfoCandidates)
+      types = appendContextualPropertyTypeConstituent(
+        c,
+        types,
+        getTypeFromIndexInfosOfContextualType(c, candidate, name, nameType),
       );
-    },
-    true,
+    if (types.length === 0) return undefined;
+    return types.length === 1 ? types[0]! : getIntersectionType(c, types);
+  }
+  if ((u.flags & TypeFlags.Object) === 0) return undefined;
+  if (isGenericMappedType(c, u) && getMappedTypeNameTypeKind(c, u as MappedType) !== MappedTypeNameTypeKind.Remapping)
+    return getIndexedMappedTypeSubstitutedTypeOfContextualType(c, u as MappedType, name, nameType);
+  return (
+    getTypeOfConcretePropertyOfContextualType(c, u, name) ?? getTypeFromIndexInfosOfContextualType(c, u, name, nameType)
   );
 }
 
@@ -893,7 +894,7 @@ function getTypeOfConcretePropertyOfContextualType(c: Checker, t: Type, name: st
 function isCircularMappedProperty(c: Checker, symbol: Symbol): boolean {
   return (
     (symbol.checkFlags & CheckFlags.Mapped) !== 0 &&
-    c.symbolLinks(symbol).type === undefined &&
+    c.symbolTypes.get(getSymbolId(symbol)) === undefined &&
     findResolutionCycleStartIndex(c, symbol, TypeSystemPropertyName.Type) >= 0
   );
 }
@@ -970,12 +971,13 @@ export function getApparentTypeOfContextualTypeEx(
   const t = instantiateContextualType(c, contextualType, node, contextFlags);
   if (t === undefined) return undefined;
   if ((contextFlags & ContextFlags.NoConstraints) !== 0 && (t.flags & TypeFlags.TypeVariable) !== 0) return undefined;
-  const apparentType = mapTypeEx(
-    c,
-    t,
-    (u) => ((u.objectFlags & ObjectFlags.Mapped) !== 0 ? u : getApparentType(c, u)),
-    true,
-  );
+  // Most contextual types are not unions: map them without a closure (as mapTypeEx would).
+  const apparentType =
+    (t.flags & TypeFlags.Union) === 0
+      ? (t.flags & TypeFlags.Never) !== 0 || (t.objectFlags & ObjectFlags.Mapped) !== 0
+        ? t
+        : getApparentType(c, t)
+      : mapTypeEx(c, t, (u) => ((u.objectFlags & ObjectFlags.Mapped) !== 0 ? u : getApparentType(c, u)), true);
   if (apparentType === undefined) return undefined;
   if ((apparentType.flags & TypeFlags.Union) !== 0 && node.kind === SyntaxKind.ObjectLiteralExpression)
     return discriminateContextualTypeByObjectMembers(c, node, apparentType as UnionType);
@@ -984,11 +986,28 @@ export function getApparentTypeOfContextualTypeEx(
   return apparentType;
 }
 
+/** Node ids below this and type ids below `PairTypeIdLimit` pack into one exact number. */
+const PairNodeIdLimit = 1 << 29;
+const PairTypeIdLimit = 1 << 24;
+
+function getDiscriminatedContextualType(c: Checker, nodeId: number, t: Type): Type | undefined {
+  const caches = c.inferenceCaches;
+  return nodeId < PairNodeIdLimit && t.id < PairTypeIdLimit
+    ? caches.discriminatedContextualTypesById.get(nodeId * PairTypeIdLimit + t.id)
+    : caches.discriminatedContextualTypes.get(nodeId + ',' + t.id);
+}
+
+function setDiscriminatedContextualType(c: Checker, nodeId: number, t: Type, value: Type): void {
+  const caches = c.inferenceCaches;
+  if (nodeId < PairNodeIdLimit && t.id < PairTypeIdLimit)
+    caches.discriminatedContextualTypesById.set(nodeId * PairTypeIdLimit + t.id, value);
+  else caches.discriminatedContextualTypes.set(nodeId + ',' + t.id, value);
+}
+
 /** The constituents of a union contextual type an object literal's discriminant members select. */
 function discriminateContextualTypeByObjectMembers(c: Checker, node: Node, contextualType: UnionType): Type {
-  const key = getNodeId(node) + ',' + contextualType.id;
-  const cache = c.inferenceCaches.discriminatedContextualTypes;
-  const cached = cache.get(key);
+  const nodeId = getNodeId(node);
+  const cached = getDiscriminatedContextualType(c, nodeId, contextualType);
   if (cached !== undefined) return cached;
   let discriminated = getMatchingUnionConstituentForObjectLiteral(c, contextualType, node);
   if (discriminated === undefined) {
@@ -1014,14 +1033,13 @@ function discriminateContextualTypeByObjectMembers(c: Checker, node: Node, conte
     );
     discriminated = discriminateTypeByObjectLiteral(c, contextualType, props, members);
   }
-  cache.set(key, discriminated);
+  setDiscriminatedContextualType(c, nodeId, contextualType, discriminated);
   return discriminated;
 }
 
 function discriminateContextualTypeByJSXAttributes(c: Checker, node: Node, contextualType: UnionType): Type {
-  const key = getNodeId(node) + ',' + contextualType.id;
-  const cache = c.inferenceCaches.discriminatedContextualTypes;
-  const cached = cache.get(key);
+  const nodeId = getNodeId(node);
+  const cached = getDiscriminatedContextualType(c, nodeId, contextualType);
   if (cached !== undefined) return cached;
   const childrenPropertyName = getJsxElementChildrenPropertyName(c, getJsxNamespaceAt(c, node));
   const props: Node[] = [];
@@ -1052,7 +1070,7 @@ function discriminateContextualTypeByJSXAttributes(c: Checker, node: Node, conte
     );
   });
   const discriminated = discriminateTypeByObjectLiteral(c, contextualType, props, members);
-  cache.set(key, discriminated);
+  setDiscriminatedContextualType(c, nodeId, contextualType, discriminated);
   return discriminated;
 }
 
@@ -1282,16 +1300,15 @@ function getContextuallyTypedParameterTypeOrUndefined(c: Checker, parameter: Nod
     const indexOfParameter = getParameters(func)!.nodes.indexOf(parameter);
     if ((parameter as ParameterDeclaration).dotDotDotToken !== undefined)
       return getRestArgumentsType(c, iife, args, indexOfParameter);
-    const links = c.nodeLinks(iife);
-    const cached = links.resolvedSignature;
-    links.resolvedSignature = c.anySignature;
+    const cached = c.resolvedSignatures.get(iife.id);
+    c.resolvedSignatures.set(iife.id, c.anySignature);
     const t =
       indexOfParameter < args.length
         ? getWidenedLiteralType(c, checkExpression(c, args[indexOfParameter]!))
         : getInitializer(parameter) !== undefined
           ? undefined
           : c.undefinedWideningType;
-    links.resolvedSignature = cached;
+    c.resolvedSignatures.set(iife.id, cached);
     return t;
   }
   const signature = getContextualSignatureForFunctionLikeDeclaration(c, func);

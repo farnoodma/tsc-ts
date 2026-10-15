@@ -20,11 +20,11 @@
     "format:check": "oxfmt --check"
   },
   "devDependencies": {
-    "@scriptc/threads": "0.2.8",
+    "@scriptc/threads": "0.3.0",
     "@types/node": "^24.19.1",
     "oxfmt": "^0.72.0",
     "oxlint": "^1.87.0",
-    "scriptc": "0.2.8",
+    "scriptc": "0.3.0",
     "turbo": "2.11.7",
     "typescript": "5.9"
   },

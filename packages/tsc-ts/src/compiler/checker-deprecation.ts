@@ -332,7 +332,7 @@ export function checkDeprecatedIndexedAccess(c: Checker, accessNode: Node, prop:
 /** Reports a type reference or import type naming a deprecated type. */
 export function checkDeprecatedTypeReference(c: Checker, node: Node, type: Type): void {
   if (isErrorType(c, type)) return;
-  const symbol = c.nodeLinks(node).resolvedSymbol;
+  const symbol = c.resolvedSymbols.get(node.id);
   if (symbol === undefined) return;
   for (const d of symbol.declarations) {
     if (isTypeDeclaration(d) && isDeprecatedDeclaration(d)) {

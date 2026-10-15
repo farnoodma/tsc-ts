@@ -58,6 +58,7 @@ export function readDirectory(
   excludes: readonly string[],
   includes: readonly string[],
   depth: number,
+  onMatch?: (path: string) => void,
 ): string[] {
   path = normalizePath(path);
   currentDirectory = normalizePath(currentDirectory);
@@ -68,6 +69,7 @@ export function readDirectory(
     new GlobMatcher(includes, excludes, absolutePath, caseSensitive, MatchUsage.Files),
     new GlobMatcher(includes, excludes, absolutePath, caseSensitive, MatchUsage.Directories),
     extensions,
+    onMatch,
   );
   for (const basePath of getBasePaths(path, includes, caseSensitive)) {
     visitor.visit(basePath, combinePaths(currentDirectory, basePath), depth, '');
@@ -485,6 +487,8 @@ class GlobVisitor {
     private readonly fileMatcher: GlobMatcher,
     private readonly directoryMatcher: GlobMatcher,
     private readonly extensions: readonly string[],
+    /** Called with each file as it matches. */
+    private readonly onMatch: ((path: string) => void) | undefined,
   ) {
     const buckets = Math.max(fileMatcher.includes.length, 1);
     this.results = [];
@@ -504,7 +508,10 @@ class GlobVisitor {
     for (const file of entries.files) {
       if (this.extensions.length > 0 && !fileExtensionIsOneOf(file, this.extensions)) continue;
       const include = this.fileMatcher.matchFile(absolutePrefix, file);
-      if (include !== -1) this.results[include].push(pathPrefix + file);
+      if (include === -1) continue;
+      const match = pathPrefix + file;
+      this.results[include].push(match);
+      if (this.onMatch !== undefined) this.onMatch(match);
     }
 
     if (depth !== unlimitedDepth) {

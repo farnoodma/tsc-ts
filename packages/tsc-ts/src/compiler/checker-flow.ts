@@ -9,7 +9,7 @@ import {
   mapType,
   typesOf,
 } from './checker-type-factory.js';
-import { getBaseConstraintOfType, resolveStructuredTypeMembers } from './checker-members.js';
+import { getResolvedMember, getBaseConstraintOfType, resolveStructuredTypeMembers } from './checker-members.js';
 import { isTypeSubtypeOf } from './relations.js';
 import { maybeTypeOfKind } from './checker-utilities.js';
 import { getGlobalTypeAliasSymbol } from './checker-symbols.js';
@@ -314,11 +314,14 @@ function isFunctionObjectType(c: Checker, t: Type): boolean {
   return (
     resolved.callSignatures.length !== 0 ||
     resolved.constructSignatures.length !== 0 ||
-    (resolved.members?.has('bind') === true && isTypeSubtypeOf(c, t, c.globalFunctionType))
+    (getResolvedMember(resolved, 'bind') !== undefined && isTypeSubtypeOf(c, t, c.globalFunctionType))
   );
 }
 
 export function getTypeWithFacts(c: Checker, t: Type, include: TypeFacts): Type {
+  // Filter non-unions without a closure (as filterType would).
+  if ((t.flags & TypeFlags.Union) === 0)
+    return (t.flags & TypeFlags.Never) !== 0 || hasTypeFacts(c, t, include) ? t : c.neverType;
   return filterType(c, t, (u) => hasTypeFacts(c, u, include));
 }
 

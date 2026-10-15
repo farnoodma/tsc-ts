@@ -51,6 +51,7 @@ import { getConstraintTypeFromMappedType, getNameTypeFromMappedType } from './ch
 import { checkTypeAssignableTo, checkTypeRelatedTo } from './relations.js';
 import { Diagnostic, chainDiagnostic } from './diagnostics.js';
 import { skipTrivia } from './scanner.js';
+import { getAttachedJSDoc } from './parser.js';
 import { shouldPreserveConstEnums } from './options.js';
 import { isReachableFlowNode } from './checker-narrowing.js';
 import { getTupleElementFlags, getTypeFromTypeNode } from './checker-type-nodes.js';
@@ -212,7 +213,7 @@ function isSourceElementUnreachable(c: Checker, node: Node): boolean {
 
 /** Resolves the `@link` names of a node's JSDoc, which marks what they name referenced. */
 export function checkJSDocLinksOfNode(c: Checker, node: Node): void {
-  const jsDoc = node.jsDoc;
+  const jsDoc = getAttachedJSDoc(node);
   if (jsDoc !== undefined) for (const d of jsDoc) checkJSDocLinks(c, d);
 }
 

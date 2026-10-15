@@ -14,7 +14,7 @@ import {
   TypeQueryNode,
 } from './ast.js';
 import { Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
+import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker, VarianceReporting } from './checker.js';
 import {
@@ -42,6 +42,7 @@ import {
   emptyTypes,
   newTypeMapper,
   SimpleTypeMapper,
+  TypeListCache,
 } from './checker-types.js';
 import {
   IntersectionFlags,
@@ -55,9 +56,9 @@ import {
   getTypeArguments,
   getUnionTypeEx,
   newObjectType,
-  typeListKey,
   aliasKey,
   typesOf,
+  typeListHash,
 } from './checker-type-factory.js';
 import { getOuterTypeParameters } from './checker-declared-types.js';
 import { getSymbolFromTypeReference, getResolvedSymbolOfIdentifier } from './checker-type-nodes.js';
@@ -402,7 +403,7 @@ function getObjectTypeInstantiation(
   else declaration = type.symbol!.declarations[0]!;
   const links = c.nodeLinks(declaration);
   let target: ObjectType;
-  if ((type.objectFlags & ObjectFlags.Reference) !== 0) target = links.resolvedType as ObjectType;
+  if ((type.objectFlags & ObjectFlags.Reference) !== 0) target = c.resolvedTypes.get(declaration.id) as ObjectType;
   else if ((type.objectFlags & ObjectFlags.Instantiated) !== 0) target = type.target as ObjectType;
   else target = type;
   let typeParameters = links.outerTypeParameters;
@@ -435,14 +436,15 @@ function getObjectTypeInstantiation(
   for (const tp of typeParameters) typeArguments.push(combinedMapper.map(tp));
   const newAlias = alias ?? instantiateTypeAlias(c, type.alias, mapper);
   const singleSignature = (type.objectFlags & ObjectFlags.SingleSignatureType) !== 0;
-  const key = typeListKey(typeArguments) + aliasKey(newAlias) + (singleSignature ? '!' : '');
+  const tag = singleSignature ? 1 : 0;
+  const hash = typeListHash(typeArguments, newAlias, tag);
   let instantiations = target.instantiations;
   if (instantiations === undefined) {
-    instantiations = new Map<string, Type>();
-    instantiations.set(typeListKey(typeParameters) + aliasKey(target.alias), target);
+    instantiations = new TypeListCache<Type>();
+    instantiations.set(typeListHash(typeParameters, target.alias, 0), typeParameters, target.alias, 0, target);
     target.instantiations = instantiations;
   }
-  let result = instantiations.get(key);
+  let result = instantiations.get(hash, typeArguments, newAlias, tag);
   if (result === undefined) {
     let newMapper = newTypeMapper(typeParameters, typeArguments);
     if ((target.objectFlags & ObjectFlags.SingleSignatureType) !== 0)
@@ -458,7 +460,7 @@ function getObjectTypeInstantiation(
     else if ((target.objectFlags & ObjectFlags.Mapped) !== 0)
       result = instantiateMappedType(c, target as MappedType, newMapper, newAlias);
     else result = instantiateAnonymousType(c, target, newMapper, newAlias);
-    instantiations.set(key, result);
+    instantiations.set(hash, typeArguments, newAlias, tag, result);
     if (
       (result.flags & TypeFlags.ObjectFlagsType) !== 0 &&
       (result.objectFlags & ObjectFlags.CouldContainTypeVariablesComputed) === 0
@@ -708,17 +710,33 @@ export function instantiateSignatureEx(
 }
 
 export function instantiateSymbol(c: Checker, symbol: Symbol, mapper: TypeMapper): Symbol {
-  const links = c.symbolLinks(symbol);
-  if (mapper.mapsThisOnly() && isThisless(symbol)) return symbol;
+  return keepsSymbolUnderInstantiation(c, symbol, mapper) ? symbol : newInstantiatedSymbol(c, symbol, mapper);
+}
+
+/**
+ * Whether `instantiateSymbol` returns `symbol` itself. This depends on whether the type of `symbol`
+ * is resolved yet, so lazily instantiated members record it when tsgo would instantiate them.
+ */
+export function keepsSymbolUnderInstantiation(c: Checker, symbol: Symbol, mapper: TypeMapper): boolean {
+  const symbolId = getSymbolId(symbol);
+  if (mapper.mapsThisOnly() && isThisless(symbol)) return true;
   // A resolved type that can't change under instantiation keeps the symbol.
-  if (links.type !== undefined && !couldContainTypeVariables(c, links.type)) {
-    if ((symbol.flags & SymbolFlags.SetAccessor) === 0) return symbol;
-    if (links.writeType !== undefined && !couldContainTypeVariables(c, links.writeType)) return symbol;
+  const type = c.symbolTypes.get(symbolId);
+  if (type !== undefined && !couldContainTypeVariables(c, type)) {
+    if ((symbol.flags & SymbolFlags.SetAccessor) === 0) return true;
+    const writeType = c.existingSymbolLinks(symbol)?.writeType;
+    if (writeType !== undefined && !couldContainTypeVariables(c, writeType)) return true;
   }
+  return false;
+}
+
+/** The instantiated copy of `symbol` that `instantiateSymbol` creates when it doesn't keep it. */
+export function newInstantiatedSymbol(c: Checker, symbol: Symbol, mapper: TypeMapper): Symbol {
   if ((symbol.checkFlags & CheckFlags.Instantiated) !== 0) {
+    const symbolId = getSymbolId(symbol);
     // Instantiate the original with combined mappers, preserving identities.
-    symbol = links.target!;
-    mapper = combineTypeMappers(c, links.mapper, mapper);
+    symbol = c.symbolTargets.get(symbolId)!;
+    mapper = combineTypeMappers(c, c.symbolMappers.get(symbolId), mapper);
   }
   const result = c.newSymbol(symbol.flags, symbol.name);
   result.checkFlags =
@@ -728,10 +746,10 @@ export function instantiateSymbol(c: Checker, symbol: Symbol, mapper: TypeMapper
   result.declarations = symbol.declarations;
   result.parent = symbol.parent;
   result.valueDeclaration = symbol.valueDeclaration;
-  const resultLinks = c.symbolLinks(result);
-  resultLinks.target = symbol;
-  resultLinks.mapper = mapper;
-  resultLinks.nameType = c.symbolLinks(symbol).nameType;
+  const id = getSymbolId(result);
+  c.symbolTargets.set(id, symbol);
+  c.symbolMappers.set(id, mapper);
+  c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(symbol)));
   return result;
 }
 

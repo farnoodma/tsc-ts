@@ -106,6 +106,44 @@ function check(cases, name) {
 
 const skip = existsSync(oracle) ? false : 'resolve-oracle is not built';
 
+test('containsPath answers by components, also on its fast path for normalized absolute paths', () => {
+  const byComponents = (parent, child, caseSensitive, cwd) => {
+    parent = path.combinePaths(cwd, parent);
+    child = path.combinePaths(cwd, child);
+    if (parent === '' || child === '') return false;
+    if (parent === child) return true;
+    const p = path.reducePathComponents(path.getPathComponents(parent));
+    const c = path.reducePathComponents(path.getPathComponents(child));
+    if (c.length < p.length) return false;
+    for (let i = 0; i < p.length; i++) {
+      const a = i === 0 || !caseSensitive ? p[i].toUpperCase() : p[i];
+      const b = i === 0 || !caseSensitive ? c[i].toUpperCase() : c[i];
+      if (a !== b) return false;
+    }
+    return true;
+  };
+  const segments = ['', '/', 'a', 'A', 'ab', 'b', '.', '..', '.a', '..a', 'a.', 'a\\b', 'src', 'src2'];
+  const paths = [''];
+  for (const s of segments) paths.push(s, '/' + s);
+  for (const s of segments)
+    for (const t of segments) paths.push('/' + s + '/' + t, s + '/' + t, '/' + s + '/' + t + '/');
+  paths.push('//server/share', 'c:/a/b', 'file:///a', '/a/b/c/d', '/a/b/c/../d', '/a/./b');
+  let fast = 0;
+  for (const caseSensitive of [true, false])
+    for (const cwd of ['', '/a/b/'])
+      for (const parent of paths)
+        for (const child of paths) {
+          const expected = byComponents(parent, child, caseSensitive, cwd);
+          assert.equal(
+            path.containsPath(parent, child, caseSensitive, cwd),
+            expected,
+            `${parent} ${child} ${caseSensitive} ${cwd}`,
+          );
+          if (expected && caseSensitive && parent.startsWith('/') && !parent.includes('.')) fast++;
+        }
+  assert.ok(fast > 100);
+});
+
 test('tsgo unit fixtures', { skip }, () => {
   check(unitCases(), 'unit');
 });

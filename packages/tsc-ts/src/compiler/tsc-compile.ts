@@ -93,6 +93,7 @@ export function compile(sys: System, work: CompileWork): ExitStatus {
 /** The number of checker threads for `work` (`--checkers`); 1 checks on this thread with `compile`. */
 export function compileThreads(work: CompileWork): number {
   if (work.incremental) return 1;
+  mark('compile threads');
   const options = work.program.options;
   return checkerThreads(options.checkers, options.singleThreaded, work.program);
 }

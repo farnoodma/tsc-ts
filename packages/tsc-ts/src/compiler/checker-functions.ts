@@ -70,7 +70,7 @@ import { checkNodeDeferred, checkSourceElement, checkTypeNodeIfPresent } from '.
 import { checkTypeParameters, checkVariableLikeDeclaration } from './checker-declarations.js';
 import { getFunctionFlags, FunctionFlags, maybeTypeOfKind } from './checker-utilities.js';
 import { CheckMode, ObjectFlags, type Signature, SignatureFlags, SignatureKind } from './checker-types.js';
-import type { Symbol } from './symbol.js';
+import { type Symbol, getSymbolId } from './symbol.js';
 import { createAnonymousType, getWidenedLiteralType } from './checker-type-factory.js';
 import { createSymbolWithType, getReducedType, getSignaturesOfType } from './checker-members.js';
 import {
@@ -311,33 +311,36 @@ function assignNonContextualParameterTypes(c: Checker, func: Node): void {
 
 /** Fixes a parameter's type to `contextualType`, or to its declared type without one. */
 function assignParameterSymbolType(c: Checker, parameter: Symbol, contextualType: Type | undefined): void {
-  const links = c.symbolLinks(parameter);
-  if (links.type !== undefined) return;
+  const id = getSymbolId(parameter);
+  if (c.symbolTypes.get(id) !== undefined) return;
   const declaration = parameter.valueDeclaration;
   if (contextualType === undefined) {
-    links.type = getTypeOfSymbol(c, parameter);
+    c.symbolTypes.set(id, getTypeOfSymbol(c, parameter));
     return;
   }
-  links.type = addOptionality(
-    c,
-    contextualType,
-    false,
-    declaration !== undefined && getInitializer(declaration) === undefined && isOptionalDeclaration(declaration),
+  c.symbolTypes.set(
+    id,
+    addOptionality(
+      c,
+      contextualType,
+      false,
+      declaration !== undefined && getInitializer(declaration) === undefined && isOptionalDeclaration(declaration),
+    ),
   );
   if (declaration === undefined) return;
   const name = getName(declaration);
   // Without a better inference than `unknown`, a binding pattern implies the type.
   if (
-    links.type === c.unknownType &&
+    c.symbolTypes.get(id) === c.unknownType &&
     name !== undefined &&
     (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
   )
-    links.type = getTypeFromBindingPattern(c, name, false, false);
+    c.symbolTypes.set(id, getTypeFromBindingPattern(c, name, false, false));
   if (
     name !== undefined &&
     (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
   )
-    assignBindingElementTypes(c, name, links.type);
+    assignBindingElementTypes(c, name, c.symbolTypes.get(id)!);
 }
 
 export function getTypeOfObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): Type {
@@ -360,7 +363,8 @@ function checkFunctionLikeSignature(c: Checker, node: Node): void {
  * method is checked earlier, while its contextual parameter types are assigned.
  */
 export function checkFunctionLikeBody(c: Checker, node: Node): void {
-  if ((c.nodeLinks(node).flags & NodeCheckFlags.ContextChecked) === 0) checkFunctionLikeSignature(c, node);
+  if (((c.existingNodeLinks(node)?.flags ?? 0) & NodeCheckFlags.ContextChecked) === 0)
+    checkFunctionLikeSignature(c, node);
   const returnTypeNode = getType(node);
   const functionFlags = getFunctionFlags(node);
   const body = getBody(node);
@@ -1191,14 +1195,12 @@ class ReturnVisitor extends NodeVisitor {
 function assignParameterType(c: Checker, declaration: Node): void {
   const symbol = getSymbolOfDeclaration(c, declaration);
   if (symbol === undefined) return;
-  const symbolLinks = c.symbolLinks(symbol);
-  if (symbolLinks.type !== undefined) return;
+  const id = getSymbolId(symbol);
+  if (c.symbolTypes.get(id) !== undefined) return;
   const t = getTypeOfSymbol(c, symbol);
-  symbolLinks.type = addOptionality(
-    c,
-    t,
-    false,
-    getInitializer(declaration) === undefined && isOptionalDeclaration(declaration),
+  c.symbolTypes.set(
+    id,
+    addOptionality(c, t, false, getInitializer(declaration) === undefined && isOptionalDeclaration(declaration)),
   );
   const name = getName(declaration);
   if (
@@ -1206,8 +1208,9 @@ function assignParameterType(c: Checker, declaration: Node): void {
     (name.kind === SyntaxKind.ObjectBindingPattern || name.kind === SyntaxKind.ArrayBindingPattern)
   ) {
     // Without a better inference than `unknown`, a binding pattern implies the type.
-    if (symbolLinks.type === c.unknownType) symbolLinks.type = getTypeFromBindingPattern(c, name, false, false);
-    assignBindingElementTypes(c, name, symbolLinks.type);
+    if (c.symbolTypes.get(id) === c.unknownType)
+      c.symbolTypes.set(id, getTypeFromBindingPattern(c, name, false, false));
+    assignBindingElementTypes(c, name, c.symbolTypes.get(id)!);
   }
 }
 
@@ -1218,7 +1221,7 @@ function assignBindingElementTypes(c: Checker, pattern: Node, parentType: Type):
     const name = getName(element);
     if (name === undefined) continue;
     const t = getBindingElementTypeFromParentType(c, element as BindingElement, parentType, false);
-    if (name.kind === SyntaxKind.Identifier) c.symbolLinks(getSymbolOfDeclaration(c, element)!).type = t;
+    if (name.kind === SyntaxKind.Identifier) c.symbolTypes.set(getSymbolId(getSymbolOfDeclaration(c, element)!), t);
     else assignBindingElementTypes(c, name, t);
   }
 }

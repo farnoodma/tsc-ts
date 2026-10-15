@@ -100,7 +100,7 @@ import {
   tryExtractTSExtension,
   tryGetExtensionFromPath,
 } from './path.js';
-import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
+import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { isExpressionNode } from './transformers/alias-references.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
@@ -738,7 +738,7 @@ function getTypeWithSyntheticDefaultImportType(
   if (canHaveSyntheticDefault(c, file, originalSymbol, false, moduleSpecifier)) {
     const anonymousSymbol = c.newSymbol(SymbolFlags.TypeLiteral, InternalSymbolName.Type);
     const defaultContainingObject = createDefaultPropertyWrapperForModule(c, symbol, originalSymbol, anonymousSymbol);
-    c.symbolLinks(anonymousSymbol).type = defaultContainingObject;
+    c.symbolTypes.set(getSymbolId(anonymousSymbol), defaultContainingObject);
     result = isValidSpreadType(c, type)
       ? getSpreadType(c, type, defaultContainingObject, anonymousSymbol, ObjectFlags.None, false)
       : defaultContainingObject;
@@ -756,7 +756,8 @@ function createDefaultPropertyWrapperForModule(
   const defaultSymbol = c.newSymbol(SymbolFlags.Alias, InternalSymbolName.Default);
   defaultSymbol.parent = originalSymbol;
   const links = c.symbolLinks(defaultSymbol);
-  links.nameType = getStringLiteralType(c, 'default');
+  const id = defaultSymbol.id;
+  c.symbolNameTypes.set(id, getStringLiteralType(c, 'default'));
   links.aliasTarget = resolveSymbol(c, symbol);
   const members: SymbolTable = new Map<string, Symbol>();
   members.set(InternalSymbolName.Default, defaultSymbol);
@@ -771,7 +772,7 @@ function cloneTypeAsModuleType(c: Checker, symbol: Symbol, moduleType: Type): Sy
   if (symbol.exports !== undefined) result.exports = new Map(symbol.exports);
   result.parent = symbol.parent;
   const resolved = resolveStructuredTypeMembers(c, moduleType);
-  c.symbolLinks(result).type = createAnonymousType(c, result, resolved.members, [], [], resolved.indexInfos);
+  c.symbolTypes.set(getSymbolId(result), createAnonymousType(c, result, resolved.members, [], [], resolved.indexInfos));
   return result;
 }
 
@@ -1380,7 +1381,7 @@ function getTargetOfAliasLikeExpression(c: Checker, expression: Node): Symbol | 
   );
   if (aliasLike !== undefined) return aliasLike;
   checkExpressionCached(c, expression);
-  return c.nodeLinks(expression).resolvedSymbol;
+  return c.resolvedSymbols.get(expression.id);
 }
 
 function isEntityNameOrEntityNameExpression(node: Node): boolean {
@@ -1919,22 +1920,22 @@ class ExportCollector {
 
 /** The type of `import("m")`, `import("m").T` or `typeof import("m").v`. */
 export function getTypeFromImportTypeNode(c: Checker, node: Node): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType !== undefined) return links.resolvedType;
+  const type = c.resolvedTypes.get(node.id);
+  if (type !== undefined) return type;
   const importType = node as ImportTypeNode;
   if (!isLiteralImportTypeNode(node)) {
     c.error(importType.argument, Diagnostics.String_literal_expected);
-    links.resolvedSymbol = c.unknownSymbol;
-    links.resolvedType = c.errorType;
-    return links.resolvedType;
+    c.resolvedSymbols.set(node.id, c.unknownSymbol);
+    c.resolvedTypes.set(node.id, c.errorType);
+    return c.resolvedTypes.get(node.id)!;
   }
   const targetMeaning = importType.isTypeOf ? SymbolFlags.Value : SymbolFlags.Type;
   const literal = (importType.argument as LiteralTypeNode).literal;
   const innerModuleSymbol = resolveExternalModuleName(c, node, literal, false);
   if (innerModuleSymbol === undefined) {
-    links.resolvedSymbol = c.unknownSymbol;
-    links.resolvedType = c.errorType;
-    return links.resolvedType;
+    c.resolvedSymbols.set(node.id, c.unknownSymbol);
+    c.resolvedTypes.set(node.id, c.errorType);
+    return c.resolvedTypes.get(node.id)!;
   }
   const moduleSymbol = resolveExternalModuleSymbol(c, innerModuleSymbol, false)!;
   const qualifier = importType.qualifier;
@@ -1956,16 +1957,16 @@ export function getTypeFromImportTypeNode(c: Checker, node: Node): Type {
           getFullyQualifiedName(c, currentNamespace),
           declarationNameToString(getSourceFileOfNode(current), current),
         );
-        links.resolvedType = c.errorType;
-        return links.resolvedType;
+        c.resolvedTypes.set(node.id, c.errorType);
+        return c.resolvedTypes.get(node.id)!;
       }
-      c.nodeLinks(current).resolvedSymbol = next;
-      c.nodeLinks(current.parent!).resolvedSymbol = next;
+      c.resolvedSymbols.set(current.id, next);
+      c.resolvedSymbols.set(current.parent!.id, next);
       currentNamespace = next;
     }
-    links.resolvedType = resolveImportSymbolType(c, node, currentNamespace, targetMeaning);
+    c.resolvedTypes.set(node.id, resolveImportSymbolType(c, node, currentNamespace, targetMeaning));
   } else if ((getSymbolFlags(c, moduleSymbol) & targetMeaning) !== 0) {
-    links.resolvedType = resolveImportSymbolType(c, node, moduleSymbol, targetMeaning);
+    c.resolvedTypes.set(node.id, resolveImportSymbolType(c, node, moduleSymbol, targetMeaning));
   } else {
     c.error(
       node,
@@ -1974,10 +1975,10 @@ export function getTypeFromImportTypeNode(c: Checker, node: Node): Type {
         : Diagnostics.Module_0_does_not_refer_to_a_type_but_is_used_as_a_type_here_Did_you_mean_typeof_import_0,
       getText(literal),
     );
-    links.resolvedSymbol = c.unknownSymbol;
-    links.resolvedType = c.errorType;
+    c.resolvedSymbols.set(node.id, c.unknownSymbol);
+    c.resolvedTypes.set(node.id, c.errorType);
   }
-  return links.resolvedType;
+  return c.resolvedTypes.get(node.id)!;
 }
 
 function getIdentifierChain(node: Node): Identifier[] {
@@ -1989,7 +1990,7 @@ function getIdentifierChain(node: Node): Identifier[] {
 
 function resolveImportSymbolType(c: Checker, node: Node, symbol: Symbol, meaning: SymbolFlags): Type {
   const resolvedSymbol = resolveSymbol(c, symbol)!;
-  c.nodeLinks(node).resolvedSymbol = resolvedSymbol;
+  c.resolvedSymbols.set(node.id, resolvedSymbol);
   // The alias itself caches the type of a value.
   if (meaning === SymbolFlags.Value) return getTypeOfSymbol(c, symbol);
   return getTypeReferenceType(c, node, resolvedSymbol);
@@ -2242,24 +2243,23 @@ function checkImportAttributes(c: Checker, declaration: Node): void {
 }
 
 function getTypeFromImportAttributes(c: Checker, node: ImportAttributes): Type {
-  const links = c.nodeLinks(node);
-  if (links.resolvedType === undefined) {
+  if (c.resolvedTypes.get(node.id) === undefined) {
     const symbol = c.newSymbol(SymbolFlags.ObjectLiteral, InternalSymbolName.ImportAttributes);
     const members: SymbolTable = new Map<string, Symbol>();
     for (const attribute of node.attributes.nodes) {
       const name = getText((attribute as ImportAttribute).name!);
       const member = c.newSymbol(SymbolFlags.Property, name);
-      c.symbolLinks(member).type = getRegularTypeOfLiteralType(
-        c,
-        checkExpression(c, (attribute as ImportAttribute).value),
+      c.symbolTypes.set(
+        getSymbolId(member),
+        getRegularTypeOfLiteralType(c, checkExpression(c, (attribute as ImportAttribute).value)),
       );
       members.set(name, member);
     }
     const type = createAnonymousType(c, symbol, members, [], [], []);
     type.objectFlags |= ObjectFlags.ObjectLiteral | ObjectFlags.NonInferrableType;
-    links.resolvedType = type;
+    c.resolvedTypes.set(node.id, type);
   }
-  return links.resolvedType;
+  return c.resolvedTypes.get(node.id)!;
 }
 
 export function checkImportEqualsDeclaration(c: Checker, node: Node): void {

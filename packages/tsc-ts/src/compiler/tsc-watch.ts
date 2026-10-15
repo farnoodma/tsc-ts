@@ -14,6 +14,11 @@ import {
 } from './diagnostics.js';
 import { CompilerHost } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
+import { clearLibGlobalsCache } from './checker-symbols.js';
+import { forgetLazyJSDocFile } from './parser.js';
+import { forgetNavigationFile } from './astnav.js';
+import { forgetRangeScannerFile } from './binder-utilities.js';
+import { forgetIdentifierSets } from './printer/name-generator.js';
 import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, type Snapshot } from './incremental.js';
 import { combinePaths, getDirectoryPath, getNormalizedAbsolutePath, toPath } from './path.js';
 import { Program } from './program.js';
@@ -202,6 +207,7 @@ class Watcher {
   }
 
   private build(): void {
+    releaseProgramCaches();
     const sys = this.sys;
     const fs = new CachedFileSystem(new SystemFileSystem(sys));
     if (this.config.configName !== '') {
@@ -295,6 +301,7 @@ export function watchBuild(sys: System, command: ParsedBuildCommandLine): void {
   );
   status.report(Diagnostics.Starting_compilation_in_watch_mode);
   const run = (): Stamps => {
+    releaseProgramCaches();
     const orchestrator = new Orchestrator(sys, command);
     orchestrator.watching = true;
     orchestrator.start();
@@ -307,4 +314,16 @@ export function watchBuild(sys: System, command: ParsedBuildCommandLine): void {
     status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
     stamps = run();
   });
+}
+
+/**
+ * A rebuild parses every file again, so drop the module-level caches that still point at the
+ * previous build's files and library globals.
+ */
+function releaseProgramCaches(): void {
+  clearLibGlobalsCache();
+  forgetLazyJSDocFile();
+  forgetNavigationFile();
+  forgetRangeScannerFile();
+  forgetIdentifierSets();
 }

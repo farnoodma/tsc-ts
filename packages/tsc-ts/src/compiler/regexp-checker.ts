@@ -248,7 +248,7 @@ class RegularExpressionChecker {
       this.scanAlternative(isInGroup);
       this.namedCapturingGroups.pop();
       if (this.char() !== CharacterCodes.bar) return;
-      this.scanner.pos++;
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
     }
   }
 
@@ -262,13 +262,13 @@ class RegularExpressionChecker {
       switch (ch) {
         case CharacterCodes.caret:
         case CharacterCodes.$:
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           isPreviousTermQuantifiable = false;
           continue;
         case CharacterCodes.backslash:
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           if (this.char() === CharacterCodes.b || this.char() === CharacterCodes.B) {
-            this.scanner.pos++;
+            this.scanner.pos = (this.scanner.pos + 1) | 0;
             isPreviousTermQuantifiable = false;
           } else {
             this.scanAtomEscape(this.char());
@@ -276,19 +276,19 @@ class RegularExpressionChecker {
           }
           continue;
         case CharacterCodes.openParen:
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           if (this.char() === CharacterCodes.question) {
-            this.scanner.pos++;
+            this.scanner.pos = (this.scanner.pos + 1) | 0;
             const next = this.char();
             if (next === CharacterCodes.equals || next === CharacterCodes.exclamation) {
-              this.scanner.pos++;
+              this.scanner.pos = (this.scanner.pos + 1) | 0;
               // Annex B makes `(?=…)` and `(?!…)` quantifiable.
               isPreviousTermQuantifiable = !this.anyUnicodeModeOrNonAnnexB;
             } else if (next === CharacterCodes.lessThan) {
               const groupNameStart = this.scanner.pos;
-              this.scanner.pos++;
+              this.scanner.pos = (this.scanner.pos + 1) | 0;
               if (this.char() === CharacterCodes.equals || this.char() === CharacterCodes.exclamation) {
-                this.scanner.pos++;
+                this.scanner.pos = (this.scanner.pos + 1) | 0;
                 isPreviousTermQuantifiable = false;
               } else {
                 this.scanGroupName(false);
@@ -307,7 +307,7 @@ class RegularExpressionChecker {
               const flagsStart = this.scanner.pos;
               const setFlags = this.scanPatternModifiers(RegularExpressionFlags.None);
               if (this.char() === CharacterCodes.minus) {
-                this.scanner.pos++;
+                this.scanner.pos = (this.scanner.pos + 1) | 0;
                 this.scanPatternModifiers(setFlags);
                 if (this.scanner.pos === flagsStart + 1)
                   this.error(
@@ -328,7 +328,7 @@ class RegularExpressionChecker {
           this.scanExpectedChar(CharacterCodes.closeParen);
           continue;
         case CharacterCodes.openBrace: {
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           const digitsStart = this.scanner.pos;
           const min = this.scanDigits();
           if (!this.anyUnicodeModeOrNonAnnexB && min === '') {
@@ -336,7 +336,7 @@ class RegularExpressionChecker {
             continue;
           }
           if (this.char() === CharacterCodes.comma) {
-            this.scanner.pos++;
+            this.scanner.pos = (this.scanner.pos + 1) | 0;
             const max = this.scanDigits();
             if (min === '') {
               if (max !== '' || this.char() === CharacterCodes.closeBrace) {
@@ -374,7 +374,7 @@ class RegularExpressionChecker {
               continue;
             }
             this.error(Diagnostics.X_0_expected, this.scanner.pos, 0, ['}']);
-            this.scanner.pos--;
+            this.scanner.pos = (this.scanner.pos - 1) | 0;
           }
           isPreviousTermQuantifiable = this.scanQuantifier(start, isPreviousTermQuantifiable);
           continue;
@@ -385,11 +385,11 @@ class RegularExpressionChecker {
           isPreviousTermQuantifiable = this.scanQuantifier(start, isPreviousTermQuantifiable);
           continue;
         case CharacterCodes.dot:
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           isPreviousTermQuantifiable = true;
           continue;
         case CharacterCodes.openBracket:
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           if (this.unicodeSetsMode) this.scanClassSetExpression();
           else this.scanClassRanges();
           this.scanExpectedChar(CharacterCodes.closeBracket);
@@ -403,7 +403,7 @@ class RegularExpressionChecker {
             this.error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, this.scanner.pos, 1, [
               String.fromCharCode(ch),
             ]);
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           isPreviousTermQuantifiable = true;
           continue;
         case CharacterCodes.slash:
@@ -419,8 +419,8 @@ class RegularExpressionChecker {
 
   /** Scans the last character of a quantifier and an optional `?`; returns false. */
   private scanQuantifier(start: number, isPreviousTermQuantifiable: boolean): boolean {
-    this.scanner.pos++;
-    if (this.char() === CharacterCodes.question) this.scanner.pos++; // non-greedy
+    this.scanner.pos = (this.scanner.pos + 1) | 0;
+    if (this.char() === CharacterCodes.question) this.scanner.pos = (this.scanner.pos + 1) | 0; // non-greedy
     if (!isPreviousTermQuantifiable)
       this.error(Diagnostics.There_is_nothing_available_for_repetition, start, this.scanner.pos - start, noArgs);
     return false;
@@ -447,7 +447,7 @@ class RegularExpressionChecker {
         currentFlags |= flag;
         this.scanner.checkRegularExpressionFlagAvailability(flag, this.scanner.pos, size);
       }
-      this.scanner.pos += size;
+      this.scanner.pos = (this.scanner.pos + size) | 0;
     }
     return currentFlags;
   }
@@ -456,9 +456,9 @@ class RegularExpressionChecker {
   private scanAtomEscape(ch: number): void {
     switch (ch) {
       case CharacterCodes.k:
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         if (this.char() === CharacterCodes.lessThan) {
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           this.scanGroupName(true);
           this.scanExpectedChar(CharacterCodes.greaterThan);
         } else if (this.anyUnicodeModeOrNonAnnexB || this.namedCaptureGroups) {
@@ -472,7 +472,7 @@ class RegularExpressionChecker {
         return;
       case CharacterCodes.q:
         if (this.unicodeSetsMode) {
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           this.error(Diagnostics.X_q_is_only_available_inside_character_class, this.scanner.pos - 2, 2, noArgs);
           return;
         }
@@ -500,16 +500,16 @@ class RegularExpressionChecker {
         this.error(Diagnostics.Undetermined_character_escape, this.scanner.pos - 1, 1, noArgs);
         return CharacterCodes.backslash;
       case CharacterCodes.c:
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         ch = this.char();
         if (isASCIILetter(ch)) {
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           return ch & 0x1f;
         }
         if (this.anyUnicodeModeOrNonAnnexB) {
           this.error(Diagnostics.X_c_must_be_followed_by_an_ASCII_letter, this.scanner.pos - 2, 2, noArgs);
         } else if (atomEscape) {
-          this.scanner.pos--;
+          this.scanner.pos = (this.scanner.pos - 1) | 0;
           return CharacterCodes.backslash;
         }
         return ch < 0 ? CharacterCodes.replacementCharacter : ch;
@@ -528,10 +528,10 @@ class RegularExpressionChecker {
       case CharacterCodes.openBrace:
       case CharacterCodes.closeBrace:
       case CharacterCodes.bar:
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         return ch;
       default: {
-        this.scanner.pos--; // include the backslash
+        this.scanner.pos = (this.scanner.pos - 1) | 0; // include the backslash
         let flags = EscapeSequenceScanningFlags.RegularExpression;
         if (this.annexB) flags |= EscapeSequenceScanningFlags.AnnexB;
         if (this.anyUnicodeMode) flags |= EscapeSequenceScanningFlags.AnyUnicodeMode;
@@ -544,7 +544,7 @@ class RegularExpressionChecker {
 
   private scanGroupName(isReference: boolean): void {
     const scanner = this.scanner;
-    scanner.tokenStart = this.scanner.pos;
+    scanner.tokenStart = this.scanner.pos | 0;
     scanner.scanIdentifier(0);
     const start = scanner.tokenStart;
     if (this.scanner.pos === start) {
@@ -580,13 +580,13 @@ class RegularExpressionChecker {
   // ClassRanges ::= '^'? (ClassAtom ('-' ClassAtom)?)*
   // Returns MayContainStrings, which is false for class ranges.
   private scanClassRanges(): boolean {
-    if (this.char() === CharacterCodes.caret) this.scanner.pos++;
+    if (this.char() === CharacterCodes.caret) this.scanner.pos = (this.scanner.pos + 1) | 0;
     while (this.scanner.pos < this.end) {
       if (this.isClassContentExit(this.char())) return false;
       const minStart = this.scanner.pos;
       const min = this.scanClassAtom();
       if (this.char() !== CharacterCodes.minus) continue;
-      this.scanner.pos++;
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
       if (this.isClassContentExit(this.char())) return false;
       if (min === ClassValue.None && this.anyUnicodeModeOrNonAnnexB)
         this.error(
@@ -623,7 +623,7 @@ class RegularExpressionChecker {
   private scanClassSetExpression(): boolean {
     let isCharacterComplement = false;
     if (this.char() === CharacterCodes.caret) {
-      this.scanner.pos++;
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
       isCharacterComplement = true;
     }
     let expressionMayContainStrings = false;
@@ -685,14 +685,14 @@ class RegularExpressionChecker {
     while (this.scanner.pos < this.end) {
       ch = this.char();
       if (ch === CharacterCodes.minus) {
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         ch = this.char();
         if (this.isClassContentExit(ch)) {
           this.mayContainStrings = !isCharacterComplement && expressionMayContainStrings;
           return this.mayContainStrings;
         }
         if (ch === CharacterCodes.minus) {
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           this.error(
             Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
             this.scanner.pos - 2,
@@ -732,9 +732,9 @@ class RegularExpressionChecker {
         }
       } else if (ch === CharacterCodes.ampersand) {
         start = this.scanner.pos;
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         if (this.char() === CharacterCodes.ampersand) {
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           this.error(
             Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
             this.scanner.pos - 2,
@@ -745,7 +745,7 @@ class RegularExpressionChecker {
             this.error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, this.scanner.pos, 1, [
               String.fromCharCode(ch),
             ]);
-            this.scanner.pos++;
+            this.scanner.pos = (this.scanner.pos + 1) | 0;
           }
         } else {
           this.error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, this.scanner.pos - 1, 1, [
@@ -764,7 +764,7 @@ class RegularExpressionChecker {
           2,
           noArgs,
         );
-        this.scanner.pos += 2;
+        this.scanner.pos = (this.scanner.pos + 2) | 0;
         operand = ClassValue.String;
       } else {
         operand = this.scanClassSetOperand();
@@ -790,9 +790,9 @@ class RegularExpressionChecker {
       let ch = this.char();
       if (this.isClassContentExit(ch)) break;
       if (ch === CharacterCodes.minus) {
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         if (this.char() === CharacterCodes.minus) {
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           if (expressionType !== ClassSetExpressionType.ClassSubtraction)
             this.error(
               Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
@@ -809,9 +809,9 @@ class RegularExpressionChecker {
           );
         }
       } else if (ch === CharacterCodes.ampersand) {
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         if (this.char() === CharacterCodes.ampersand) {
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           if (expressionType !== ClassSetExpressionType.ClassIntersection)
             this.error(
               Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
@@ -823,7 +823,7 @@ class RegularExpressionChecker {
             this.error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, this.scanner.pos, 1, [
               String.fromCharCode(ch),
             ]);
-            this.scanner.pos++;
+            this.scanner.pos = (this.scanner.pos + 1) | 0;
           }
         } else {
           this.error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, this.scanner.pos - 1, 1, [
@@ -852,18 +852,18 @@ class RegularExpressionChecker {
     this.mayContainStrings = false;
     const ch = this.char();
     if (ch === CharacterCodes.openBracket) {
-      this.scanner.pos++;
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
       this.scanClassSetExpression();
       this.scanExpectedChar(CharacterCodes.closeBracket);
       return ClassValue.None;
     }
     if (ch === CharacterCodes.backslash) {
-      this.scanner.pos++;
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
       if (this.scanCharacterClassEscape()) return ClassValue.None;
       if (this.char() === CharacterCodes.q) {
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         if (this.char() === CharacterCodes.openBrace) {
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           this.scanClassStringDisjunctionContents();
           this.scanExpectedChar(CharacterCodes.closeBrace);
           return ClassValue.None;
@@ -876,7 +876,7 @@ class RegularExpressionChecker {
         );
         return CharacterCodes.q;
       }
-      this.scanner.pos--;
+      this.scanner.pos = (this.scanner.pos - 1) | 0;
     }
     return this.scanClassSetCharacter();
   }
@@ -892,7 +892,7 @@ class RegularExpressionChecker {
       }
       if (ch === CharacterCodes.bar) {
         if (characterCount !== 1) this.mayContainStrings = true;
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         characterCount = 0;
       } else {
         this.scanClassSetCharacter();
@@ -907,11 +907,11 @@ class RegularExpressionChecker {
   private scanClassSetCharacter(): number {
     const ch = this.char();
     if (ch === CharacterCodes.backslash) {
-      this.scanner.pos++;
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
       const inner = this.char();
       switch (inner) {
         case CharacterCodes.b:
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           return CharacterCodes.backspace;
         case CharacterCodes.ampersand:
         case CharacterCodes.minus:
@@ -927,7 +927,7 @@ class RegularExpressionChecker {
         case CharacterCodes.at:
         case CharacterCodes.backtick:
         case CharacterCodes.tilde:
-          this.scanner.pos++;
+          this.scanner.pos = (this.scanner.pos + 1) | 0;
           return inner;
         default:
           return this.scanCharacterEscape(false);
@@ -958,7 +958,7 @@ class RegularExpressionChecker {
             2,
             noArgs,
           );
-          this.scanner.pos += 2;
+          this.scanner.pos = (this.scanner.pos + 2) | 0;
           return ClassValue.String;
       }
     }
@@ -975,7 +975,7 @@ class RegularExpressionChecker {
         this.error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, this.scanner.pos, 1, [
           String.fromCharCode(ch),
         ]);
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         return ch;
     }
     return this.scanSourceCharacter();
@@ -985,14 +985,14 @@ class RegularExpressionChecker {
   // ClassEscape ::= 'b' | '-' | CharacterClassEscape | CharacterEscape
   private scanClassAtom(): number {
     if (this.char() !== CharacterCodes.backslash) return this.scanSourceCharacter();
-    this.scanner.pos++;
+    this.scanner.pos = (this.scanner.pos + 1) | 0;
     const ch = this.char();
     if (ch === CharacterCodes.b) {
-      this.scanner.pos++;
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
       return CharacterCodes.backspace;
     }
     if (ch === CharacterCodes.minus) {
-      this.scanner.pos++;
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
       return CharacterCodes.minus;
     }
     if (this.scanCharacterClassEscape()) return ClassValue.None;
@@ -1011,7 +1011,7 @@ class RegularExpressionChecker {
       case CharacterCodes.S:
       case CharacterCodes.w:
       case CharacterCodes.W:
-        this.scanner.pos++;
+        this.scanner.pos = (this.scanner.pos + 1) | 0;
         return true;
       case CharacterCodes.P:
       case CharacterCodes.p:
@@ -1020,10 +1020,10 @@ class RegularExpressionChecker {
         return false;
     }
     const isCharacterComplement = ch === CharacterCodes.P;
-    this.scanner.pos++;
+    this.scanner.pos = (this.scanner.pos + 1) | 0;
     if (this.char() !== CharacterCodes.openBrace) {
       if (!this.anyUnicodeModeOrNonAnnexB) {
-        this.scanner.pos--;
+        this.scanner.pos = (this.scanner.pos - 1) | 0;
         return false;
       }
       this.error(
@@ -1034,7 +1034,7 @@ class RegularExpressionChecker {
       );
       return true;
     }
-    this.scanner.pos++;
+    this.scanner.pos = (this.scanner.pos + 1) | 0;
     const nameOrValueStart = this.scanner.pos;
     const nameOrValue = this.scanWordCharacters();
     if (this.char() === CharacterCodes.equals) {
@@ -1052,7 +1052,7 @@ class RegularExpressionChecker {
         if (suggestion !== '')
           this.error(Diagnostics.Did_you_mean_0, nameOrValueStart, this.scanner.pos - nameOrValueStart, [suggestion]);
       }
-      this.scanner.pos++;
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
       const valueStart = this.scanner.pos;
       const value = this.scanWordCharacters();
       if (this.scanner.pos === valueStart) {
@@ -1111,28 +1111,32 @@ class RegularExpressionChecker {
 
   private scanWordCharacters(): string {
     const start = this.scanner.pos;
-    while (this.scanner.pos < this.end && isWordCharacter(this.char())) this.scanner.pos++;
+    while (this.scanner.pos < this.end && isWordCharacter(this.char())) this.scanner.pos = (this.scanner.pos + 1) | 0;
     return this.text.substring(start, this.scanner.pos);
   }
 
   /** One code point in Unicode modes, otherwise one UTF-16 code unit. */
   private scanSourceCharacter(): number {
     if (this.scanner.pos >= this.end) return ClassValue.None;
-    if (!this.anyUnicodeMode) return this.scanner.chars[this.scanner.pos++];
+    if (!this.anyUnicodeMode) {
+      const ch = this.scanner.chars[this.scanner.pos];
+      this.scanner.pos = (this.scanner.pos + 1) | 0;
+      return ch;
+    }
     const ch = this.scanner.codePointAt(this.scanner.pos, this.end);
-    this.scanner.pos += charSize(ch);
+    this.scanner.pos = (this.scanner.pos + charSize(ch)) | 0;
     // Like TypeScript 7, treat U+FFFD as an undecodable character.
     return ch === CharacterCodes.replacementCharacter ? ClassValue.None : ch;
   }
 
   private scanExpectedChar(ch: number): void {
-    if (this.char() === ch) this.scanner.pos++;
+    if (this.char() === ch) this.scanner.pos = (this.scanner.pos + 1) | 0;
     else this.error(Diagnostics.X_0_expected, this.scanner.pos, 0, [String.fromCharCode(ch)]);
   }
 
   private scanDigits(): string {
     const start = this.scanner.pos;
-    while (this.scanner.pos < this.end && isDigit(this.char())) this.scanner.pos++;
+    while (this.scanner.pos < this.end && isDigit(this.char())) this.scanner.pos = (this.scanner.pos + 1) | 0;
     return this.text.substring(start, this.scanner.pos);
   }
 }

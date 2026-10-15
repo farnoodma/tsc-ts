@@ -1,5 +1,6 @@
 // The checker's type model: types, signatures, index infos, mappers and the links the checker
 // caches per symbol and node. Flag values match tsgo, because union ordering depends on them.
+import type { ProgramLifetime } from '@scriptc/types';
 import type { Node } from './ast.js';
 import type { Symbol, SymbolTable } from './symbol.js';
 
@@ -378,11 +379,126 @@ export class TypeAlias {
   }
 }
 
+/** One entry of a `TypeListCache`: the parts of its key, its value, and the next entry with the same hash. */
+class TypeListEntry<V> {
+  readonly types: readonly Type[];
+  readonly alias: TypeAlias | undefined;
+  readonly tag: number;
+  value: V;
+  next: TypeListEntry<V> | undefined;
+
+  constructor(types: readonly Type[], alias: TypeAlias | undefined, tag: number, value: V) {
+    this.types = types;
+    this.alias = alias;
+    this.tag = tag;
+    this.value = value;
+    this.next = undefined;
+  }
+}
+
+function sameTypeListParts(a: readonly Type[], b: readonly Type[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i]! !== b[i]!) return false;
+  return true;
+}
+
+function sameAliasParts(a: TypeAlias | undefined, b: TypeAlias | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return a.symbol === b.symbol && sameTypeListParts(a.typeArguments, b.typeArguments);
+}
+
+/**
+ * Values keyed by a list of types, an optional alias and a small tag: the keys `typeListKey(types) +
+ * aliasKey(alias)` plus a suffix spelled, without building them. A lookup takes a number hashing the
+ * parts (`typeListHash`); entries keep their parts, so a match is exact and keys sharing a hash chain.
+ * Like tsgo's hashed type list keys. A list must not change after it keys an entry.
+ */
+export class TypeListCache<V> {
+  private readonly entries = new Map<number, TypeListEntry<V>>();
+
+  get(hash: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number): V | undefined {
+    for (let e = this.entries.get(hash); e !== undefined; e = e.next)
+      if (e.tag === tag && sameTypeListParts(e.types, types) && sameAliasParts(e.alias, alias)) return e.value;
+    return undefined;
+  }
+
+  set(hash: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number, value: V): void {
+    const head = this.entries.get(hash);
+    if (head === undefined) {
+      this.entries.set(hash, new TypeListEntry(types, alias, tag, value));
+      return;
+    }
+    for (let e: TypeListEntry<V> | undefined = head; e !== undefined; e = e.next)
+      if (e.tag === tag && sameTypeListParts(e.types, types) && sameAliasParts(e.alias, alias)) {
+        e.value = value;
+        return;
+      }
+    const entry = new TypeListEntry(types, alias, tag, value);
+    entry.next = head.next;
+    head.next = entry;
+  }
+
+  clear(): void {
+    this.entries.clear();
+  }
+}
+
+/**
+ * Fields that few types set, kept out of line in `Type.extra`, which is created on the first write
+ * of a value other than the field's default. A type then costs one slot for all of them. Each field
+ * is read and written through an accessor of the type class it belongs to, which returns the
+ * default while the type has no extra fields. Rare fields that hot paths read stay inline (the
+ * alias, construct signatures): a native accessor returns an owned reference, which costs reference
+ * counting on every read of a counted value.
+ */
+export class TypeExtra implements ProgramLifetime {
+  // StructuredType
+  objectTypeWithoutAbstractConstructSignatures: Type | undefined;
+  // ObjectType
+  instantiations: TypeListCache<Type> | undefined;
+  // TypeReference
+  node: Node | undefined;
+  // UnionType
+  resolvedReducedType: Type | undefined;
+  regularType: Type | undefined;
+  origin: Type | undefined;
+  keyPropertyName: string;
+  constituentMap: Map<Type, Type> | undefined;
+  constituentSet: Set<Type> | undefined;
+  membershipTests: number;
+  // IntersectionType
+  uniqueLiteralFilledInstantiation: Type | undefined;
+
+  constructor() {
+    this.objectTypeWithoutAbstractConstructSignatures = undefined;
+    this.instantiations = undefined;
+    this.node = undefined;
+    this.resolvedReducedType = undefined;
+    this.regularType = undefined;
+    this.origin = undefined;
+    this.keyPropertyName = '';
+    this.constituentMap = undefined;
+    this.constituentSet = undefined;
+    this.membershipTests = 0;
+    this.uniqueLiteralFilledInstantiation = undefined;
+  }
+}
+
+/** The extra fields of `t`, created if it has none yet. */
+export function typeExtra(t: Type): TypeExtra {
+  let extra = t.extra;
+  if (extra === undefined) {
+    extra = new TypeExtra();
+    t.extra = extra;
+  }
+  return extra;
+}
+
 /**
  * The base of every type. Narrow by `flags` (and `objectFlags` for object types), then cast to
  * the subclass, as tsgo does with `AsUnionType()` etc.
  */
-export class Type {
+export class Type implements ProgramLifetime {
   flags: TypeFlags;
   objectFlags: ObjectFlags;
   readonly id: number;
@@ -390,14 +506,17 @@ export class Type {
   alias: TypeAlias | undefined;
   /** For types with a computed base constraint (type variables, structured types, …). */
   resolvedBaseConstraint: Type | undefined;
+  /** Rarely set fields; undefined while all of them have their defaults. */
+  extra: TypeExtra | undefined;
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     this.flags = flags;
     this.objectFlags = objectFlags;
-    this.id = id;
+    this.id = id | 0;
     this.symbol = symbol;
     this.alias = undefined;
     this.resolvedBaseConstraint = undefined;
+    this.extra = undefined;
   }
 }
 
@@ -440,23 +559,63 @@ export class UniqueESSymbolType extends Type {
   }
 }
 
+/**
+ * The members table and properties of an instantiated type whose member symbols are instantiated on
+ * demand (checker-members.ts). Reading `members` or `properties` builds them, as tsgo builds them
+ * when it resolves the members; lookups by name instantiate only the member asked for.
+ */
+export abstract class PendingMembers {
+  /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
+  abstract materialize(t: StructuredType): void;
+}
+
 /** A type with members: object types, unions and intersections. */
 export class StructuredType extends Type {
-  members: SymbolTable | undefined;
-  properties: Symbol[];
+  membersValue: SymbolTable | undefined;
+  propertiesValue: Symbol[];
+  /** Set while the member symbols of an instantiated type are not instantiated yet. */
+  pendingMembers: PendingMembers | undefined;
   callSignatures: Signature[];
   constructSignatures: Signature[];
   indexInfos: IndexInfo[];
-  objectTypeWithoutAbstractConstructSignatures: Type | undefined;
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(flags, objectFlags, id, symbol);
-    this.members = undefined;
-    this.properties = emptySymbols;
+    this.membersValue = undefined;
+    this.propertiesValue = emptySymbols;
+    this.pendingMembers = undefined;
     this.callSignatures = emptySignatures;
     this.constructSignatures = emptySignatures;
     this.indexInfos = emptyIndexInfos;
-    this.objectTypeWithoutAbstractConstructSignatures = undefined;
+  }
+
+  get objectTypeWithoutAbstractConstructSignatures(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.objectTypeWithoutAbstractConstructSignatures : undefined;
+  }
+
+  set objectTypeWithoutAbstractConstructSignatures(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).objectTypeWithoutAbstractConstructSignatures = t;
+  }
+
+  get members(): SymbolTable | undefined {
+    const pending = this.pendingMembers;
+    if (pending !== undefined) pending.materialize(this);
+    return this.membersValue;
+  }
+
+  set members(members: SymbolTable | undefined) {
+    this.membersValue = members;
+  }
+
+  get properties(): Symbol[] {
+    const pending = this.pendingMembers;
+    if (pending !== undefined) pending.materialize(this);
+    return this.propertiesValue;
+  }
+
+  set properties(properties: Symbol[]) {
+    this.propertiesValue = properties;
   }
 }
 
@@ -464,26 +623,40 @@ export class ObjectType extends StructuredType {
   /** The generic type this one instantiates. */
   target: Type | undefined;
   mapper: TypeMapper | undefined;
-  instantiations: Map<string, Type> | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(TypeFlags.Object, objectFlags, id, symbol);
     this.target = undefined;
     this.mapper = undefined;
-    this.instantiations = undefined;
+  }
+
+  get instantiations(): TypeListCache<Type> | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.instantiations : undefined;
+  }
+
+  set instantiations(instantiations: TypeListCache<Type> | undefined) {
+    if (instantiations !== undefined || this.extra !== undefined) typeExtra(this).instantiations = instantiations;
   }
 }
 
 /** An instantiation of a generic class, interface or tuple type. */
 export class TypeReference extends ObjectType {
-  /** The type node of a deferred reference, else undefined. */
-  node: Node | undefined;
   resolvedTypeArguments: Type[] | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
-    this.node = undefined;
     this.resolvedTypeArguments = undefined;
+  }
+
+  /** The type node of a deferred reference, else undefined. */
+  get node(): Node | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.node : undefined;
+  }
+
+  set node(node: Node | undefined) {
+    if (node !== undefined || this.extra !== undefined) typeExtra(this).node = node;
   }
 }
 
@@ -501,9 +674,12 @@ export class InterfaceType extends TypeReference {
   declaredCallSignatures: Signature[];
   declaredConstructSignatures: Signature[];
   declaredIndexInfos: IndexInfo[];
+  /** Positions of the declared members by name, for lazily instantiated members of instantiations. */
+  declaredMemberPositions: Map<string, number> | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
+    this.declaredMemberPositions = undefined;
     this.allTypeParameters = emptyTypes;
     this.outerTypeParameterCount = 0;
     this.thisType = undefined;
@@ -635,38 +811,94 @@ export class UnionOrIntersectionType extends StructuredType {
   }
 }
 
+/** A union; all of its own fields are rarely set and live in `extra`. */
 export class UnionType extends UnionOrIntersectionType {
-  resolvedReducedType: Type | undefined;
-  regularType: Type | undefined;
-  /** The denormalized union, intersection or index type the union came from. */
-  origin: Type | undefined;
-  /** A property with a unique unit type in every object of the union; '' if not computed, '\0' if none. */
-  keyPropertyName: string;
-  constituentMap: Map<Type, Type> | undefined;
-  /** The constituents of a large union, for membership tests; created on the second test. */
-  constituentSet: Set<Type> | undefined;
-  membershipTests: number;
-
   constructor(objectFlags: ObjectFlags, id: number, types: Type[]) {
     super(TypeFlags.Union, objectFlags, id, types);
-    this.resolvedReducedType = undefined;
-    this.regularType = undefined;
-    this.origin = undefined;
-    this.keyPropertyName = '';
-    this.constituentMap = undefined;
-    this.constituentSet = undefined;
-    this.membershipTests = 0;
+  }
+
+  get resolvedReducedType(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.resolvedReducedType : undefined;
+  }
+
+  set resolvedReducedType(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).resolvedReducedType = t;
+  }
+
+  get regularType(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.regularType : undefined;
+  }
+
+  set regularType(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).regularType = t;
+  }
+
+  /** The denormalized union, intersection or index type the union came from. */
+  get origin(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.origin : undefined;
+  }
+
+  set origin(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).origin = t;
+  }
+
+  /** A property with a unique unit type in every object of the union; '' if not computed, '\0' if none. */
+  get keyPropertyName(): string {
+    const extra = this.extra;
+    return extra !== undefined ? extra.keyPropertyName : '';
+  }
+
+  set keyPropertyName(name: string) {
+    if (name !== '' || this.extra !== undefined) typeExtra(this).keyPropertyName = name;
+  }
+
+  get constituentMap(): Map<Type, Type> | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.constituentMap : undefined;
+  }
+
+  set constituentMap(map: Map<Type, Type> | undefined) {
+    if (map !== undefined || this.extra !== undefined) typeExtra(this).constituentMap = map;
+  }
+
+  /** The constituents of a large union, for membership tests; created on the second test. */
+  get constituentSet(): Set<Type> | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.constituentSet : undefined;
+  }
+
+  set constituentSet(set: Set<Type> | undefined) {
+    if (set !== undefined || this.extra !== undefined) typeExtra(this).constituentSet = set;
+  }
+
+  get membershipTests(): number {
+    const extra = this.extra;
+    return extra !== undefined ? extra.membershipTests : 0;
+  }
+
+  set membershipTests(tests: number) {
+    if (tests !== 0 || this.extra !== undefined) typeExtra(this).membershipTests = tests;
   }
 }
 
 export class IntersectionType extends UnionOrIntersectionType {
   resolvedApparentType: Type | undefined;
-  uniqueLiteralFilledInstantiation: Type | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, types: Type[]) {
     super(TypeFlags.Intersection, objectFlags, id, types);
     this.resolvedApparentType = undefined;
-    this.uniqueLiteralFilledInstantiation = undefined;
+  }
+
+  get uniqueLiteralFilledInstantiation(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.uniqueLiteralFilledInstantiation : undefined;
+  }
+
+  set uniqueLiteralFilledInstantiation(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) typeExtra(this).uniqueLiteralFilledInstantiation = t;
   }
 }
 
@@ -755,7 +987,7 @@ export class ConditionalRoot {
   readonly isDistributive: boolean;
   readonly inferTypeParameters: Type[];
   readonly outerTypeParameters: Type[];
-  readonly instantiations: Map<string, Type>;
+  readonly instantiations: TypeListCache<Type>;
   readonly alias: TypeAlias | undefined;
 
   constructor(
@@ -773,7 +1005,7 @@ export class ConditionalRoot {
     this.isDistributive = isDistributive;
     this.inferTypeParameters = inferTypeParameters;
     this.outerTypeParameters = outerTypeParameters;
-    this.instantiations = new Map<string, Type>();
+    this.instantiations = new TypeListCache<Type>();
     this.alias = alias;
   }
 }
@@ -839,7 +1071,43 @@ export class CompositeSignature {
   }
 }
 
-export class Signature {
+/**
+ * Fields that few signatures set, kept out of line in `Signature.extra` (see TypeExtra): the `this`
+ * parameter, composite signatures and the caches of derived signatures.
+ */
+export class SignatureExtra implements ProgramLifetime {
+  thisParameter: Symbol | undefined;
+  isolatedSignatureType: Type | undefined;
+  composite: CompositeSignature | undefined;
+  erasedSignatureCache: Signature | undefined;
+  canonicalSignatureCache: Signature | undefined;
+  baseSignatureCache: Signature | undefined;
+  optionalCallSignatureCache: Signature | undefined;
+  instantiations: TypeListCache<Signature> | undefined;
+
+  constructor() {
+    this.thisParameter = undefined;
+    this.isolatedSignatureType = undefined;
+    this.composite = undefined;
+    this.erasedSignatureCache = undefined;
+    this.canonicalSignatureCache = undefined;
+    this.baseSignatureCache = undefined;
+    this.optionalCallSignatureCache = undefined;
+    this.instantiations = undefined;
+  }
+}
+
+/** The extra fields of `s`, created if it has none yet. */
+export function signatureExtra(s: Signature): SignatureExtra {
+  let extra = s.extra;
+  if (extra === undefined) {
+    extra = new SignatureExtra();
+    s.extra = extra;
+  }
+  return extra;
+}
+
+export class Signature implements ProgramLifetime {
   readonly id: number;
   flags: SignatureFlags;
   minArgumentCount: number;
@@ -848,19 +1116,12 @@ export class Signature {
   declaration: Node | undefined;
   typeParameters: Type[];
   parameters: Symbol[];
-  thisParameter: Symbol | undefined;
   resolvedReturnType: Type | undefined;
   resolvedTypePredicate: TypePredicate | undefined;
   target: Signature | undefined;
   mapper: TypeMapper | undefined;
-  isolatedSignatureType: Type | undefined;
-  composite: CompositeSignature | undefined;
-  /** Caches of derived signatures. */
-  erasedSignatureCache: Signature | undefined;
-  canonicalSignatureCache: Signature | undefined;
-  baseSignatureCache: Signature | undefined;
-  optionalCallSignatureCache: Signature | undefined;
-  instantiations: Map<string, Signature> | undefined;
+  /** Rarely set fields; undefined while all of them have their defaults. */
+  extra: SignatureExtra | undefined;
 
   constructor(
     id: number,
@@ -873,25 +1134,92 @@ export class Signature {
     resolvedTypePredicate: TypePredicate | undefined,
     minArgumentCount: number,
   ) {
-    this.id = id;
+    this.id = id | 0;
     this.flags = flags;
-    this.minArgumentCount = minArgumentCount;
+    this.minArgumentCount = minArgumentCount | 0;
     this.resolvedMinArgumentCount = -1;
     this.declaration = declaration;
     this.typeParameters = typeParameters;
     this.parameters = parameters;
-    this.thisParameter = thisParameter;
     this.resolvedReturnType = resolvedReturnType;
     this.resolvedTypePredicate = resolvedTypePredicate;
     this.target = undefined;
     this.mapper = undefined;
-    this.isolatedSignatureType = undefined;
-    this.composite = undefined;
-    this.erasedSignatureCache = undefined;
-    this.canonicalSignatureCache = undefined;
-    this.baseSignatureCache = undefined;
-    this.optionalCallSignatureCache = undefined;
-    this.instantiations = undefined;
+    this.extra = undefined;
+    if (thisParameter !== undefined) signatureExtra(this).thisParameter = thisParameter;
+  }
+
+  get thisParameter(): Symbol | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.thisParameter : undefined;
+  }
+
+  set thisParameter(symbol: Symbol | undefined) {
+    if (symbol !== undefined || this.extra !== undefined) signatureExtra(this).thisParameter = symbol;
+  }
+
+  get isolatedSignatureType(): Type | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.isolatedSignatureType : undefined;
+  }
+
+  set isolatedSignatureType(t: Type | undefined) {
+    if (t !== undefined || this.extra !== undefined) signatureExtra(this).isolatedSignatureType = t;
+  }
+
+  get composite(): CompositeSignature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.composite : undefined;
+  }
+
+  set composite(composite: CompositeSignature | undefined) {
+    if (composite !== undefined || this.extra !== undefined) signatureExtra(this).composite = composite;
+  }
+
+  /** Caches of derived signatures. */
+  get erasedSignatureCache(): Signature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.erasedSignatureCache : undefined;
+  }
+
+  set erasedSignatureCache(s: Signature | undefined) {
+    if (s !== undefined || this.extra !== undefined) signatureExtra(this).erasedSignatureCache = s;
+  }
+
+  get canonicalSignatureCache(): Signature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.canonicalSignatureCache : undefined;
+  }
+
+  set canonicalSignatureCache(s: Signature | undefined) {
+    if (s !== undefined || this.extra !== undefined) signatureExtra(this).canonicalSignatureCache = s;
+  }
+
+  get baseSignatureCache(): Signature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.baseSignatureCache : undefined;
+  }
+
+  set baseSignatureCache(s: Signature | undefined) {
+    if (s !== undefined || this.extra !== undefined) signatureExtra(this).baseSignatureCache = s;
+  }
+
+  get optionalCallSignatureCache(): Signature | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.optionalCallSignatureCache : undefined;
+  }
+
+  set optionalCallSignatureCache(s: Signature | undefined) {
+    if (s !== undefined || this.extra !== undefined) signatureExtra(this).optionalCallSignatureCache = s;
+  }
+
+  get instantiations(): TypeListCache<Signature> | undefined {
+    const extra = this.extra;
+    return extra !== undefined ? extra.instantiations : undefined;
+  }
+
+  set instantiations(instantiations: TypeListCache<Signature> | undefined) {
+    if (instantiations !== undefined || this.extra !== undefined) signatureExtra(this).instantiations = instantiations;
   }
 
   hasRestParameter(): boolean {
@@ -899,7 +1227,7 @@ export class Signature {
   }
 }
 
-export class IndexInfo {
+export class IndexInfo implements ProgramLifetime {
   readonly keyType: Type;
   readonly valueType: Type;
   readonly isReadonly: boolean;
@@ -1060,663 +1388,142 @@ export function appendTypeMapping(mapper: TypeMapper | undefined, source: Type, 
 
 // ---- Links
 
-/** Fields of SymbolLinks that few symbol links set, allocated on first write. */
-export class SymbolValueLinks {
-  writeType: Type | undefined = undefined;
+/**
+ * What the checker caches per symbol and rarely sets. Common values (the type, target, mapper, name type
+ * and others) are columns of `Checker` instead; see link-tables.ts.
+ */
+export class SymbolLinks implements ProgramLifetime {
+  // Values
+  writeType: Type | undefined;
   /** Constituents of a deferred union/intersection property type. */
-  deferralParent: Type | undefined = undefined;
-  deferralConstituents: Type[] | undefined = undefined;
-  deferralWriteConstituents: Type[] | undefined = undefined;
-  /** For spread properties. */
-  leftSpread: Symbol | undefined = undefined;
-  rightSpread: Symbol | undefined = undefined;
-  /** Bits of SymbolFlags for the meanings in which the symbol was referenced. */
-  referenceKinds: number = 0;
-}
-
-/** Fields of SymbolLinks that few symbol links set, allocated on first write. */
-export class SymbolRareLinks {
-  functionOrConstructorChecked: boolean = false;
-  immediateTarget: Symbol | undefined = undefined;
-  aliasTarget: Symbol | undefined = undefined;
-  aliasReferenced: boolean = false;
-  typeOnlyDeclaration: Node | undefined = undefined;
-  resolvedExports: SymbolTable | undefined = undefined;
-  resolvedMembers: SymbolTable | undefined = undefined;
+  deferralParent: Type | undefined;
+  deferralConstituents: Type[] | undefined;
+  deferralWriteConstituents: Type[] | undefined;
+  functionOrConstructorChecked: boolean;
+  // Aliases
+  immediateTarget: Symbol | undefined;
+  aliasTarget: Symbol | undefined;
+  aliasReferenced: boolean;
+  typeOnlyDeclaration: Node | undefined;
+  // Modules and late-bound containers
+  resolvedExports: SymbolTable | undefined;
+  resolvedMembers: SymbolTable | undefined;
   /** Exports reached only through `export type *`, by name. */
-  typeOnlyExportStarMap: Map<string, Node> | undefined = undefined;
-  exportsChecked: boolean = false;
-  lateSymbol: Symbol | undefined = undefined;
-  declaredType: Type | undefined = undefined;
+  typeOnlyExportStarMap: Map<string, Node> | undefined;
+  exportsChecked: boolean;
+  lateSymbol: Symbol | undefined;
+  // Declared types
+  declaredType: Type | undefined;
   /** Type parameters of a type alias. */
-  typeParameters: Type[] | undefined = undefined;
+  typeParameters: Type[] | undefined;
   /** Instantiations of a generic type alias. */
-  instantiations: Map<string, Type> | undefined = undefined;
-  interfaceChecked: boolean = false;
-  indexSignaturesChecked: boolean = false;
-  typeParametersChecked: boolean = false;
-  enumChecked: boolean = false;
-  variances: VarianceFlags[] | undefined = undefined;
-  lastAssignmentPos: number = 0;
-  hasDefiniteAssignment: boolean = false;
-  isConstructorDeclaredProperty: boolean = false;
+  instantiations: Map<string, Type> | undefined;
+  interfaceChecked: boolean;
+  indexSignaturesChecked: boolean;
+  typeParametersChecked: boolean;
+  enumChecked: boolean;
+  variances: VarianceFlags[] | undefined;
+  // Assignment tracking
+  lastAssignmentPos: number;
+  hasDefiniteAssignment: boolean;
+  isConstructorDeclaredProperty: boolean;
+  // JavaScript `this.x` assignment declarations
   /** A `ThisAssignmentKind` plus one; zero until computed. */
-  thisAssignmentKind: number = 0;
-  thisAssignmentLocation: Node | undefined = undefined;
-  reverseMappedPropertyType: Type | undefined = undefined;
-  reverseMappedMappedType: Type | undefined = undefined;
-  reverseMappedConstraintType: Type | undefined = undefined;
-}
-
-/** What the checker caches per symbol. */
-export class SymbolLinks {
-  type: Type | undefined;
-  /** For instantiated and synthetic symbols, the symbol they come from. */
-  target: Symbol | undefined;
-  mapper: TypeMapper | undefined;
-  nameType: Type | undefined;
-  /** The mapped type of a mapped type property, or the union/intersection of a synthetic property. */
-  containingType: Type | undefined;
-  /** For mapped type properties. */
-  keyType: Type | undefined;
-  syntheticOrigin: Symbol | undefined;
-  private symbolValueLinks: SymbolValueLinks | undefined;
-  private symbolRareLinks: SymbolRareLinks | undefined;
+  thisAssignmentKind: number;
+  thisAssignmentLocation: Node | undefined;
+  // Reverse mapped properties
+  reverseMappedPropertyType: Type | undefined;
+  reverseMappedMappedType: Type | undefined;
+  reverseMappedConstraintType: Type | undefined;
 
   constructor() {
-    this.type = undefined;
-    this.target = undefined;
-    this.mapper = undefined;
-    this.nameType = undefined;
-    this.containingType = undefined;
-    this.keyType = undefined;
-    this.syntheticOrigin = undefined;
-    this.symbolValueLinks = undefined;
-    this.symbolRareLinks = undefined;
-  }
-
-  private symbolValueLinksOrNew(): SymbolValueLinks {
-    let group = this.symbolValueLinks;
-    if (group === undefined) {
-      group = new SymbolValueLinks();
-      this.symbolValueLinks = group;
-    }
-    return group;
-  }
-
-  get writeType(): Type | undefined {
-    const group = this.symbolValueLinks;
-    return group === undefined ? undefined : group.writeType;
-  }
-
-  set writeType(value: Type | undefined) {
-    if (value === undefined && this.symbolValueLinks === undefined) return;
-    this.symbolValueLinksOrNew().writeType = value;
-  }
-
-  /** Constituents of a deferred union/intersection property type. */
-  get deferralParent(): Type | undefined {
-    const group = this.symbolValueLinks;
-    return group === undefined ? undefined : group.deferralParent;
-  }
-
-  set deferralParent(value: Type | undefined) {
-    if (value === undefined && this.symbolValueLinks === undefined) return;
-    this.symbolValueLinksOrNew().deferralParent = value;
-  }
-
-  get deferralConstituents(): Type[] | undefined {
-    const group = this.symbolValueLinks;
-    return group === undefined ? undefined : group.deferralConstituents;
-  }
-
-  set deferralConstituents(value: Type[] | undefined) {
-    if (value === undefined && this.symbolValueLinks === undefined) return;
-    this.symbolValueLinksOrNew().deferralConstituents = value;
-  }
-
-  get deferralWriteConstituents(): Type[] | undefined {
-    const group = this.symbolValueLinks;
-    return group === undefined ? undefined : group.deferralWriteConstituents;
-  }
-
-  set deferralWriteConstituents(value: Type[] | undefined) {
-    if (value === undefined && this.symbolValueLinks === undefined) return;
-    this.symbolValueLinksOrNew().deferralWriteConstituents = value;
-  }
-
-  /** For spread properties. */
-  get leftSpread(): Symbol | undefined {
-    const group = this.symbolValueLinks;
-    return group === undefined ? undefined : group.leftSpread;
-  }
-
-  set leftSpread(value: Symbol | undefined) {
-    if (value === undefined && this.symbolValueLinks === undefined) return;
-    this.symbolValueLinksOrNew().leftSpread = value;
-  }
-
-  get rightSpread(): Symbol | undefined {
-    const group = this.symbolValueLinks;
-    return group === undefined ? undefined : group.rightSpread;
-  }
-
-  set rightSpread(value: Symbol | undefined) {
-    if (value === undefined && this.symbolValueLinks === undefined) return;
-    this.symbolValueLinksOrNew().rightSpread = value;
-  }
-
-  /** Bits of SymbolFlags for the meanings in which the symbol was referenced. */
-  get referenceKinds(): number {
-    const group = this.symbolValueLinks;
-    return group === undefined ? 0 : group.referenceKinds;
-  }
-
-  set referenceKinds(value: number) {
-    if (value === 0 && this.symbolValueLinks === undefined) return;
-    this.symbolValueLinksOrNew().referenceKinds = value;
-  }
-
-  private symbolRareLinksOrNew(): SymbolRareLinks {
-    let group = this.symbolRareLinks;
-    if (group === undefined) {
-      group = new SymbolRareLinks();
-      this.symbolRareLinks = group;
-    }
-    return group;
-  }
-
-  get functionOrConstructorChecked(): boolean {
-    const group = this.symbolRareLinks;
-    return group === undefined ? false : group.functionOrConstructorChecked;
-  }
-
-  set functionOrConstructorChecked(value: boolean) {
-    if (value === false && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().functionOrConstructorChecked = value;
-  }
-
-  get immediateTarget(): Symbol | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.immediateTarget;
-  }
-
-  set immediateTarget(value: Symbol | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().immediateTarget = value;
-  }
-
-  get aliasTarget(): Symbol | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.aliasTarget;
-  }
-
-  set aliasTarget(value: Symbol | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().aliasTarget = value;
-  }
-
-  get aliasReferenced(): boolean {
-    const group = this.symbolRareLinks;
-    return group === undefined ? false : group.aliasReferenced;
-  }
-
-  set aliasReferenced(value: boolean) {
-    if (value === false && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().aliasReferenced = value;
-  }
-
-  get typeOnlyDeclaration(): Node | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.typeOnlyDeclaration;
-  }
-
-  set typeOnlyDeclaration(value: Node | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().typeOnlyDeclaration = value;
-  }
-
-  get resolvedExports(): SymbolTable | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.resolvedExports;
-  }
-
-  set resolvedExports(value: SymbolTable | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().resolvedExports = value;
-  }
-
-  get resolvedMembers(): SymbolTable | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.resolvedMembers;
-  }
-
-  set resolvedMembers(value: SymbolTable | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().resolvedMembers = value;
-  }
-
-  /** Exports reached only through `export type *`, by name. */
-  get typeOnlyExportStarMap(): Map<string, Node> | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.typeOnlyExportStarMap;
-  }
-
-  set typeOnlyExportStarMap(value: Map<string, Node> | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().typeOnlyExportStarMap = value;
-  }
-
-  get exportsChecked(): boolean {
-    const group = this.symbolRareLinks;
-    return group === undefined ? false : group.exportsChecked;
-  }
-
-  set exportsChecked(value: boolean) {
-    if (value === false && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().exportsChecked = value;
-  }
-
-  get lateSymbol(): Symbol | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.lateSymbol;
-  }
-
-  set lateSymbol(value: Symbol | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().lateSymbol = value;
-  }
-
-  get declaredType(): Type | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.declaredType;
-  }
-
-  set declaredType(value: Type | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().declaredType = value;
-  }
-
-  /** Type parameters of a type alias. */
-  get typeParameters(): Type[] | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.typeParameters;
-  }
-
-  set typeParameters(value: Type[] | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().typeParameters = value;
-  }
-
-  /** Instantiations of a generic type alias. */
-  get instantiations(): Map<string, Type> | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.instantiations;
-  }
-
-  set instantiations(value: Map<string, Type> | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().instantiations = value;
-  }
-
-  get interfaceChecked(): boolean {
-    const group = this.symbolRareLinks;
-    return group === undefined ? false : group.interfaceChecked;
-  }
-
-  set interfaceChecked(value: boolean) {
-    if (value === false && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().interfaceChecked = value;
-  }
-
-  get indexSignaturesChecked(): boolean {
-    const group = this.symbolRareLinks;
-    return group === undefined ? false : group.indexSignaturesChecked;
-  }
-
-  set indexSignaturesChecked(value: boolean) {
-    if (value === false && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().indexSignaturesChecked = value;
-  }
-
-  get typeParametersChecked(): boolean {
-    const group = this.symbolRareLinks;
-    return group === undefined ? false : group.typeParametersChecked;
-  }
-
-  set typeParametersChecked(value: boolean) {
-    if (value === false && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().typeParametersChecked = value;
-  }
-
-  get enumChecked(): boolean {
-    const group = this.symbolRareLinks;
-    return group === undefined ? false : group.enumChecked;
-  }
-
-  set enumChecked(value: boolean) {
-    if (value === false && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().enumChecked = value;
-  }
-
-  get variances(): VarianceFlags[] | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.variances;
-  }
-
-  set variances(value: VarianceFlags[] | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().variances = value;
-  }
-
-  get lastAssignmentPos(): number {
-    const group = this.symbolRareLinks;
-    return group === undefined ? 0 : group.lastAssignmentPos;
-  }
-
-  set lastAssignmentPos(value: number) {
-    if (value === 0 && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().lastAssignmentPos = value;
-  }
-
-  get hasDefiniteAssignment(): boolean {
-    const group = this.symbolRareLinks;
-    return group === undefined ? false : group.hasDefiniteAssignment;
-  }
-
-  set hasDefiniteAssignment(value: boolean) {
-    if (value === false && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().hasDefiniteAssignment = value;
-  }
-
-  get isConstructorDeclaredProperty(): boolean {
-    const group = this.symbolRareLinks;
-    return group === undefined ? false : group.isConstructorDeclaredProperty;
-  }
-
-  set isConstructorDeclaredProperty(value: boolean) {
-    if (value === false && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().isConstructorDeclaredProperty = value;
-  }
-
-  /** A `ThisAssignmentKind` plus one; zero until computed. */
-  get thisAssignmentKind(): number {
-    const group = this.symbolRareLinks;
-    return group === undefined ? 0 : group.thisAssignmentKind;
-  }
-
-  set thisAssignmentKind(value: number) {
-    if (value === 0 && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().thisAssignmentKind = value;
-  }
-
-  get thisAssignmentLocation(): Node | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.thisAssignmentLocation;
-  }
-
-  set thisAssignmentLocation(value: Node | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().thisAssignmentLocation = value;
-  }
-
-  get reverseMappedPropertyType(): Type | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.reverseMappedPropertyType;
-  }
-
-  set reverseMappedPropertyType(value: Type | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().reverseMappedPropertyType = value;
-  }
-
-  get reverseMappedMappedType(): Type | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.reverseMappedMappedType;
-  }
-
-  set reverseMappedMappedType(value: Type | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().reverseMappedMappedType = value;
-  }
-
-  get reverseMappedConstraintType(): Type | undefined {
-    const group = this.symbolRareLinks;
-    return group === undefined ? undefined : group.reverseMappedConstraintType;
-  }
-
-  set reverseMappedConstraintType(value: Type | undefined) {
-    if (value === undefined && this.symbolRareLinks === undefined) return;
-    this.symbolRareLinksOrNew().reverseMappedConstraintType = value;
+    this.writeType = undefined;
+    this.deferralParent = undefined;
+    this.deferralConstituents = undefined;
+    this.deferralWriteConstituents = undefined;
+    this.functionOrConstructorChecked = false;
+    this.immediateTarget = undefined;
+    this.aliasTarget = undefined;
+    this.aliasReferenced = false;
+    this.typeOnlyDeclaration = undefined;
+    this.resolvedExports = undefined;
+    this.resolvedMembers = undefined;
+    this.typeOnlyExportStarMap = undefined;
+    this.exportsChecked = false;
+    this.lateSymbol = undefined;
+    this.declaredType = undefined;
+    this.typeParameters = undefined;
+    this.instantiations = undefined;
+    this.interfaceChecked = false;
+    this.indexSignaturesChecked = false;
+    this.typeParametersChecked = false;
+    this.enumChecked = false;
+    this.variances = undefined;
+    this.lastAssignmentPos = 0;
+    this.hasDefiniteAssignment = false;
+    this.isConstructorDeclaredProperty = false;
+    this.thisAssignmentKind = 0;
+    this.thisAssignmentLocation = undefined;
+    this.reverseMappedPropertyType = undefined;
+    this.reverseMappedMappedType = undefined;
+    this.reverseMappedConstraintType = undefined;
   }
 }
 
-/** Fields of NodeLinks that few node links set, allocated on first write. */
-export class NodeRareLinks {
-  /** Outer type parameters of an anonymous object type node. */
-  outerTypeParameters: Type[] | undefined = undefined;
-  /** Type of an assertion's operand. */
-  assertionExpressionType: Type | undefined = undefined;
-  /** Context-free type of an expression. */
-  contextFreeType: Type | undefined = undefined;
-  /** Enum member value: a string, or a number when `enumValueIsNumber`. */
-  enumStringValue: string = '';
-  enumNumberValue: number = 0;
-  enumValueKind: number = 0;
-  hasReportedStatementInAmbientContext: boolean = false;
-  declarationRequiresScopeChange: number = 0;
-  /** For source files: whether the file has been checked, and its nodes waiting for a deferred check. */
-  typeChecked: boolean = false;
-  deferredNodes: Node[] | undefined = undefined;
-  /** Case clause types of a switch statement. */
-  switchTypes: Type[] | undefined = undefined;
-  /** `typeof` case texts of a switch statement; '' for default and duplicates. */
-  switchWitnesses: string[] | undefined = undefined;
-  switchWitnessesValid: boolean = false;
-  /** 0 unknown, 1 computing, 2 not exhaustive, 3 exhaustive. */
-  exhaustiveState: number = 0;
-  /** The signature the runtime calls a decorator of this declaration with. */
-  decoratorSignature: Signature | undefined = undefined;
-  /** Whether a function body references `arguments`: 0 until computed, 1 for no, 2 for yes. */
-  containsArgumentsReference: number = 0;
-}
-
-/** What the checker caches per node. */
-export class NodeLinks {
+/**
+ * What the checker caches per node and rarely sets. The resolved symbol, type and signature are columns of
+ * `Checker` instead; see link-tables.ts.
+ */
+export class NodeLinks implements ProgramLifetime {
   flags: NodeCheckFlags;
-  /** Resolved symbol of an identifier, entity name or call. */
-  resolvedSymbol: Symbol | undefined;
-  /** Resolved type of a type node or expression. */
-  resolvedType: Type | undefined;
-  resolvedSignature: Signature | undefined;
-  effectsSignature: Signature | undefined;
-  private nodeRareLinks: NodeRareLinks | undefined;
-
-  constructor() {
-    this.flags = NodeCheckFlags.None;
-    this.resolvedSymbol = undefined;
-    this.resolvedType = undefined;
-    this.resolvedSignature = undefined;
-    this.effectsSignature = undefined;
-    this.nodeRareLinks = undefined;
-  }
-
-  private nodeRareLinksOrNew(): NodeRareLinks {
-    let group = this.nodeRareLinks;
-    if (group === undefined) {
-      group = new NodeRareLinks();
-      this.nodeRareLinks = group;
-    }
-    return group;
-  }
-
   /** Outer type parameters of an anonymous object type node. */
-  get outerTypeParameters(): Type[] | undefined {
-    const group = this.nodeRareLinks;
-    return group === undefined ? undefined : group.outerTypeParameters;
-  }
-
-  set outerTypeParameters(value: Type[] | undefined) {
-    if (value === undefined && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().outerTypeParameters = value;
-  }
-
+  outerTypeParameters: Type[] | undefined;
+  effectsSignature: Signature | undefined;
   /** Type of an assertion's operand. */
-  get assertionExpressionType(): Type | undefined {
-    const group = this.nodeRareLinks;
-    return group === undefined ? undefined : group.assertionExpressionType;
-  }
-
-  set assertionExpressionType(value: Type | undefined) {
-    if (value === undefined && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().assertionExpressionType = value;
-  }
-
+  assertionExpressionType: Type | undefined;
   /** Context-free type of an expression. */
-  get contextFreeType(): Type | undefined {
-    const group = this.nodeRareLinks;
-    return group === undefined ? undefined : group.contextFreeType;
-  }
-
-  set contextFreeType(value: Type | undefined) {
-    if (value === undefined && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().contextFreeType = value;
-  }
-
+  contextFreeType: Type | undefined;
   /** Enum member value: a string, or a number when `enumValueIsNumber`. */
-  get enumStringValue(): string {
-    const group = this.nodeRareLinks;
-    return group === undefined ? '' : group.enumStringValue;
-  }
-
-  set enumStringValue(value: string) {
-    if (value === '' && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().enumStringValue = value;
-  }
-
-  get enumNumberValue(): number {
-    const group = this.nodeRareLinks;
-    return group === undefined ? 0 : group.enumNumberValue;
-  }
-
-  set enumNumberValue(value: number) {
-    if (value === 0 && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().enumNumberValue = value;
-  }
-
-  get enumValueKind(): number {
-    const group = this.nodeRareLinks;
-    return group === undefined ? 0 : group.enumValueKind;
-  }
-
-  set enumValueKind(value: number) {
-    if (value === 0 && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().enumValueKind = value;
-  }
-
-  get hasReportedStatementInAmbientContext(): boolean {
-    const group = this.nodeRareLinks;
-    return group === undefined ? false : group.hasReportedStatementInAmbientContext;
-  }
-
-  set hasReportedStatementInAmbientContext(value: boolean) {
-    if (value === false && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().hasReportedStatementInAmbientContext = value;
-  }
-
-  get declarationRequiresScopeChange(): number {
-    const group = this.nodeRareLinks;
-    return group === undefined ? 0 : group.declarationRequiresScopeChange;
-  }
-
-  set declarationRequiresScopeChange(value: number) {
-    if (value === 0 && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().declarationRequiresScopeChange = value;
-  }
-
+  enumStringValue: string;
+  enumNumberValue: number;
+  enumValueKind: number;
+  hasReportedStatementInAmbientContext: boolean;
+  declarationRequiresScopeChange: number;
   /** For source files: whether the file has been checked, and its nodes waiting for a deferred check. */
-  get typeChecked(): boolean {
-    const group = this.nodeRareLinks;
-    return group === undefined ? false : group.typeChecked;
-  }
-
-  set typeChecked(value: boolean) {
-    if (value === false && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().typeChecked = value;
-  }
-
-  get deferredNodes(): Node[] | undefined {
-    const group = this.nodeRareLinks;
-    return group === undefined ? undefined : group.deferredNodes;
-  }
-
-  set deferredNodes(value: Node[] | undefined) {
-    if (value === undefined && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().deferredNodes = value;
-  }
+  typeChecked: boolean;
+  deferredNodes: Node[] | undefined;
 
   /** Case clause types of a switch statement. */
-  get switchTypes(): Type[] | undefined {
-    const group = this.nodeRareLinks;
-    return group === undefined ? undefined : group.switchTypes;
-  }
-
-  set switchTypes(value: Type[] | undefined) {
-    if (value === undefined && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().switchTypes = value;
-  }
-
+  switchTypes: Type[] | undefined;
   /** `typeof` case texts of a switch statement; '' for default and duplicates. */
-  get switchWitnesses(): string[] | undefined {
-    const group = this.nodeRareLinks;
-    return group === undefined ? undefined : group.switchWitnesses;
-  }
-
-  set switchWitnesses(value: string[] | undefined) {
-    if (value === undefined && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().switchWitnesses = value;
-  }
-
-  get switchWitnessesValid(): boolean {
-    const group = this.nodeRareLinks;
-    return group === undefined ? false : group.switchWitnessesValid;
-  }
-
-  set switchWitnessesValid(value: boolean) {
-    if (value === false && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().switchWitnessesValid = value;
-  }
-
+  switchWitnesses: string[] | undefined;
+  switchWitnessesValid: boolean;
   /** 0 unknown, 1 computing, 2 not exhaustive, 3 exhaustive. */
-  get exhaustiveState(): number {
-    const group = this.nodeRareLinks;
-    return group === undefined ? 0 : group.exhaustiveState;
-  }
-
-  set exhaustiveState(value: number) {
-    if (value === 0 && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().exhaustiveState = value;
-  }
-
+  exhaustiveState: number;
   /** The signature the runtime calls a decorator of this declaration with. */
-  get decoratorSignature(): Signature | undefined {
-    const group = this.nodeRareLinks;
-    return group === undefined ? undefined : group.decoratorSignature;
-  }
-
-  set decoratorSignature(value: Signature | undefined) {
-    if (value === undefined && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().decoratorSignature = value;
-  }
+  decoratorSignature: Signature | undefined;
 
   /** Whether a function body references `arguments`: 0 until computed, 1 for no, 2 for yes. */
-  get containsArgumentsReference(): number {
-    const group = this.nodeRareLinks;
-    return group === undefined ? 0 : group.containsArgumentsReference;
-  }
+  containsArgumentsReference: number;
 
-  set containsArgumentsReference(value: number) {
-    if (value === 0 && this.nodeRareLinks === undefined) return;
-    this.nodeRareLinksOrNew().containsArgumentsReference = value;
+  constructor() {
+    this.containsArgumentsReference = 0;
+    this.flags = NodeCheckFlags.None;
+    this.outerTypeParameters = undefined;
+    this.effectsSignature = undefined;
+    this.assertionExpressionType = undefined;
+    this.contextFreeType = undefined;
+    this.enumStringValue = '';
+    this.enumNumberValue = 0;
+    this.enumValueKind = 0;
+    this.hasReportedStatementInAmbientContext = false;
+    this.declarationRequiresScopeChange = 0;
+    this.typeChecked = false;
+    this.deferredNodes = undefined;
+    this.switchTypes = undefined;
+    this.switchWitnesses = undefined;
+    this.switchWitnessesValid = false;
+    this.exhaustiveState = 0;
+    this.decoratorSignature = undefined;
   }
 }

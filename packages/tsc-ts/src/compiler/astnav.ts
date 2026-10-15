@@ -150,6 +150,14 @@ function scanNavigationToken(scanner: Scanner, containingNode: Node): SyntaxKind
 let tokenCacheFile: SourceFile | undefined;
 let tokenCache = new Map<Node, Map<number, Node>>();
 
+/** Forgets the file the navigation scanner and token cache last visited. */
+export function forgetNavigationFile(): void {
+  navigationScanner = undefined;
+  navigationScannerFile = undefined;
+  tokenCacheFile = undefined;
+  tokenCache = new Map<Node, Map<number, Node>>();
+}
+
 /** A token the parser doesn't store, made from the scanner's current token. */
 function createToken(kind: SyntaxKind, pos: number, end: number, parent: Node): Node {
   const file = navigationScannerFile;
@@ -166,8 +174,8 @@ function createToken(kind: SyntaxKind, pos: number, end: number, parent: Node): 
   const cached = byRange.get(key);
   if (cached !== undefined && cached.kind === kind) return cached;
   const token = new Token(kind);
-  token.pos = pos;
-  token.end = end;
+  token.pos = pos | 0;
+  token.end = end | 0;
   token.parent = parent;
   byRange.set(key, token);
   return token;

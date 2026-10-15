@@ -546,8 +546,8 @@ export class RuntimeSyntax extends Transformer {
       NameOptions.AllowSourceMaps,
     );
     const expression = this.factory.createAssignment(member, value);
-    expression.pos = pos;
-    expression.end = end;
+    expression.pos = pos | 0;
+    expression.end = end | 0;
     return expression;
   }
 

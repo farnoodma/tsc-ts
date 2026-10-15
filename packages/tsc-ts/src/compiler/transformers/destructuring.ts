@@ -207,8 +207,8 @@ class Flattener {
         value = factory.inlineExpressions(pending.pendingExpressions)!;
       }
       const declaration = factory.createVariableDeclaration(pending.name, undefined, undefined, value);
-      declaration.pos = pending.pos;
-      declaration.end = pending.end;
+      declaration.pos = pending.pos | 0;
+      declaration.end = pending.end | 0;
       if (pending.original !== undefined) this.visitor.context.setOriginal(declaration, pending.original);
       declarations.push(declaration);
     }
@@ -228,8 +228,8 @@ class Flattener {
       expression = this.assignments.createAssignment(target as Identifier, value, pos, end);
     else {
       expression = this.visitor.factory.createAssignment(this.visitor.visitNode(target)!, value);
-      expression.pos = pos;
-      expression.end = end;
+      expression.pos = pos | 0;
+      expression.end = end | 0;
     }
     if (original !== undefined) this.visitor.context.setOriginal(expression, original);
     this.expressions.push(expression);
@@ -270,8 +270,8 @@ class Flattener {
     if (this.hoistTempVariables) {
       this.visitor.context.addVariableDeclaration(temp);
       const assignment = factory.createAssignment(temp, value);
-      assignment.pos = pos;
-      assignment.end = end;
+      assignment.pos = pos | 0;
+      assignment.end = end | 0;
       this.expressions.push(assignment);
     } else this.emitBindingOrAssignment(temp, value, pos, end, undefined);
     return temp;
@@ -453,8 +453,8 @@ class Flattener {
       } else names.push(factory.createStringLiteralFromNode(propertyName));
     }
     const array = factory.created(new ArrayLiteralExpression(factory.createNodeList(names), false));
-    array.pos = pos;
-    array.end = end;
+    array.pos = pos | 0;
+    array.end = end | 0;
     return factory.createCallExpression(factory.createUnscopedHelperName('__rest'), [value, array]);
   }
 }

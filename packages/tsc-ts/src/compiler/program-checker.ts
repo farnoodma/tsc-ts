@@ -192,13 +192,26 @@ export function bindProgram(program: Program): void {
  * what the checker of another file reports, and other files are checked as if no library had been.
  */
 export class CheckedProgram {
-  readonly checker: Checker;
+  private reportingChecker: Checker | undefined = undefined;
   private libraryChecker: Checker | undefined = undefined;
   private librariesAreClean: boolean | undefined = undefined;
 
   constructor(readonly program: Program) {
     bindProgram(program);
-    this.checker = new Checker(new ProgramCheckerHost(program));
+  }
+
+  /**
+   * The checker that reports diagnostics, created on first use: with `--checkers`, after the checker
+   * threads are started (parallel-check.ts), so creating it (merging the globals) is not on the way to
+   * checking.
+   */
+  get checker(): Checker {
+    let checker = this.reportingChecker;
+    if (checker === undefined) {
+      checker = new Checker(new ProgramCheckerHost(this.program));
+      this.reportingChecker = checker;
+    }
+    return checker;
   }
 
   /** A new checker for the program, independent of the one reporting diagnostics. */

@@ -16,7 +16,7 @@ import {
   type Locale,
   type MessageWithArgs,
 } from './diagnostics.js';
-import { CompilerHost } from './file-loader.js';
+import { CompilerHost, FileLoader } from './file-loader.js';
 import { CachedFileSystem, FileSystem, type DirectoryEntries } from './file-system.js';
 import { Program, sortAndDeduplicateDiagnostics } from './program.js';
 import { ConfigParser, ParsedCommandLine as ProjectConfig } from './tsconfig.js';
@@ -32,7 +32,7 @@ import { generateTSConfig } from './init.js';
 import { isIncremental, type CompilerOptions } from './options.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
 import { checkerThreads, parseThreads } from './parallel-check.js';
-import { parallelParse, reportPreparedFiles, startParallelParse } from './parallel-parse.js';
+import { ParseSession, parallelParse, reportPreparedFiles } from './parallel-parse.js';
 import { showConfig, type ShowConfigInput } from './show-config.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
 
@@ -320,11 +320,31 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   const configStart = performance.now();
   mark('config start');
   const errors: Diagnostic[] = [];
-  const config = readProjectConfig(sys, fs, commandLine, configFileName, errors);
+  // Where threads parse and bind the program's files ahead of it (parallel-parse.ts), they start with
+  // the libraries and the root files found so far while the config's `include` patterns are matched.
+  let session: ParseSession | undefined = undefined;
+  const beforeRootFiles = (projectOptions: CompilerOptions): ((fileName: string) => void) | undefined => {
+    if (projectOptions.watch === true || options.showConfig === true || !parsesAhead(projectOptions)) return undefined;
+    assignSymbolIdsAtCreation();
+    const started = new ParseSession(
+      parseThreads(checkerThreads(projectOptions.checkers, projectOptions.singleThreaded)),
+      projectOptions,
+      sys.currentDirectory,
+      configFileName,
+      true,
+    );
+    session = started;
+    // JSON root files load with the program's own options only.
+    return (fileName) => {
+      if (!fileName.endsWith('.json')) started.hint(fileName);
+    };
+  };
+  const config = readProjectConfig(sys, fs, commandLine, configFileName, errors, true, beforeRootFiles);
   if (config === undefined) {
     reporter.reportAll(errors);
     return exit(ExitStatus.DiagnosticsPresent_OutputsGenerated);
   }
+  const early: ParseSession | undefined = session;
 
   // The summary follows `pretty` of the config; diagnostics only that of the command line, as in tsgo.
   const errorSummary = new ErrorSummaryReporter(sys, config.options, locale);
@@ -337,9 +357,12 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   if (config.options.watch === true) return { kind: 'watch', config, commandLine };
 
   const parseStart = performance.now();
-  const createProgram = (): CommandLineResult => {
+  const createProgram = (
+    host: CompilerHost = new SystemCompilerHost(sys, fs, locale),
+    loader?: FileLoader,
+  ): CommandLineResult => {
     mark('program start');
-    const program = new Program(config, new SystemCompilerHost(sys, fs, locale));
+    const program = new Program(config, host, loader);
     mark(`program built, ${program.getSourceFiles().length} files`);
     const parseTime = performance.now() - parseStart;
     reportPreparedFiles(program.getSourceFiles().map((f) => f.fileName));
@@ -358,25 +381,49 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
       errorSummary,
     };
   };
-  const threads = checkerThreads(config.options.checkers, config.options.singleThreaded);
-  if (threads > 1 && parallelParse.spawn !== undefined && !isIncremental(config.options)) {
+  if (parsesAhead(config.options)) {
     // Threads parse and bind the files the program is expected to load first (parallel-parse.ts), and
     // share the program it becomes: its symbols get their ids when they are created.
     assignSymbolIdsAtCreation();
+    const threads = checkerThreads(config.options.checkers, config.options.singleThreaded);
     return {
       kind: 'deferred',
-      run: (done: (result: CommandLineResult) => void) =>
-        startParallelParse(
-          parseThreads(threads),
-          config.fileNames,
-          config.options,
-          sys.currentDirectory,
-          configFileName,
-          () => done(createProgram()),
-        ),
+      run: (done: (result: CommandLineResult) => void) => {
+        const session =
+          early ??
+          new ParseSession(
+            parseThreads(threads),
+            config.options,
+            sys.currentDirectory,
+            configFileName,
+            config.fileNames.length > 0,
+          );
+        // While the threads load files, the program's first step (a task per root file, which looks
+        // the file up) runs, and the tasks of the files they return are built ahead.
+        const host = new SystemCompilerHost(sys, fs, locale);
+        const loader = new FileLoader(host, config);
+        let rootFilesAdded = false;
+        session.onIdle = (batch) => {
+          if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(rootFilesPerChunk);
+          loader.takeAhead(batch.files);
+        };
+        session.start(config.fileNames, () => done(createProgram(host, loader)));
+      },
     };
   }
   return createProgram();
+}
+
+/** Root file tasks the main thread adds each time a parse thread returns a chunk (`FileLoader.addRootFiles`). */
+const rootFilesPerChunk = 32;
+
+/** Whether threads parse and bind the files of a program with `options` ahead of it (parallel-parse.ts). */
+function parsesAhead(options: CompilerOptions): boolean {
+  return (
+    checkerThreads(options.checkers, options.singleThreaded) > 1 &&
+    parallelParse.spawn !== undefined &&
+    !isIncremental(options)
+  );
 }
 
 /**
@@ -391,10 +438,12 @@ function readProjectConfig(
   configFileName: string,
   errors: Diagnostic[],
   expandFileNames = true,
+  beforeRootFiles?: (options: CompilerOptions) => ((fileName: string) => void) | undefined,
 ): ProjectConfig | undefined {
   if (configFileName !== '') {
     const parser = new ConfigParser(fs, sys.currentDirectory);
     parser.expandFileNames = expandFileNames;
+    parser.beforeRootFiles = beforeRootFiles;
     return parser.parseConfigFile(configFileName, commandLine.options, commandLine.raw, errors);
   }
   return new ProjectConfig(

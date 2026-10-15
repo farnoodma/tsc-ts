@@ -41,7 +41,7 @@ import {
 } from './binder-utilities.js';
 import { identifierToKeywordKind } from './scanner.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
+import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
@@ -155,14 +155,17 @@ export function getNonMissingTypeOfSymbol(c: Checker, symbol: Symbol): Type {
 
 function getTypeOfSymbolWithDeferredType(c: Checker, symbol: Symbol): Type {
   const links = c.symbolLinks(symbol);
-  if (links.type === undefined) {
+  const id = symbol.id;
+  if (c.symbolTypes.get(id) === undefined) {
     const constituents = links.deferralConstituents!;
-    links.type =
+    c.symbolTypes.set(
+      id,
       (links.deferralParent!.flags & TypeFlags.Union) !== 0
         ? getUnionType(c, constituents)
-        : getIntersectionType(c, constituents);
+        : getIntersectionType(c, constituents),
+    );
   }
-  return links.type;
+  return c.symbolTypes.get(id)!;
 }
 
 function getWriteTypeOfSymbolWithDeferredType(c: Checker, symbol: Symbol): Type {
@@ -180,24 +183,33 @@ function getWriteTypeOfSymbolWithDeferredType(c: Checker, symbol: Symbol): Type 
 }
 
 function getTypeOfInstantiatedSymbol(c: Checker, symbol: Symbol): Type {
-  const links = c.symbolLinks(symbol);
-  if (links.type === undefined) links.type = instantiateType(c, getTypeOfSymbol(c, links.target!), links.mapper);
-  return links.type;
+  const id = getSymbolId(symbol);
+  let type = c.symbolTypes.get(id);
+  if (type === undefined) {
+    type = instantiateType(c, getTypeOfSymbol(c, c.symbolTargets.get(id)!), c.symbolMappers.get(id));
+    c.symbolTypes.set(id, type);
+  }
+  return type;
 }
 
 export function getWriteTypeOfSymbol(c: Checker, symbol: Symbol): Type {
   if ((symbol.checkFlags & CheckFlags.SyntheticProperty) !== 0) {
     if ((symbol.checkFlags & CheckFlags.DeferredType) !== 0) return getWriteTypeOfSymbolWithDeferredType(c, symbol);
-    const links = c.symbolLinks(symbol);
-    return links.writeType ?? links.type ?? getTypeOfSymbol(c, symbol);
+    const id = getSymbolId(symbol);
+    return c.symbolLinkTable.get(id)?.writeType ?? c.symbolTypes.get(id) ?? getTypeOfSymbol(c, symbol);
   }
   if ((symbol.flags & SymbolFlags.Property) !== 0)
     return removeMissingType(c, getTypeOfSymbol(c, symbol), (symbol.flags & SymbolFlags.Optional) !== 0);
   if ((symbol.flags & SymbolFlags.Accessor) !== 0) {
     if ((symbol.checkFlags & CheckFlags.Instantiated) !== 0) {
       const links = c.symbolLinks(symbol);
+      const symbolId = symbol.id;
       if (links.writeType === undefined)
-        links.writeType = instantiateType(c, getWriteTypeOfSymbol(c, links.target!), links.mapper);
+        links.writeType = instantiateType(
+          c,
+          getWriteTypeOfSymbol(c, c.symbolTargets.get(symbolId)!),
+          c.symbolMappers.get(symbolId),
+        );
       return links.writeType;
     }
     return getWriteTypeOfAccessors(c, symbol);
@@ -208,11 +220,13 @@ export function getWriteTypeOfSymbol(c: Checker, symbol: Symbol): Type {
 // ---- Variables, parameters and properties
 
 function getTypeOfVariableOrParameterOrProperty(c: Checker, symbol: Symbol): Type {
-  const links = c.symbolLinks(symbol);
-  if (links.type !== undefined) return links.type;
+  const id = getSymbolId(symbol);
+  const cached = c.symbolTypes.get(id);
+  if (cached !== undefined) return cached;
   const t = getTypeOfVariableOrParameterOrPropertyWorker(c, symbol);
   // Contextually typed parameters may get their type later; don't cache theirs.
-  if (links.type === undefined && !isParameterOfContextSensitiveSignature(c, symbol)) links.type = t;
+  if (c.symbolTypes.get(id) === undefined && !isParameterOfContextSensitiveSignature(c, symbol))
+    c.symbolTypes.set(id, t);
   return t;
 }
 
@@ -747,20 +761,31 @@ function createSymbolWithWidenedType(c: Checker, prop: Symbol, t: Type): Symbol 
   result.declarations = prop.declarations;
   result.parent = prop.parent;
   result.valueDeclaration = prop.valueDeclaration;
-  const links = c.symbolLinks(result);
-  links.type = t;
-  links.target = prop;
-  links.nameType = c.symbolLinks(prop).nameType;
+  const id = getSymbolId(result);
+  c.symbolTypes.set(id, t);
+  c.symbolTargets.set(id, prop);
+  c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(prop)));
   return result;
 }
 
-/** An optional `undefined` property standing in for a property of a sibling object literal. */
+/**
+ * An optional `undefined` property standing in for `prop`, the last property of that name among the
+ * sibling object literals (getPropertiesOfContext). It carries `prop`'s declarations, which order it
+ * among the members when they are printed.
+ *
+ * tsgo caches one such symbol per name and checker, so the declarations come from whichever literal
+ * the checker widened first: with one checker that depends on every file checked before, with several
+ * on how files were spread over them. Cached per sibling property instead, the result depends only on
+ * the literals being widened. It is the symbol tsgo creates when it first widens a name, and it orders
+ * differently only where tsgo reuses a symbol from an earlier literal.
+ */
 function getUndefinedProperty(c: Checker, prop: Symbol): Symbol {
-  const cached = c.undefinedProperties.get(prop.name);
+  const key = getSymbolId(prop);
+  const cached = c.undefinedProperties.get(key);
   if (cached !== undefined) return cached;
   const result = createSymbolWithWidenedType(c, prop, c.undefinedOrMissingType);
   result.flags |= SymbolFlags.Optional;
-  c.undefinedProperties.set(prop.name, result);
+  c.undefinedProperties.set(key, result);
   return result;
 }
 
@@ -920,8 +945,9 @@ function getAutoAccessorDeclaration(symbol: Symbol): Node | undefined {
 }
 
 function getTypeOfAccessors(c: Checker, symbol: Symbol): Type {
-  const links = c.symbolLinks(symbol);
-  if (links.type !== undefined) return links.type;
+  const id = getSymbolId(symbol);
+  const type = c.symbolTypes.get(id);
+  if (type !== undefined) return type;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) return c.errorType;
   const getter = symbol.declarations.find((d) => d.kind === SyntaxKind.GetAccessor);
   const setter = symbol.declarations.find((d) => d.kind === SyntaxKind.SetAccessor);
@@ -973,8 +999,12 @@ function getTypeOfAccessors(c: Checker, symbol: Symbol): Type {
       );
     t = c.anyType;
   }
-  if (links.type === undefined) links.type = t;
-  return links.type;
+  let cached = c.symbolTypes.get(id);
+  if (cached === undefined) {
+    cached = t;
+    c.symbolTypes.set(id, cached);
+  }
+  return cached;
 }
 
 export function getWriteTypeOfAccessors(c: Checker, symbol: Symbol): Type {
@@ -1001,9 +1031,13 @@ export function getWriteTypeOfAccessors(c: Checker, symbol: Symbol): Type {
 // ---- Functions, classes, enums, modules and aliases
 
 function getTypeOfFuncClassEnumModule(c: Checker, symbol: Symbol): Type {
-  const links = c.symbolLinks(symbol);
-  if (links.type === undefined) links.type = getTypeOfFuncClassEnumModuleWorker(c, symbol);
-  return links.type;
+  const id = getSymbolId(symbol);
+  let type = c.symbolTypes.get(id);
+  if (type === undefined) {
+    type = getTypeOfFuncClassEnumModuleWorker(c, symbol);
+    c.symbolTypes.set(id, type);
+  }
+  return type;
 }
 
 function getTypeOfFuncClassEnumModuleWorker(c: Checker, symbol: Symbol): Type {
@@ -1039,26 +1073,33 @@ export function getBaseTypeVariableOfClass(c: Checker, symbol: Symbol): Type | u
 }
 
 function getTypeOfEnumMember(c: Checker, symbol: Symbol): Type {
-  const links = c.symbolLinks(symbol);
-  if (links.type === undefined) links.type = getDeclaredTypeOfEnumMember(c, symbol);
-  return links.type;
+  const id = getSymbolId(symbol);
+  let type = c.symbolTypes.get(id);
+  if (type === undefined) {
+    type = getDeclaredTypeOfEnumMember(c, symbol);
+    c.symbolTypes.set(id, type);
+  }
+  return type;
 }
 
 function getTypeOfAlias(c: Checker, symbol: Symbol): Type {
-  const links = c.symbolLinks(symbol);
-  if (links.type !== undefined) return links.type;
+  const id = getSymbolId(symbol);
+  const type = c.symbolTypes.get(id);
+  if (type !== undefined) return type;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) return c.errorType;
   const targetSymbol = resolveAlias(c, symbol);
   const exportSymbol = getTargetOfAliasDeclaration(c, getDeclarationOfAliasSymbol(symbol));
   // Only values have types.
-  if (links.type === undefined)
-    links.type =
-      (getSymbolFlags(c, targetSymbol) & SymbolFlags.Value) !== 0 ? getTypeOfSymbol(c, targetSymbol) : c.errorType;
+  if (c.symbolTypes.get(id) === undefined)
+    c.symbolTypes.set(
+      id,
+      (getSymbolFlags(c, targetSymbol) & SymbolFlags.Value) !== 0 ? getTypeOfSymbol(c, targetSymbol) : c.errorType,
+    );
   if (!popTypeResolution(c)) {
     reportCircularityError(c, exportSymbol ?? symbol);
-    if (links.type === undefined) links.type = c.errorType;
+    if (c.symbolTypes.get(id) === undefined) c.symbolTypes.set(id, c.errorType);
   }
-  return links.type;
+  return c.symbolTypes.get(id)!;
 }
 
 function getTypeOfPrototypeProperty(c: Checker, prototype: Symbol): Type {

@@ -445,7 +445,7 @@ export function getContainersOfSymbol(
         continue;
       }
       checkExpressionCached(c, target);
-      addCandidate(c.nodeLinks(target).resolvedSymbol);
+      addCandidate(c.resolvedSymbols.get(target.id));
     }
   }
   if (candidates.length === 0) return [];
@@ -845,27 +845,45 @@ function getClassExpressionNameTable(c: Checker, location: ClassExpression): Sym
 
 // ---- Declaration visibility
 
-/** Whether a declaration is visible outside its file: exported, global, or part of a visible declaration. */
+/**
+ * Whether a declaration is visible outside its file: exported, global, or part of a visible declaration.
+ *
+ * tsgo caches this per checker and lets declaration emit mark declarations visible. Only marks made
+ * while emitting files of the current checker slot count (see beginDeclarationEmitVisibility), and
+ * leaving a slot forgets the cached visibility of the declarations it marked. Rather than undoing and
+ * redoing those marks at every file, a node keeps the slots it was marked in, and a cached result is
+ * stale if one of those slots was left after it was computed.
+ */
 export function isDeclarationVisible(c: Checker, node: Node): boolean {
   if ((node.flags & NodeFlags.Synthesized) !== 0) return false;
-  const cache = caches(c).declarationVisibility;
+  const cache = caches(c);
   const id = getNodeId(node);
-  const cached = cache.get(id);
-  if (cached !== undefined) return cached;
+  const marks = cache.markedSlots.get(id);
+  if ((marks & slotBit(cache.markedSlot)) !== 0) return true;
+  const cached = cache.declarationVisibility.get(id);
+  if (cached !== 0 && (marks === 0 || !leftSince(cache.slotsLeftAt, marks, cached >> 2))) return (cached & 1) !== 0;
   const visible = determineIfDeclarationIsVisible(c, node);
-  cache.set(id, visible);
+  // Bit 0 is the result, bit 1 marks the entry computed, the rest is the epoch it was computed in.
+  cache.declarationVisibility.set(id, (cache.visibilityEpoch << 2) | 2 | (visible ? 1 : 0));
   return visible;
+}
+
+/** The bit of a checker slot (-1 before declaration emit) in `markedSlots`. */
+function slotBit(slot: number): number {
+  return 1 << (slot + 1);
+}
+
+/** Whether one of the slots in `marks` was left after `epoch`. */
+function leftSince(slotsLeftAt: number[], marks: number, epoch: number): boolean {
+  for (let index = 0; index < slotsLeftAt.length; index++)
+    if ((marks & (1 << index)) !== 0 && slotsLeftAt[index]! > epoch) return true;
+  return false;
 }
 
 export function markDeclarationVisible(c: Checker, node: Node): void {
   const cache = caches(c);
-  cache.declarationVisibility.set(getNodeId(node), true);
-  let marked = cache.markedVisible.get(cache.markedSlot);
-  if (marked === undefined) {
-    marked = [];
-    cache.markedVisible.set(cache.markedSlot, marked);
-  }
-  marked.push(node);
+  const id = getNodeId(node);
+  cache.markedSlots.set(id, cache.markedSlots.get(id) | slotBit(cache.markedSlot));
 }
 
 /** Checkers tsgo spreads a program's files over, round robin. */
@@ -880,10 +898,9 @@ export function beginDeclarationEmitVisibility(c: Checker, file: SourceFile): vo
   const index = c.fileIndex.get(file);
   const slot = index === undefined ? -1 : index % Math.max(1, Math.min(checkerCount, c.files.length));
   if (slot === cache.markedSlot) return;
-  const visibility = cache.declarationVisibility;
-  for (const node of cache.markedVisible.get(cache.markedSlot) ?? []) visibility.delete(getNodeId(node));
+  cache.visibilityEpoch++;
+  cache.slotsLeftAt[cache.markedSlot + 1] = cache.visibilityEpoch;
   cache.markedSlot = slot;
-  for (const node of cache.markedVisible.get(slot) ?? []) visibility.set(getNodeId(node), true);
 }
 
 function determineIfDeclarationIsVisible(c: Checker, node: Node): boolean {

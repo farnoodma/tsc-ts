@@ -7,6 +7,7 @@ import { statSync } from 'node:fs';
 import { publish } from '@scriptc/threads';
 import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
 import { bindSourceFile } from './binder.js';
+import { useThreadTextCaches } from './diagnostics.js';
 import { CompilerHost, FileLoader } from './file-loader.js';
 import type { FileSystem } from './file-system.js';
 import { LoadJobs, LoadKind, type LoadMessage, PreparedBatch, PreparedFile } from './parallel-parse.js';
@@ -71,6 +72,9 @@ export class ParseThread {
   constructor(config: ParsedCommandLine, fs: FileSystem, currentDirectory: string, defaultLibraryPath: string) {
     this.host = new PreparingHost(fs, currentDirectory, defaultLibraryPath);
     this.loader = new FileLoader(this.host, config);
+    // The files this thread loads are published with their chunk: text caches it computes later (of
+    // declaration files, which the parser leaves out) go to copies.
+    useThreadTextCaches();
   }
 
   /** Loads `chunk`: its bound files, published, and the files they add. */

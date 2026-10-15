@@ -27,6 +27,7 @@
     "bench": "node scripts/bench.mjs"
   },
   "devDependencies": {
+    "@scriptc/types": "^0.3.0",
     "@tsc-ts/tsgo": "*"
   },
   "engines": {

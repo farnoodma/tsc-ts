@@ -11,7 +11,6 @@ import {
   isOctalDigit,
   isWhiteSpaceLike,
   isWhiteSpaceSingleLine,
-  isWordCharacter,
 } from './character-codes.js';
 import { Diagnostics } from './diagnostic-messages.js';
 import type { DiagnosticMessage } from './diagnostics.js';
@@ -215,14 +214,16 @@ function keywordBucket(text: string): number {
 
 /** The keyword kind of the code units `chars[start, end)`, or `Identifier`. */
 function keywordKindAt(chars: Uint16Array, start: number, end: number): SyntaxKind {
-  const length = end - start;
+  const length = (end - start) | 0;
   if (length < 2 || length > 12) return SyntaxKind.Identifier;
-  const first = chars[start];
+  const first = chars[start] | 0;
   if (first < CharacterCodes.a || first > CharacterCodes.z) return SyntaxKind.Identifier;
-  const bucket = (first - CharacterCodes.a) * 13 + length;
-  for (let i = keywordBucketStart[bucket], last = keywordBucketStart[bucket + 1]; i < last; i++) {
+  const bucket = ((first - CharacterCodes.a) * 13 + length) | 0;
+  const last = keywordBucketStart[bucket + 1] | 0;
+  for (let i = keywordBucketStart[bucket] | 0; i < last; i = (i + 1) | 0) {
+    const base = (i * 12) | 0;
     let j = 1;
-    while (j < length && keywordCodeUnits[i * 12 + j] === chars[start + j]) j++;
+    while (j < length && (keywordCodeUnits[(base + j) | 0] | 0) === (chars[(start + j) | 0] | 0)) j = (j + 1) | 0;
     if (j === length) return (keywordKinds[i]! | 0) as SyntaxKind;
   }
   return SyntaxKind.Identifier;
@@ -304,21 +305,21 @@ export class ScannerState {
     commentDirectiveCount: number,
     skipJSDocLeadingAsterisks: number,
   ) {
-    this.pos = pos;
-    this.fullStartPos = fullStartPos;
-    this.tokenStart = tokenStart;
+    this.pos = pos | 0;
+    this.fullStartPos = fullStartPos | 0;
+    this.tokenStart = tokenStart | 0;
     this.token = token;
     this.tokenFlags = tokenFlags;
     this.tokenValue = tokenValue;
-    this.valueStart = valueStart;
-    this.valueEnd = valueEnd;
+    this.valueStart = valueStart | 0;
+    this.valueEnd = valueEnd | 0;
     this.commentDirectiveCount = commentDirectiveCount;
     this.skipJSDocLeadingAsterisks = skipJSDocLeadingAsterisks;
   }
 
   /** @internal Overwrites this snapshot with the scanner's current state, like `Scanner.mark`. */
   assign(scanner: Scanner): void {
-    this.pos = scanner.pos;
+    this.pos = scanner.pos | 0;
     this.fullStartPos = scanner.fullStartPos;
     this.tokenStart = scanner.tokenStart;
     this.token = scanner.token;
@@ -331,10 +332,28 @@ export class ScannerState {
   }
 }
 
-/** FNV-1a over a range's code units. */
+/**
+ * `[A-Za-z0-9_$]`, for an int32 code unit. The scanner's hot loops test this inline rather than
+ * calling `isWordCharacter`, whose parameter native builds keep as a double.
+ */
+function isASCIIIdentifierPart(c: number): boolean {
+  return (
+    (c >= CharacterCodes.a && c <= CharacterCodes.z) ||
+    (c >= CharacterCodes.A && c <= CharacterCodes.Z) ||
+    (c >= CharacterCodes._0 && c <= CharacterCodes._9) ||
+    c === CharacterCodes._ ||
+    c === CharacterCodes.$
+  );
+}
+
+/** FNV-1a over a range's code units. The identifier scan computes the same hash as it goes. */
 function rangeHash(chars: Uint16Array, start: number, end: number): number {
   let hash = 0x811c9dc5 | 0;
-  for (let i = start; i < end; i++) hash = Math.imul(hash ^ chars[i], 0x01000193);
+  for (let i = start | 0; i < end; i = (i + 1) | 0) hash = Math.imul(hash ^ (chars[i] | 0), 0x01000193);
+  return finishHash(hash);
+}
+
+function finishHash(hash: number): number {
   return hash ^ (hash >>> 15);
 }
 
@@ -343,23 +362,41 @@ class IdentifierTable {
   private text: string;
   // Pairs of (entry index + 1, hash) per slot, (0, 0) when empty; linear probing.
   private slots: Int32Array;
-  // Each entry's code units, at `offsets[entry]` in `units`: compact, so probes stay in cache.
+  // Each entry's code units, at its offset in `units`: compact, so probes stay in cache.
   private units: Uint16Array;
   private unitCount: number;
-  private offsets: Int32Array;
-  private lengths: Int32Array;
+  // Pairs of (offset in `units`, length) per entry: one array for both, so a lookup reads (and, in
+  // native builds, retains) one array less.
+  private ranges: Int32Array;
   private texts: string[];
   private count: number;
+  // Per entry: 1 once its text was recorded among the file's identifier texts (`markRecorded`).
+  private recorded: Uint8Array;
+  // The entry the last `intern` returned.
+  private lastEntry: number;
 
   constructor(text: string) {
     this.text = text;
     this.slots = new Int32Array(512);
     this.units = new Uint16Array(1024);
     this.unitCount = 0;
-    this.offsets = new Int32Array(128);
-    this.lengths = new Int32Array(128);
+    this.ranges = new Int32Array(256);
     this.texts = [];
     this.count = 0;
+    this.recorded = new Uint8Array(128);
+    this.lastEntry = -1;
+  }
+
+  /**
+   * Whether `text`, just returned by `intern`, still needs recording among the file's identifier
+   * texts; marks it recorded. Texts the table doesn't know are always recorded.
+   */
+  markRecorded(text: string): boolean {
+    const entry = this.lastEntry;
+    if (entry < 0 || this.texts[entry] !== text) return true;
+    if (this.recorded[entry] !== 0) return false;
+    this.recorded[entry] = 1;
+    return true;
   }
 
   /** Empties the table for a new text. */
@@ -367,55 +404,67 @@ class IdentifierTable {
     this.text = text;
     if (this.count === 0) return;
     this.slots.fill(0);
+    this.recorded.fill(0, 0, this.count);
     this.texts.length = 0;
     this.unitCount = 0;
     this.count = 0;
+    this.lastEntry = -1;
   }
 
-  /** `text.substring(start, end)`, or the string interned for an equal range. */
-  intern(chars: Uint16Array, start: number, end: number): string {
-    const length = end - start;
-    const hash = rangeHash(chars, start, end);
+  /** `text.substring(start, end)`, or the string interned for an equal range; `hash` is its `rangeHash`. */
+  intern(chars: Uint16Array, start: number, end: number, hash: number): string {
+    start = start | 0;
+    end = end | 0;
+    hash = hash | 0;
+    const length = (end - start) | 0;
     const slots = this.slots;
-    const mask = slots.length / 2 - 1;
+    const mask = ((slots.length >> 1) - 1) | 0;
     let slot = hash & mask;
     for (;;) {
-      const entry = slots[slot * 2];
+      const entry = slots[(slot * 2) | 0] | 0;
       if (entry === 0) break;
-      if (slots[slot * 2 + 1] === hash && this.lengths[entry - 1] === length) {
-        const units = this.units;
-        const offset = this.offsets[entry - 1];
-        let i = 0;
-        while (i < length && units[(offset + i) | 0] === chars[(start + i) | 0]) i++;
-        if (i === length) return this.texts[entry - 1]!;
+      if ((slots[(slot * 2 + 1) | 0] | 0) === hash) {
+        const ranges = this.ranges;
+        const at = ((entry - 1) * 2) | 0;
+        if ((ranges[(at + 1) | 0] | 0) === length) {
+          const units = this.units;
+          const offset = ranges[at] | 0;
+          let i = 0;
+          while (i < length && (units[(offset + i) | 0] | 0) === (chars[(start + i) | 0] | 0)) i = (i + 1) | 0;
+          if (i === length) {
+            this.lastEntry = (entry - 1) | 0;
+            return this.texts[(entry - 1) | 0]!;
+          }
+        }
       }
       slot = (slot + 1) & mask;
     }
     const value = this.text.substring(start, end);
-    const index = this.count;
-    if (index === this.offsets.length) {
-      const offsets = new Int32Array(index * 2);
-      offsets.set(this.offsets);
-      this.offsets = offsets;
-      const lengths = new Int32Array(index * 2);
-      lengths.set(this.lengths);
-      this.lengths = lengths;
+    const index = this.count | 0;
+    if (index * 2 === this.ranges.length) {
+      const ranges = new Int32Array(index * 4);
+      ranges.set(this.ranges);
+      this.ranges = ranges;
+      const recorded = new Uint8Array(index * 2);
+      recorded.set(this.recorded);
+      this.recorded = recorded;
     }
     let units = this.units;
-    const offset = this.unitCount;
+    const offset = this.unitCount | 0;
     if (offset + length > units.length) {
       units = new Uint16Array(Math.max(units.length * 2, offset + length));
       units.set(this.units);
       this.units = units;
     }
     units.set(chars.subarray(start, end), offset);
-    this.unitCount = offset + length;
-    this.offsets[index] = offset;
-    this.lengths[index] = length;
+    this.unitCount = (offset + length) | 0;
+    this.ranges[(index * 2) | 0] = offset;
+    this.ranges[(index * 2 + 1) | 0] = length;
     this.texts.push(value);
-    this.count = index + 1;
-    slots[slot * 2] = index + 1;
-    slots[slot * 2 + 1] = hash;
+    this.count = (index + 1) | 0;
+    this.lastEntry = index;
+    slots[(slot * 2) | 0] = (index + 1) | 0;
+    slots[(slot * 2 + 1) | 0] = hash;
     if (this.count * 2 > mask + 1) this.slots = rehash(slots);
     return value;
   }
@@ -444,30 +493,28 @@ function toCodeUnits(text: string): Uint16Array {
   return chars;
 }
 
-// The two loops below scan long runs. Indexing a zero-based view up to its length
-// compiles to much tighter native code than indexing `chars` from `pos`.
+// The two loops below scan long runs. They index `chars` from `pos` on an int32 counter, which
+// native builds compile to an integer loop without allocating a view.
 
 /** The position of the next `` ` ``, `$`, `\\` or CR at or after `pos`, or `end`. */
 function skipTemplateText(chars: Uint16Array, pos: number, end: number): number {
-  const view = chars.subarray(pos, end);
-  for (let i = 0; i < view.length; i++) {
-    const c = view[i];
+  for (let i = pos | 0; i < end; i = (i + 1) | 0) {
+    const c = chars[i] | 0;
     if (
       c === CharacterCodes.backtick ||
       c === CharacterCodes.$ ||
       c === CharacterCodes.backslash ||
       c === CharacterCodes.carriageReturn
     )
-      return pos + i;
+      return i;
   }
   return end;
 }
 
 /** The position of the next `*`, `@`, line break or non-ASCII unit at or after `pos`, or `end`. */
 function skipCommentText(chars: Uint16Array, pos: number, end: number): number {
-  const view = chars.subarray(pos, end);
-  for (let i = 0; i < view.length; i++) {
-    const c = view[i];
+  for (let i = pos | 0; i < end; i = (i + 1) | 0) {
+    const c = chars[i] | 0;
     if (
       c === CharacterCodes.asterisk ||
       c === CharacterCodes.at ||
@@ -475,7 +522,7 @@ function skipCommentText(chars: Uint16Array, pos: number, end: number): number {
       c === CharacterCodes.carriageReturn ||
       c > CharacterCodes.maxAsciiCharacter
     )
-      return pos + i;
+      return i;
   }
   return end;
 }
@@ -554,6 +601,11 @@ export class Scanner {
   private onError: ScannerErrorReporter | undefined;
   private skipTrivia: boolean;
 
+  // Writes of the token offsets below are coerced with `| 0` where the compiler can't bound the
+  // value, so native builds store them as 32-bit integers. `pos` too: every write (also in the
+  // regular expression checker) is `(pos + n) | 0` or an int32 value, never `++` or `+=`, and hot
+  // loops copy it into an int32 local and read code units as `chars[i] | 0`, so they run on
+  // integers instead of doubles. Positions stay far below 2^31, so `| 0` never changes a value.
   /** @internal Current position; the end of the current token. */
   pos: number;
   /** @internal */ fullStartPos: number;
@@ -565,6 +617,10 @@ export class Scanner {
   /** @internal */ tokenValue: string;
   /** @internal */ valueStart: number;
   /** @internal */ valueEnd: number;
+  // `rangeHash` of `chars[hashStart, hashEnd)`, which the ASCII identifier scan computes as it goes.
+  private valueHash: number;
+  private hashStart: number;
+  private hashEnd: number;
   /** @internal */ commentDirectives: CommentDirective[];
   /** @internal */ skipJSDocLeadingAsterisks: number;
   // The code units zeroed by `setTextEnd`.
@@ -574,7 +630,7 @@ export class Scanner {
   constructor(text = '') {
     this.text = text;
     this.chars = toCodeUnits(text);
-    this.end = text.length;
+    this.end = text.length | 0;
     this.languageVariant = LanguageVariant.Standard;
     this.scriptTarget = ScriptTarget.None;
     this.onError = undefined;
@@ -587,6 +643,9 @@ export class Scanner {
     this.tokenValue = '';
     this.valueStart = -1;
     this.valueEnd = -1;
+    this.valueHash = 0;
+    this.hashStart = -1;
+    this.hashEnd = -1;
     this.commentDirectives = [];
     this.skipJSDocLeadingAsterisks = 0;
     this.cutUnits = new Uint16Array(4);
@@ -598,7 +657,7 @@ export class Scanner {
     this.text = text;
     this.chars = toCodeUnits(text);
     this.identifiers.setText(text);
-    this.end = text.length;
+    this.end = text.length | 0;
     this.pos = 0;
     this.fullStartPos = 0;
     this.tokenStart = 0;
@@ -606,6 +665,7 @@ export class Scanner {
     this.tokenFlags = TokenFlags.None;
     this.tokenValue = '';
     this.valueStart = -1;
+    this.hashStart = -1;
     this.commentDirectives = [];
     this.skipJSDocLeadingAsterisks = 0;
   }
@@ -621,7 +681,7 @@ export class Scanner {
         cut[i] = chars[end + i];
         chars[end + i] = 0;
       }
-    this.end = end;
+    this.end = end | 0;
     this.pos = 0;
     this.fullStartPos = 0;
     this.tokenStart = 0;
@@ -629,6 +689,7 @@ export class Scanner {
     this.tokenFlags = TokenFlags.None;
     this.tokenValue = '';
     this.valueStart = -1;
+    this.hashStart = -1;
     this.skipJSDocLeadingAsterisks = 0;
   }
 
@@ -692,10 +753,22 @@ export class Scanner {
     return this.tokenValue;
   }
 
+  /**
+   * Whether `text`, the identifier value just returned by `getIdentifierValue`, is the first of its
+   * file to be recorded; files record each identifier text once.
+   */
+  recordIdentifierValue(text: string): boolean {
+    return this.identifiers.markRecorded(text);
+  }
+
   /** @internal Like `getTokenValue`, but identifiers with the same text share one string. */
   getIdentifierValue(): string {
-    if (this.valueStart >= 0) {
-      this.tokenValue = this.identifiers.intern(this.chars, this.valueStart, this.valueEnd);
+    const start = this.valueStart;
+    if (start >= 0) {
+      const end = this.valueEnd;
+      const hash =
+        start === this.hashStart && end === this.hashEnd ? this.valueHash : rangeHash(this.chars, start, end);
+      this.tokenValue = this.identifiers.intern(this.chars, start, end, hash);
       this.valueStart = -1;
     }
     return this.tokenValue;
@@ -784,9 +857,9 @@ export class Scanner {
   /** Moves to `pos` without changing the current token. */
   resetPos(pos: number): void {
     if (pos < 0) throw new Error('Cannot reset token state to negative position');
-    this.pos = pos;
-    this.fullStartPos = pos;
-    this.tokenStart = pos;
+    this.pos = pos | 0;
+    this.fullStartPos = pos | 0;
+    this.tokenStart = pos | 0;
   }
 
   resetTokenState(pos: number): void {
@@ -813,13 +886,13 @@ export class Scanner {
 
   /** @internal The code unit at `pos`, or -1 at the end. */
   char(): number {
-    return this.pos < this.end ? this.chars[this.pos] : CharacterCodes.EOF;
+    return this.pos < this.end ? this.chars[this.pos] | 0 : CharacterCodes.EOF;
   }
 
   /** @internal The code unit at `pos + offset`, or -1 past the end. */
   peek(offset: number): number {
-    const at = this.pos + offset;
-    return at < this.end ? this.chars[at] : CharacterCodes.EOF;
+    const at = (this.pos + offset) | 0;
+    return at < this.end ? this.chars[at] | 0 : CharacterCodes.EOF;
   }
 
   /** @internal The code point at `pos`, or -1 at the end. */
@@ -831,9 +904,9 @@ export class Scanner {
   codePointAt(pos: number, end: number): number {
     if (pos >= end) return CharacterCodes.EOF;
     const chars = this.chars;
-    const ch = chars[pos];
+    const ch = chars[pos] | 0;
     if (ch >= 0xd800 && ch <= 0xdbff && pos + 1 < end) {
-      const low = chars[pos + 1];
+      const low = chars[pos + 1] | 0;
       if (low >= 0xdc00 && low <= 0xdfff) return (ch - 0xd800) * 0x400 + (low - 0xdc00) + 0x10000;
     }
     return ch;
@@ -842,9 +915,9 @@ export class Scanner {
   /** The code point ending just before `pos`; -1 at the start. */
   private codePointBefore(pos: number): number {
     if (pos <= 0) return CharacterCodes.EOF;
-    const ch = this.chars[pos - 1];
+    const ch = this.chars[pos - 1] | 0;
     if (ch >= 0xdc00 && ch <= 0xdfff && pos >= 2) {
-      const high = this.chars[pos - 2];
+      const high = this.chars[pos - 2] | 0;
       if (high >= 0xd800 && high <= 0xdbff) return (high - 0xd800) * 0x400 + (ch - 0xdc00) + 0x10000;
     }
     return ch;
@@ -856,59 +929,66 @@ export class Scanner {
   }
 
   private setValueSlice(start: number, end: number): void {
-    this.valueStart = start;
-    this.valueEnd = end;
+    this.valueStart = start | 0;
+    this.valueEnd = end | 0;
   }
 
   scan(): SyntaxKind {
     // `chars` is zero-padded, so peeking a few units past the end is safe.
     const chars = this.chars;
-    this.fullStartPos = this.pos;
+    this.fullStartPos = this.pos | 0;
     this.tokenFlags = TokenFlags.None;
     for (;;) {
-      const ch = this.pos < this.end ? chars[this.pos] : CharacterCodes.EOF;
-      this.tokenStart = this.pos;
+      const ch = this.pos < this.end ? chars[this.pos] | 0 : CharacterCodes.EOF;
+      this.tokenStart = this.pos | 0;
       switch (ch) {
         case CharacterCodes.tab:
         case CharacterCodes.verticalTab:
         case CharacterCodes.formFeed:
         case CharacterCodes.space:
           if (this.skipTrivia) {
-            let pos = this.pos + 1;
+            let pos = (this.pos + 1) | 0;
             const end = this.end;
-            while (pos < end && (chars[pos] === CharacterCodes.space || chars[pos] === CharacterCodes.tab)) pos++;
+            while (pos < end) {
+              const c = chars[pos] | 0;
+              if (c !== CharacterCodes.space && c !== CharacterCodes.tab) break;
+              pos = (pos + 1) | 0;
+            }
             this.pos = pos;
             continue;
           }
-          this.pos++;
-          while (this.pos < this.end && isWhiteSpaceSingleLine(chars[this.pos])) this.pos++;
+          this.pos = (this.pos + 1) | 0;
+          while (this.pos < this.end && isWhiteSpaceSingleLine(chars[this.pos] | 0)) this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.WhitespaceTrivia);
         case CharacterCodes.lineFeed:
         case CharacterCodes.carriageReturn:
           this.tokenFlags |= TokenFlags.PrecedingLineBreak;
           if (this.skipTrivia) {
-            let pos = this.pos + 1;
+            let pos = (this.pos + 1) | 0;
             const end = this.end;
             while (pos < end) {
-              const c = chars[pos];
+              const c = chars[pos] | 0;
               if (c !== CharacterCodes.space && (c < CharacterCodes.tab || c > CharacterCodes.carriageReturn)) break;
-              pos++;
+              pos = (pos + 1) | 0;
             }
             this.pos = pos;
             continue;
           }
-          this.pos += ch === CharacterCodes.carriageReturn && chars[this.pos + 1] === CharacterCodes.lineFeed ? 2 : 1;
+          this.pos =
+            (this.pos +
+              (ch === CharacterCodes.carriageReturn && (chars[this.pos + 1] | 0) === CharacterCodes.lineFeed ? 2 : 1)) |
+            0;
           return (this.token = SyntaxKind.NewLineTrivia);
         case CharacterCodes.exclamation:
-          if (chars[this.pos + 1] === CharacterCodes.equals) {
-            if (chars[this.pos + 2] === CharacterCodes.equals) {
-              this.pos += 3;
+          if ((chars[this.pos + 1] | 0) === CharacterCodes.equals) {
+            if ((chars[this.pos + 2] | 0) === CharacterCodes.equals) {
+              this.pos = (this.pos + 3) | 0;
               return (this.token = SyntaxKind.ExclamationEqualsEqualsToken);
             }
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.ExclamationEqualsToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.ExclamationToken);
         case CharacterCodes.doubleQuote:
         case CharacterCodes.singleQuote:
@@ -917,50 +997,50 @@ export class Scanner {
         case CharacterCodes.backtick:
           return (this.token = this.scanTemplateAndSetTokenValue(false));
         case CharacterCodes.percent:
-          if (chars[this.pos + 1] === CharacterCodes.equals) {
-            this.pos += 2;
+          if ((chars[this.pos + 1] | 0) === CharacterCodes.equals) {
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.PercentEqualsToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.PercentToken);
         case CharacterCodes.ampersand: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.ampersand) {
-            if (chars[this.pos + 2] === CharacterCodes.equals) {
-              this.pos += 3;
+            if ((chars[this.pos + 2] | 0) === CharacterCodes.equals) {
+              this.pos = (this.pos + 3) | 0;
               return (this.token = SyntaxKind.AmpersandAmpersandEqualsToken);
             }
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.AmpersandAmpersandToken);
           }
           if (next === CharacterCodes.equals) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.AmpersandEqualsToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.AmpersandToken);
         }
         case CharacterCodes.openParen:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.OpenParenToken);
         case CharacterCodes.closeParen:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.CloseParenToken);
         case CharacterCodes.asterisk: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.equals) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.AsteriskEqualsToken);
           }
           if (next === CharacterCodes.asterisk) {
-            if (chars[this.pos + 2] === CharacterCodes.equals) {
-              this.pos += 3;
+            if ((chars[this.pos + 2] | 0) === CharacterCodes.equals) {
+              this.pos = (this.pos + 3) | 0;
               return (this.token = SyntaxKind.AsteriskAsteriskEqualsToken);
             }
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.AsteriskAsteriskToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           if (
             this.skipJSDocLeadingAsterisks !== 0 &&
             (this.tokenFlags & TokenFlags.PrecedingJSDocLeadingAsterisks) === 0 &&
@@ -972,50 +1052,52 @@ export class Scanner {
           return (this.token = SyntaxKind.AsteriskToken);
         }
         case CharacterCodes.plus: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.equals) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.PlusEqualsToken);
           }
           if (next === CharacterCodes.plus) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.PlusPlusToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.PlusToken);
         }
         case CharacterCodes.comma:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.CommaToken);
         case CharacterCodes.minus: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.equals) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.MinusEqualsToken);
           }
           if (next === CharacterCodes.minus) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.MinusMinusToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.MinusToken);
         }
         case CharacterCodes.dot: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (isDigit(next)) return (this.token = this.scanNumber());
-          if (next === CharacterCodes.dot && chars[this.pos + 2] === CharacterCodes.dot) {
-            this.pos += 3;
+          if (next === CharacterCodes.dot && (chars[this.pos + 2] | 0) === CharacterCodes.dot) {
+            this.pos = (this.pos + 3) | 0;
             return (this.token = SyntaxKind.DotDotDotToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.DotToken);
         }
         case CharacterCodes.slash: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.slash) {
-            this.pos += 2;
-            while (this.pos < this.end && !isLineBreak(chars[this.pos])) this.pos++;
-            this.processCommentDirective(this.tokenStart, this.pos, false);
+            let pos = (this.pos + 2) | 0;
+            const end = this.end;
+            while (pos < end && !isLineBreak(chars[pos] | 0)) pos = (pos + 1) | 0;
+            this.pos = pos;
+            this.processCommentDirective(this.tokenStart, pos, false);
             if (this.skipTrivia) continue;
             return (this.token = SyntaxKind.SingleLineCommentTrivia);
           }
@@ -1024,14 +1106,14 @@ export class Scanner {
             return (this.token = SyntaxKind.MultiLineCommentTrivia);
           }
           if (next === CharacterCodes.equals) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.SlashEqualsToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.SlashToken);
         }
         case CharacterCodes._0: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.X || next === CharacterCodes.x) return (this.token = this.scanHexNumber());
           if (next === CharacterCodes.B || next === CharacterCodes.b)
             return (this.token = this.scanBinaryOrOctalNumber(2));
@@ -1050,130 +1132,130 @@ export class Scanner {
         case CharacterCodes._9:
           return (this.token = this.scanNumber());
         case CharacterCodes.colon:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.ColonToken);
         case CharacterCodes.semicolon:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.SemicolonToken);
         case CharacterCodes.lessThan: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.lessThan && isConflictMarkerTrivia(this.text, this.pos)) {
             if (this.scanConflictMarker()) continue;
             return (this.token = SyntaxKind.ConflictMarkerTrivia);
           }
           if (next === CharacterCodes.lessThan) {
-            if (chars[this.pos + 2] === CharacterCodes.equals) {
-              this.pos += 3;
+            if ((chars[this.pos + 2] | 0) === CharacterCodes.equals) {
+              this.pos = (this.pos + 3) | 0;
               return (this.token = SyntaxKind.LessThanLessThanEqualsToken);
             }
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.LessThanLessThanToken);
           }
           if (next === CharacterCodes.equals) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.LessThanEqualsToken);
           }
           if (
             this.languageVariant === LanguageVariant.JSX &&
             next === CharacterCodes.slash &&
-            chars[this.pos + 2] !== CharacterCodes.asterisk
+            (chars[this.pos + 2] | 0) !== CharacterCodes.asterisk
           ) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.LessThanSlashToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.LessThanToken);
         }
         case CharacterCodes.equals: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.equals && isConflictMarkerTrivia(this.text, this.pos)) {
             if (this.scanConflictMarker()) continue;
             return (this.token = SyntaxKind.ConflictMarkerTrivia);
           }
           if (next === CharacterCodes.equals) {
-            if (chars[this.pos + 2] === CharacterCodes.equals) {
-              this.pos += 3;
+            if ((chars[this.pos + 2] | 0) === CharacterCodes.equals) {
+              this.pos = (this.pos + 3) | 0;
               return (this.token = SyntaxKind.EqualsEqualsEqualsToken);
             }
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.EqualsEqualsToken);
           }
           if (next === CharacterCodes.greaterThan) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.EqualsGreaterThanToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.EqualsToken);
         }
         case CharacterCodes.greaterThan:
-          if (chars[this.pos + 1] === CharacterCodes.greaterThan && isConflictMarkerTrivia(this.text, this.pos)) {
+          if ((chars[this.pos + 1] | 0) === CharacterCodes.greaterThan && isConflictMarkerTrivia(this.text, this.pos)) {
             if (this.scanConflictMarker()) continue;
             return (this.token = SyntaxKind.ConflictMarkerTrivia);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.GreaterThanToken);
         case CharacterCodes.question: {
-          const next = chars[this.pos + 1];
-          if (next === CharacterCodes.dot && !isDigit(chars[this.pos + 2])) {
-            this.pos += 2;
+          const next = chars[this.pos + 1] | 0;
+          if (next === CharacterCodes.dot && !isDigit(chars[this.pos + 2] | 0)) {
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.QuestionDotToken);
           }
           if (next === CharacterCodes.question) {
-            if (chars[this.pos + 2] === CharacterCodes.equals) {
-              this.pos += 3;
+            if ((chars[this.pos + 2] | 0) === CharacterCodes.equals) {
+              this.pos = (this.pos + 3) | 0;
               return (this.token = SyntaxKind.QuestionQuestionEqualsToken);
             }
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.QuestionQuestionToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.QuestionToken);
         }
         case CharacterCodes.openBracket:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.OpenBracketToken);
         case CharacterCodes.closeBracket:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.CloseBracketToken);
         case CharacterCodes.caret:
-          if (chars[this.pos + 1] === CharacterCodes.equals) {
-            this.pos += 2;
+          if ((chars[this.pos + 1] | 0) === CharacterCodes.equals) {
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.CaretEqualsToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.CaretToken);
         case CharacterCodes.openBrace:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.OpenBraceToken);
         case CharacterCodes.bar: {
-          const next = chars[this.pos + 1];
+          const next = chars[this.pos + 1] | 0;
           if (next === CharacterCodes.bar && isConflictMarkerTrivia(this.text, this.pos)) {
             if (this.scanConflictMarker()) continue;
             return (this.token = SyntaxKind.ConflictMarkerTrivia);
           }
           if (next === CharacterCodes.bar) {
-            if (chars[this.pos + 2] === CharacterCodes.equals) {
-              this.pos += 3;
+            if ((chars[this.pos + 2] | 0) === CharacterCodes.equals) {
+              this.pos = (this.pos + 3) | 0;
               return (this.token = SyntaxKind.BarBarEqualsToken);
             }
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.BarBarToken);
           }
           if (next === CharacterCodes.equals) {
-            this.pos += 2;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.BarEqualsToken);
           }
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.BarToken);
         }
         case CharacterCodes.closeBrace:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.CloseBraceToken);
         case CharacterCodes.tilde:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.TildeToken);
         case CharacterCodes.at:
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.AtToken);
         case CharacterCodes.backslash: {
           const codePoint = this.peekUnicodeEscape();
@@ -1185,24 +1267,24 @@ export class Scanner {
           return this.scanInvalidCharacter();
         }
         case CharacterCodes.hash:
-          if (chars[this.pos + 1] === CharacterCodes.exclamation) {
+          if ((chars[this.pos + 1] | 0) === CharacterCodes.exclamation) {
             if (this.pos === 0) {
-              this.pos = scanShebangTrivia(this.text, 0);
+              this.pos = scanShebangTrivia(this.text, 0) | 0;
               continue;
             }
             this.errorAt(Diagnostics.X_can_only_be_used_at_the_start_of_a_file, this.pos, 2, noArgs);
-            this.pos++;
+            this.pos = (this.pos + 1) | 0;
             return (this.token = SyntaxKind.Unknown);
           }
-          if (chars[this.pos + 1] === CharacterCodes.backslash) {
-            this.pos++;
+          if ((chars[this.pos + 1] | 0) === CharacterCodes.backslash) {
+            this.pos = (this.pos + 1) | 0;
             const codePoint = this.peekUnicodeEscape();
             if (codePoint >= 0 && isIdentifierStart(codePoint)) {
               const head = '#' + String.fromCodePoint(this.scanUnicodeEscape(true));
               this.setValue(head + this.scanIdentifierParts());
               return (this.token = SyntaxKind.PrivateIdentifier);
             }
-            this.pos--;
+            this.pos = (this.pos - 1) | 0;
           }
           if (!this.scanIdentifier(1)) {
             this.errorAt(Diagnostics.Invalid_character, this.pos - 1, 1, noArgs);
@@ -1219,14 +1301,14 @@ export class Scanner {
             return (this.token = SyntaxKind.NonTextFileMarkerTrivia);
           }
           if (isWhiteSpaceSingleLine(codePoint)) {
-            this.pos++;
+            this.pos = (this.pos + 1) | 0;
             if (codePoint === CharacterCodes.nextLine || this.skipTrivia) continue;
-            while (this.pos < this.end && isWhiteSpaceSingleLine(chars[this.pos])) this.pos++;
+            while (this.pos < this.end && isWhiteSpaceSingleLine(chars[this.pos] | 0)) this.pos = (this.pos + 1) | 0;
             return (this.token = SyntaxKind.WhitespaceTrivia);
           }
           if (isLineBreak(codePoint)) {
             this.tokenFlags |= TokenFlags.PrecedingLineBreak;
-            this.pos++;
+            this.pos = (this.pos + 1) | 0;
             continue;
           }
           return this.scanInvalidCharacter();
@@ -1246,20 +1328,21 @@ export class Scanner {
   private scanMultiLineComment(): boolean {
     const chars = this.chars;
     const end = this.end;
-    let pos = this.pos + 2;
-    const isJSDoc = pos < end && chars[pos] === CharacterCodes.asterisk && chars[pos + 1] !== CharacterCodes.slash;
+    let pos = (this.pos + 2) | 0;
+    const isJSDoc =
+      pos < end && (chars[pos] | 0) === CharacterCodes.asterisk && (chars[pos + 1] | 0) !== CharacterCodes.slash;
     let closed = false;
     let lastLineStart = this.tokenStart;
     let flags = this.tokenFlags;
     if (isJSDoc) flags |= TokenFlags.PrecedingJSDocComment;
     while (pos < end) {
-      pos = skipCommentText(chars, pos, end);
+      pos = skipCommentText(chars, pos, end) | 0;
       if (pos >= end) break;
-      const c = chars[pos];
-      pos++;
+      const c = chars[pos] | 0;
+      pos = (pos + 1) | 0;
       if (c === CharacterCodes.asterisk) {
-        if (chars[pos] === CharacterCodes.slash) {
-          pos++;
+        if ((chars[pos] | 0) === CharacterCodes.slash) {
+          pos = (pos + 1) | 0;
           closed = true;
           break;
         }
@@ -1283,7 +1366,7 @@ export class Scanner {
 
   /** Scans a merge conflict marker; returns true if it is skipped as trivia. */
   private scanConflictMarker(): boolean {
-    this.pos = scanConflictMarkerTrivia(this.text, this.pos, this);
+    this.pos = scanConflictMarkerTrivia(this.text, this.pos, this) | 0;
     return this.skipTrivia;
   }
 
@@ -1313,29 +1396,36 @@ export class Scanner {
     const text = this.text;
     const chars = this.chars;
     const start = this.pos;
-    this.pos += prefixLength;
+    this.pos = (this.pos + prefixLength) | 0;
     let ch = this.char();
     if (isASCIILetter(ch) || ch === CharacterCodes._ || ch === CharacterCodes.$) {
-      // Fast path for ASCII identifiers.
-      let pos = this.pos + 1;
+      // Fast path for ASCII identifiers, which also hashes the units for interning.
+      let pos = (this.pos + 1) | 0;
       const end = this.end;
+      // The FNV-1a offset basis, as in `rangeHash` (a literal: native builds load module constants).
+      let hash = 0x811c9dc5 | 0;
+      for (let i = start; i < pos; i = (i + 1) | 0) hash = Math.imul(hash ^ (chars[i] | 0), 0x01000193);
       while (pos < end) {
-        const c = chars[pos];
-        if (!(isWordCharacter(c) || c === CharacterCodes.$)) break;
-        pos++;
+        const c = chars[pos] | 0;
+        if (!isASCIIIdentifierPart(c)) break;
+        hash = Math.imul(hash ^ c, 0x01000193);
+        pos = (pos + 1) | 0;
       }
       this.pos = pos;
-      ch = pos < end ? chars[pos] : CharacterCodes.EOF;
+      ch = pos < end ? chars[pos] | 0 : CharacterCodes.EOF;
       if (ch <= CharacterCodes.maxAsciiCharacter && ch !== CharacterCodes.backslash) {
-        this.setValueSlice(start, this.pos);
+        this.setValueSlice(start, pos);
+        this.valueHash = finishHash(hash);
+        this.hashStart = start;
+        this.hashEnd = pos;
         return true;
       }
-      this.pos = start + prefixLength;
+      this.pos = (start + prefixLength) | 0;
     }
     ch = this.codePoint();
     if (!isIdentifierStart(ch)) return false;
     do {
-      this.pos += charSize(ch);
+      this.pos = (this.pos + charSize(ch)) | 0;
       ch = this.codePoint();
     } while (isIdentifierPart(ch));
     if (ch === CharacterCodes.backslash) this.setValue(text.substring(start, this.pos) + this.scanIdentifierParts());
@@ -1350,7 +1440,7 @@ export class Scanner {
     for (;;) {
       const ch = this.codePoint();
       if (isIdentifierPart(ch)) {
-        this.pos += charSize(ch);
+        this.pos = (this.pos + charSize(ch)) | 0;
         continue;
       }
       if (ch === CharacterCodes.backslash) {
@@ -1369,7 +1459,7 @@ export class Scanner {
   private scanInvalidCharacter(): SyntaxKind {
     const size = charSize(this.codePoint());
     this.errorAt(Diagnostics.Invalid_character, this.pos, size, noArgs);
-    this.pos += size;
+    this.pos = (this.pos + size) | 0;
     return (this.token = SyntaxKind.Unknown);
   }
 
@@ -1379,15 +1469,15 @@ export class Scanner {
     const chars = this.chars;
     const quote = this.char();
     if (quote === CharacterCodes.singleQuote) this.tokenFlags |= TokenFlags.SingleQuote;
-    let start = this.pos + 1;
+    let start = (this.pos + 1) | 0;
     // Fast path: no escapes or line breaks before the closing quote.
     let pos = start;
     const end = this.end;
     while (pos < end) {
-      const ch = chars[pos];
+      const ch = chars[pos] | 0;
       if (ch === quote) {
         this.setValueSlice(start, pos);
-        this.pos = pos + 1;
+        this.pos = (pos + 1) | 0;
         return;
       }
       if (
@@ -1395,7 +1485,7 @@ export class Scanner {
         (ch === CharacterCodes.backslash || ch === CharacterCodes.lineFeed || ch === CharacterCodes.carriageReturn)
       )
         break;
-      pos++;
+      pos = (pos + 1) | 0;
     }
     this.pos = pos;
     let result = '';
@@ -1409,7 +1499,7 @@ export class Scanner {
       }
       if (ch === quote) {
         result += text.substring(start, this.pos);
-        this.pos++;
+        this.pos = (this.pos + 1) | 0;
         break;
       }
       if (ch === CharacterCodes.backslash && !jsxAttributeString) {
@@ -1426,7 +1516,7 @@ export class Scanner {
         this.error(Diagnostics.Unterminated_string_literal);
         break;
       }
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
     }
     this.setValue(result);
   }
@@ -1447,9 +1537,9 @@ export class Scanner {
       pos = skipTemplateText(chars, pos, end);
       const ch = pos < end ? chars[pos] : CharacterCodes.EOF;
       if (ch < 0 || ch === CharacterCodes.backtick) {
-        this.pos = pos;
+        this.pos = pos | 0;
         if (ch === CharacterCodes.backtick) {
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
         } else {
           this.tokenFlags |= TokenFlags.Unterminated;
           this.error(Diagnostics.Unterminated_template_literal);
@@ -1462,14 +1552,14 @@ export class Scanner {
           pos++;
           continue;
         }
-        this.pos = pos + 2;
+        this.pos = (pos + 2) | 0;
         token = startedWithBacktick ? SyntaxKind.TemplateHead : SyntaxKind.TemplateMiddle;
         break;
       }
       result += text.substring(start, pos);
       cooked = true;
       if (ch === CharacterCodes.backslash) {
-        this.pos = pos;
+        this.pos = pos | 0;
         result += this.scanEscapeSequence(
           shouldEmitInvalidEscapeError
             ? EscapeSequenceScanningFlags.String | EscapeSequenceScanningFlags.ReportErrors
@@ -1503,13 +1593,13 @@ export class Scanner {
    */
   scanEscapeCodePoint(flags: EscapeSequenceScanningFlags): number {
     const start = this.pos;
-    this.pos++;
+    this.pos = (this.pos + 1) | 0;
     let ch = this.char();
     if (ch < 0) {
       this.error(Diagnostics.Unexpected_end_of_text);
       return EscapeValue.Empty;
     }
-    this.pos++;
+    this.pos = (this.pos + 1) | 0;
     switch (ch) {
       case CharacterCodes._0:
       case CharacterCodes._1:
@@ -1522,8 +1612,8 @@ export class Scanner {
         // '\0' not followed by a digit is the null character; '\08' is '\0' + '8'.
         if (ch === CharacterCodes._0 && !isDigit(this.char())) return 0;
         // '\1', '\17', '\177', but '\4', '\47' and not '\477'.
-        if (ch <= CharacterCodes._3 && isOctalDigit(this.char())) this.pos++;
-        if (isOctalDigit(this.char())) this.pos++;
+        if (ch <= CharacterCodes._3 && isOctalDigit(this.char())) this.pos = (this.pos + 1) | 0;
+        if (isOctalDigit(this.char())) this.pos = (this.pos + 1) | 0;
         this.tokenFlags |= TokenFlags.ContainsInvalidEscape;
         if ((flags & EscapeSequenceScanningFlags.ReportInvalidEscapeErrors) !== 0) {
           const code = parseInt(this.text.substring(start + 1, this.pos), 8);
@@ -1590,7 +1680,7 @@ export class Scanner {
       case CharacterCodes.u: {
         // '\uDDDD' and '\u{DDDDDD}'
         const extended = this.char() === CharacterCodes.openBrace;
-        this.pos -= 2;
+        this.pos = (this.pos - 2) | 0;
         const reportErrors = (flags & EscapeSequenceScanningFlags.ReportInvalidEscapeErrors) !== 0;
         const codePoint = this.scanUnicodeEscape(reportErrors);
         if (extended && (flags & EscapeSequenceScanningFlags.AllowExtendedUnicodeEscape) === 0) {
@@ -1618,7 +1708,7 @@ export class Scanner {
           const savedPos = this.pos;
           const low = this.scanUnicodeEscape(reportErrors);
           if (low >= 0xdc00 && low <= 0xdfff) return (codePoint - 0xd800) * 0x400 + (low - 0xdc00) + 0x10000;
-          this.pos = savedPos;
+          this.pos = savedPos | 0;
         }
         // In strings, a high surrogate escape joins a following low surrogate escape.
         if (
@@ -1633,7 +1723,7 @@ export class Scanner {
       }
       case CharacterCodes.x:
         // '\xDD'
-        for (; this.pos < start + 4; this.pos++) {
+        for (; this.pos < start + 4; this.pos = (this.pos + 1) | 0) {
           if (!isHexDigit(this.char())) {
             this.tokenFlags |= TokenFlags.ContainsInvalidEscape;
             if ((flags & EscapeSequenceScanningFlags.ReportInvalidEscapeErrors) !== 0)
@@ -1645,7 +1735,7 @@ export class Scanner {
         return parseInt(this.text.substring(start + 2, this.pos), 16);
       case CharacterCodes.carriageReturn:
         // A line continuation is the empty code unit sequence.
-        if (this.char() === CharacterCodes.lineFeed) this.pos++;
+        if (this.char() === CharacterCodes.lineFeed) this.pos = (this.pos + 1) | 0;
         return EscapeValue.Empty;
       case CharacterCodes.lineFeed:
       case CharacterCodes.lineSeparator:
@@ -1653,9 +1743,9 @@ export class Scanner {
         return EscapeValue.Empty;
       default:
         if (ch >= 0xd800 && ch <= 0xdbff) {
-          this.pos--;
+          this.pos = (this.pos - 1) | 0;
           ch = this.codePoint();
-          this.pos += charSize(ch);
+          this.pos = (this.pos + charSize(ch)) | 0;
         }
         if (
           (flags & EscapeSequenceScanningFlags.AnyUnicodeMode) !== 0 ||
@@ -1681,19 +1771,19 @@ export class Scanner {
     // Errors are reported when the escape is scanned again on its own.
     const low = this.scanUnicodeEscape(false);
     if (low >= 0xdc00 && low <= 0xdfff) return low;
-    this.pos = pos;
+    this.pos = pos | 0;
     this.tokenFlags = flags;
     return -1;
   }
 
   /** Scans `\uXXXX` or `\u{X…}` at `pos`; returns the code point or -1 if invalid. */
   private scanUnicodeEscape(shouldEmitInvalidEscapeError: boolean): number {
-    this.pos += 2;
+    this.pos = (this.pos + 2) | 0;
     const start = this.pos;
     const extended = this.char() === CharacterCodes.openBrace;
     let value: number;
     if (extended) {
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
       value = this.scanHexValue(1, true);
     } else {
       this.tokenFlags |= TokenFlags.UnicodeEscape;
@@ -1720,7 +1810,7 @@ export class Scanner {
         if (shouldEmitInvalidEscapeError) this.error(Diagnostics.Unexpected_end_of_text);
         invalid = true;
       } else if (this.char() === CharacterCodes.closeBrace) {
-        this.pos++;
+        this.pos = (this.pos + 1) | 0;
       } else {
         if (shouldEmitInvalidEscapeError) this.error(Diagnostics.Unterminated_Unicode_escape_sequence);
         invalid = true;
@@ -1740,7 +1830,7 @@ export class Scanner {
     const pos = this.pos;
     const flags = this.tokenFlags;
     const codePoint = this.scanUnicodeEscape(false);
-    this.pos = pos;
+    this.pos = pos | 0;
     this.tokenFlags = flags;
     return codePoint;
   }
@@ -1758,7 +1848,7 @@ export class Scanner {
       else break;
       value = value * 16 + digit;
       count++;
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
     }
     return count < minCount ? -1 : value;
   }
@@ -1779,18 +1869,18 @@ export class Scanner {
   private scanNumber(): SyntaxKind {
     let start = this.pos;
     if (this.char() === CharacterCodes._0) {
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
       if (this.char() === CharacterCodes._) {
         this.tokenFlags |= TokenFlags.ContainsSeparator | TokenFlags.ContainsInvalidSeparator;
         this.errorAt(Diagnostics.Numeric_separators_are_not_allowed_here, this.pos, 1, noArgs);
-        this.pos = start;
+        this.pos = start | 0;
         this.scanNumberFragment();
       } else {
         const digitsStart = this.pos;
         let isOctal = true;
         while (isDigit(this.char())) {
           if (!isOctalDigit(this.char())) isOctal = false;
-          this.pos++;
+          this.pos = (this.pos + 1) | 0;
         }
         if (this.pos > digitsStart && isOctal) {
           // Legacy octal literal, e.g. `0777`.
@@ -1810,14 +1900,14 @@ export class Scanner {
     }
     const fixedPartEnd = this.pos;
     if (this.char() === CharacterCodes.dot) {
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
       this.scanNumberFragment();
     }
     let end = this.pos;
     if (this.char() === CharacterCodes.E || this.char() === CharacterCodes.e) {
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
       this.tokenFlags |= TokenFlags.Scientific;
-      if (this.char() === CharacterCodes.plus || this.char() === CharacterCodes.minus) this.pos++;
+      if (this.char() === CharacterCodes.plus || this.char() === CharacterCodes.minus) this.pos = (this.pos + 1) | 0;
       if (this.scanNumberFragment() === 0) this.error(Diagnostics.Digit_expected);
       else end = this.pos;
     }
@@ -1864,7 +1954,7 @@ export class Scanner {
         this.pos - idStart,
         noArgs,
       );
-      this.pos = idStart;
+      this.pos = idStart | 0;
     }
     return result;
   }
@@ -1894,7 +1984,7 @@ export class Scanner {
       } else {
         break;
       }
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
     }
     if (isPreviousTokenSeparator) {
       this.tokenFlags |= TokenFlags.ContainsInvalidSeparator;
@@ -1927,7 +2017,7 @@ export class Scanner {
       } else {
         break;
       }
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
     }
     if (isPreviousTokenSeparator)
       this.errorAt(Diagnostics.Numeric_separators_are_not_allowed_here, this.pos - 1, 1, noArgs);
@@ -1935,7 +2025,7 @@ export class Scanner {
   }
 
   private scanHexNumber(): SyntaxKind {
-    this.pos += 2;
+    this.pos = (this.pos + 2) | 0;
     const digitsStart = this.pos;
     let digits: string;
     if (this.scanSpecifierDigits(16) === 0) {
@@ -1950,7 +2040,7 @@ export class Scanner {
   }
 
   private scanBinaryOrOctalNumber(base: number): SyntaxKind {
-    this.pos += 2;
+    this.pos = (this.pos + 2) | 0;
     const digitsStart = this.pos;
     let digits: string;
     if (this.scanSpecifierDigits(base) === 0) {
@@ -1970,7 +2060,7 @@ export class Scanner {
       if ((this.tokenFlags & TokenFlags.BinaryOrOctalSpecifier) !== 0)
         this.setValue(parsePseudoBigInt(this.tokenValue) + 'n');
       else this.setValue(this.tokenValue + 'n');
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
       return SyntaxKind.BigIntLiteral;
     }
     this.setValue(String(Number(this.tokenValue)));
@@ -1980,7 +2070,7 @@ export class Scanner {
   /** Splits `<<` into `<`. */
   reScanLessThanToken(): SyntaxKind {
     if (this.token === SyntaxKind.LessThanLessThanToken) {
-      this.pos = this.tokenStart + 1;
+      this.pos = (this.tokenStart + 1) | 0;
       this.token = SyntaxKind.LessThanToken;
     }
     return this.token;
@@ -1989,25 +2079,25 @@ export class Scanner {
   /** Joins `>` with following `>`, `>=`, `>>`, `>>=` or `=`. */
   reScanGreaterThanToken(): SyntaxKind {
     if (this.token !== SyntaxKind.GreaterThanToken) return this.token;
-    this.pos = this.tokenStart + 1;
+    this.pos = (this.tokenStart + 1) | 0;
     if (this.char() === CharacterCodes.greaterThan) {
       if (this.peek(1) === CharacterCodes.greaterThan) {
         if (this.peek(2) === CharacterCodes.equals) {
-          this.pos += 3;
+          this.pos = (this.pos + 3) | 0;
           return (this.token = SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken);
         }
-        this.pos += 2;
+        this.pos = (this.pos + 2) | 0;
         return (this.token = SyntaxKind.GreaterThanGreaterThanGreaterThanToken);
       }
       if (this.peek(1) === CharacterCodes.equals) {
-        this.pos += 2;
+        this.pos = (this.pos + 2) | 0;
         return (this.token = SyntaxKind.GreaterThanGreaterThanEqualsToken);
       }
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
       return (this.token = SyntaxKind.GreaterThanGreaterThanToken);
     }
     if (this.char() === CharacterCodes.equals) {
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
       return (this.token = SyntaxKind.GreaterThanEqualsToken);
     }
     return this.token;
@@ -2023,7 +2113,7 @@ export class Scanner {
   reScanAsteriskEqualsToken(): SyntaxKind {
     if (this.token !== SyntaxKind.AsteriskEqualsToken)
       throw new Error("'reScanAsteriskEqualsToken' should only be called on a '*='");
-    this.pos = this.tokenStart + 1;
+    this.pos = (this.tokenStart + 1) | 0;
     return (this.token = SyntaxKind.EqualsToken);
   }
 
@@ -2143,15 +2233,15 @@ export class Scanner {
         const savedEnd = this.end;
         const savedTokenStart = this.tokenStart;
         const savedTokenFlags = this.tokenFlags;
-        this.pos = bodyStart;
-        this.end = bodyEnd;
+        this.pos = bodyStart | 0;
+        this.end = bodyEnd | 0;
         checkRegularExpression(this, bodyEnd, flags, namedCaptureGroups);
         this.end = savedEnd;
         this.tokenStart = savedTokenStart;
         this.tokenFlags = savedTokenFlags;
       }
     }
-    this.pos = p;
+    this.pos = p | 0;
     this.setValueSlice(this.tokenStart, p);
     return (this.token = SyntaxKind.RegularExpressionLiteral);
   }
@@ -2179,7 +2269,7 @@ export class Scanner {
   /** Splits a private identifier into `#` and the name. */
   reScanHashToken(): SyntaxKind {
     if (this.token === SyntaxKind.PrivateIdentifier) {
-      this.pos = this.tokenStart + 1;
+      this.pos = (this.tokenStart + 1) | 0;
       this.token = SyntaxKind.HashToken;
     }
     return this.token;
@@ -2189,36 +2279,36 @@ export class Scanner {
   reScanQuestionToken(): SyntaxKind {
     if (this.token !== SyntaxKind.QuestionQuestionToken)
       throw new Error("'reScanQuestionToken' should only be called on a '??'");
-    this.pos = this.tokenStart + 1;
+    this.pos = (this.tokenStart + 1) | 0;
     return (this.token = SyntaxKind.QuestionToken);
   }
 
   /** Scans JSX children: text, `<`, `</` or `{`. */
   scanJsxToken(allowMultilineJsxText = true): SyntaxKind {
-    this.fullStartPos = this.pos;
-    this.tokenStart = this.pos;
+    this.fullStartPos = this.pos | 0;
+    this.tokenStart = this.pos | 0;
     const ch = this.char();
     if (ch < 0) return (this.token = SyntaxKind.EndOfFile);
     if (ch === CharacterCodes.lessThan) {
       if (this.peek(1) === CharacterCodes.slash) {
-        this.pos += 2;
+        this.pos = (this.pos + 2) | 0;
         return (this.token = SyntaxKind.LessThanSlashToken);
       }
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
       return (this.token = SyntaxKind.LessThanToken);
     }
     if (ch === CharacterCodes.openBrace) {
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
       return (this.token = SyntaxKind.OpenBraceToken);
     }
     // 0: only whitespace so far; -1: only whitespace and a line break, which is ignored.
     let firstNonWhitespace = 0;
     while (this.pos < this.end) {
-      const c = this.chars[this.pos];
+      const c = this.chars[this.pos] | 0;
       if (c === CharacterCodes.openBrace) break;
       if (c === CharacterCodes.lessThan) {
         if (isConflictMarkerTrivia(this.text, this.pos)) {
-          this.pos = scanConflictMarkerTrivia(this.text, this.pos, this);
+          this.pos = scanConflictMarkerTrivia(this.text, this.pos, this) | 0;
           return (this.token = SyntaxKind.ConflictMarkerTrivia);
         }
         break;
@@ -2230,7 +2320,7 @@ export class Scanner {
       if (isLineBreak(c) && firstNonWhitespace === 0) firstNonWhitespace = -1;
       else if (!allowMultilineJsxText && isLineBreak(c) && firstNonWhitespace > 0) break;
       else if (!isWhiteSpaceLike(c)) firstNonWhitespace = this.pos;
-      this.pos++;
+      this.pos = (this.pos + 1) | 0;
     }
     this.setValueSlice(this.fullStartPos, this.pos);
     return (this.token = firstNonWhitespace === -1 ? SyntaxKind.JsxTextAllWhiteSpaces : SyntaxKind.JsxText);
@@ -2243,7 +2333,7 @@ export class Scanner {
     while (this.pos < this.end) {
       if (this.char() === CharacterCodes.minus) {
         value += '-';
-        this.pos++;
+        this.pos = (this.pos + 1) | 0;
         continue;
       }
       const pos = this.pos;
@@ -2256,9 +2346,9 @@ export class Scanner {
 
   /** Scans a JSX attribute value after `=`: a string, or any other token. */
   scanJsxAttributeValue(): SyntaxKind {
-    this.fullStartPos = this.pos;
-    while (this.pos < this.end && isWhiteSpaceLike(this.chars[this.pos])) this.pos++;
-    this.tokenStart = this.pos;
+    this.fullStartPos = this.pos | 0;
+    while (this.pos < this.end && isWhiteSpaceLike(this.chars[this.pos] | 0)) this.pos = (this.pos + 1) | 0;
+    this.tokenStart = this.pos | 0;
     const ch = this.char();
     if (ch === CharacterCodes.doubleQuote || ch === CharacterCodes.singleQuote) {
       this.scanString(true);
@@ -2275,11 +2365,24 @@ export class Scanner {
 
   /** Scans JSDoc comment text up to a line break, backtick, `{` or tag; falls back to `scanJSDocToken`. */
   scanJSDocCommentTextToken(inBackticks: boolean): SyntaxKind {
-    this.fullStartPos = this.pos;
+    this.fullStartPos = this.pos | 0;
     this.tokenFlags = TokenFlags.None;
     if (this.pos >= this.end) return (this.token = SyntaxKind.EndOfFile);
-    this.tokenStart = this.pos;
+    this.tokenStart = this.pos | 0;
     while (this.pos < this.end) {
+      // Fast path: an ASCII unit that ends no text run.
+      const unit = this.chars[this.pos] | 0;
+      if (
+        unit < 0x80 &&
+        unit !== CharacterCodes.lineFeed &&
+        unit !== CharacterCodes.carriageReturn &&
+        unit !== CharacterCodes.backtick &&
+        unit !== CharacterCodes.openBrace &&
+        unit !== CharacterCodes.at
+      ) {
+        this.pos = (this.pos + 1) | 0;
+        continue;
+      }
       const ch = this.codePointAt(this.pos, this.end);
       if (isLineBreak(ch) || ch === CharacterCodes.backtick) break;
       const size = charSize(ch);
@@ -2289,11 +2392,11 @@ export class Scanner {
         if (
           ch === CharacterCodes.at &&
           isWhiteSpaceSingleLine(this.codePointBefore(this.pos)) &&
-          isIdentifierStart(this.codePointAt(this.pos + size, this.end))
+          isIdentifierStart(this.codePointAt((this.pos + size) | 0, this.end))
         )
           break;
       }
-      this.pos += size;
+      this.pos = (this.pos + size) | 0;
     }
     if (this.pos === this.tokenStart) return this.scanJSDocToken();
     this.setValueSlice(this.tokenStart, this.pos);
@@ -2308,26 +2411,27 @@ export class Scanner {
   }
 
   scanJSDocToken(): SyntaxKind {
-    this.fullStartPos = this.pos;
+    this.fullStartPos = this.pos | 0;
     this.tokenFlags = TokenFlags.None;
     const text = this.text;
     const chars = this.chars;
     if (this.pos >= this.end) return (this.token = SyntaxKind.EndOfFile);
-    this.tokenStart = this.pos;
+    this.tokenStart = this.pos | 0;
     const ch = this.codePointAt(this.pos, this.end);
-    this.pos += charSize(ch);
+    this.pos = (this.pos + charSize(ch)) | 0;
     switch (ch) {
       case CharacterCodes.tab:
       case CharacterCodes.verticalTab:
       case CharacterCodes.formFeed:
       case CharacterCodes.space:
-        while (this.pos < this.end && isWhiteSpaceSingleLine(chars[this.pos])) this.pos++;
+        while (this.pos < this.end && isWhiteSpaceSingleLine(chars[this.pos] | 0)) this.pos = (this.pos + 1) | 0;
         return (this.token = SyntaxKind.WhitespaceTrivia);
       case CharacterCodes.at:
         return (this.token = SyntaxKind.AtToken);
       case CharacterCodes.carriageReturn:
       case CharacterCodes.lineFeed:
-        if (ch === CharacterCodes.carriageReturn && this.char() === CharacterCodes.lineFeed) this.pos++;
+        if (ch === CharacterCodes.carriageReturn && this.char() === CharacterCodes.lineFeed)
+          this.pos = (this.pos + 1) | 0;
         this.tokenFlags |= TokenFlags.PrecedingLineBreak;
         return (this.token = SyntaxKind.NewLineTrivia);
       case CharacterCodes.asterisk:
@@ -2359,23 +2463,30 @@ export class Scanner {
       case CharacterCodes.hash:
         return (this.token = SyntaxKind.HashToken);
       case CharacterCodes.backslash: {
-        this.pos--;
+        this.pos = (this.pos - 1) | 0;
         const codePoint = this.peekUnicodeEscape();
         if (codePoint >= 0 && isIdentifierStart(codePoint)) {
           const head = String.fromCodePoint(this.scanUnicodeEscape(true));
           this.setValue(head + this.scanIdentifierParts());
           return (this.token = getIdentifierToken(this.tokenValue));
         }
-        this.pos++;
+        this.pos = (this.pos + 1) | 0;
         return (this.token = SyntaxKind.Unknown);
       }
     }
     if (!isIdentifierStart(ch)) return (this.token = SyntaxKind.Unknown);
     let last = ch;
     while (this.pos < this.end) {
+      const unit = this.chars[this.pos] | 0;
+      if (unit < 0x80) {
+        last = unit;
+        if (!isASCIIIdentifierPart(unit) && unit !== CharacterCodes.minus) break;
+        this.pos = (this.pos + 1) | 0;
+        continue;
+      }
       last = this.codePointAt(this.pos, this.end);
       if (!isIdentifierPart(last) && last !== CharacterCodes.minus) break;
-      this.pos += charSize(last);
+      this.pos = (this.pos + charSize(last)) | 0;
     }
     if (last === CharacterCodes.backslash)
       this.setValue(text.substring(this.tokenStart, this.pos) + this.scanIdentifierParts());

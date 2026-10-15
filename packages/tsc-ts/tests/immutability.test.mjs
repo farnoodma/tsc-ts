@@ -47,7 +47,8 @@ const { createNodeSystem } = await load('drivers/node-system.js');
 const { executeCommandLine } = await load('compiler/tsc-cli.js');
 const { bindProgram, CheckedProgram } = await load('compiler/program-checker.js');
 const { NodeVisitor } = await load('compiler/ast.js');
-const { getJSDoc } = await load('compiler/parser.js');
+const { getJSDoc, parseSourceFile } = await load('compiler/parser.js');
+const { useThreadTextCaches } = await load('compiler/diagnostics.js');
 const { Symbol, getSymbolId } = await load('compiler/symbol.js');
 const { CompileTimes, OutputWriter, PlainProgram, getDiagnosticsOfProgram } = await load('compiler/compile-program.js');
 // `Locale.Default`, a const enum member.
@@ -177,6 +178,32 @@ function assertImmutable(args, minimumFrozen = 100000) {
 }
 
 const emitOptions = (dir) => ['--noEmit', 'false', '--outDir', dir, '--declaration', '--declarationMap', '--sourceMap'];
+
+// The parser leaves the line starts and UTF-8 offsets of declaration files to first use; once files
+// may be shared (`useThreadTextCaches`), a thread computes them in a copy of its own.
+test('a shared declaration file gets its line starts and UTF-8 offsets without being written', () => {
+  const text = "declare const a: '\u00e9';\r\n/** \u{1f600} */\rdeclare const b: string;\u2028export {};\n";
+  const plain = parseSourceFile('/p/plain.d.ts', text).diagnosticFile();
+  const shared = parseSourceFile('/p/shared.d.ts', text);
+  const file = shared.diagnosticFile();
+  // Other files get their caches from the scanner's code units at parse time: reading them writes
+  // nothing, before this thread computes caches in copies too.
+  const units = parseSourceFile('/p/units.ts', text).diagnosticFile();
+  Object.freeze(units);
+  assert.deepEqual(units.getLineStarts(), plain.getLineStarts());
+  for (let pos = 0; pos <= text.length; pos++) assert.equal(units.toUtf8Offset(pos), plain.toUtf8Offset(pos));
+  for (let pos = 0; pos <= Buffer.byteLength(text, 'utf8'); pos++)
+    assert.equal(units.fromUtf8Offset(pos), plain.fromUtf8Offset(pos));
+  Object.freeze(shared);
+  Object.freeze(file);
+  useThreadTextCaches();
+  assert.deepEqual(file.getLineStarts(), [0, 23, 33, 58, 69]);
+  assert.deepEqual(file.getLineStarts(), plain.getLineStarts());
+  for (let pos = 0; pos <= text.length; pos++) assert.equal(file.toUtf8Offset(pos), plain.toUtf8Offset(pos));
+  for (let pos = 0; pos <= Buffer.byteLength(text, 'utf8'); pos++)
+    assert.equal(file.fromUtf8Offset(pos), plain.fromUtf8Offset(pos));
+  assert.equal(file.toUtf8Offset(text.length), Buffer.byteLength(text, 'utf8'));
+});
 
 test('checking and emitting tsc-ts never writes to its bound, prepared program', () => {
   assertImmutable(['-p', resolve(here, '..'), ...emitOptions(tempDir('tsc-ts-immutability-out-'))]);

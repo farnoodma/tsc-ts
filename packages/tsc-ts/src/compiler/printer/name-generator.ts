@@ -355,6 +355,11 @@ export class NameGenerator {
 // The names used in recently emitted files, kept apart from the files, which are shared and read-only.
 const identifierSets = new Map<SourceFile, Set<string>>();
 
+/** Forgets the files of earlier emits. */
+export function forgetIdentifierSets(): void {
+  identifierSets.clear();
+}
+
 /** Whether no identifier in `file` is named `name`. */
 export function isFileLevelUniqueName(file: SourceFile, name: string): boolean {
   let set = identifierSets.get(file);

@@ -16,7 +16,7 @@ import {
 import { isAssignmentTarget } from './binder-utilities.js';
 import { createDiagnosticForNode, type Checker } from './checker.js';
 import { Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags, internalSymbolNamePrefix } from './symbol.js';
+import { CheckFlags, type Symbol, SymbolFlags, internalSymbolNamePrefix, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { CheckMode, IndexInfo, ObjectFlags, type Type, TypeFlags } from './checker-types.js';
 import {
@@ -191,8 +191,8 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
         nameType !== undefined ? getPropertyNameFromType(nameType) : member.name,
         checkFlags | (nameType !== undefined ? CheckFlags.Late : 0),
       );
-      const links = c.symbolLinks(prop);
-      if (nameType !== undefined) links.nameType = nameType;
+      const id = getSymbolId(prop);
+      if (nameType !== undefined) c.symbolNameTypes.set(id, nameType);
       // Defaults in assignment patterns make the property optional.
       if (inDestructuringPattern && hasDefaultValue(memberDecl)) prop.flags |= SymbolFlags.Optional;
       else if (
@@ -213,8 +213,8 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
       prop.declarations = member.declarations;
       prop.parent = member.parent;
       prop.valueDeclaration = member.valueDeclaration;
-      links.type = t;
-      links.target = member;
+      c.symbolTypes.set(id, t);
+      c.symbolTargets.set(id, member);
       member = prop;
       if (allProperties !== undefined) allProperties.set(prop.name, prop);
     } else if (memberDecl.kind === SyntaxKind.SpreadAssignment) {
@@ -438,19 +438,21 @@ export function getSpreadType(
     }
     if ((rightProp.flags & SymbolFlags.Optional) === 0) continue;
     const result = c.newSymbol(SymbolFlags.Property | (leftProp.flags & SymbolFlags.Optional), leftProp.name);
-    const links = c.symbolLinks(result);
+    const id = getSymbolId(result);
     // Spreading into the same type is common, as with options bags; skip the subtype reduction then.
     const leftType = getTypeOfSymbol(c, leftProp);
     const leftTypeWithoutUndefined = removeMissingOrUndefinedType(c, leftType);
     const rightTypeWithoutUndefined = removeMissingOrUndefinedType(c, getTypeOfSymbol(c, rightProp));
-    links.type =
+    c.symbolTypes.set(
+      id,
       leftTypeWithoutUndefined === rightTypeWithoutUndefined
         ? leftType
-        : getUnionTypeEx(c, [leftType, rightTypeWithoutUndefined], UnionReduction.Subtype, undefined, undefined);
-    links.leftSpread = leftProp;
-    links.rightSpread = rightProp;
+        : getUnionTypeEx(c, [leftType, rightTypeWithoutUndefined], UnionReduction.Subtype, undefined, undefined),
+    );
+    c.symbolLeftSpreads.set(id, leftProp);
+    c.symbolRightSpreads.set(id, rightProp);
     result.declarations = leftProp.declarations.concat(rightProp.declarations);
-    links.nameType = c.symbolLinks(leftProp).nameType;
+    c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(leftProp)));
     members.set(leftProp.name, result);
   }
   const spreadIndexInfos: IndexInfo[] = [];
@@ -538,11 +540,14 @@ function tryMergeUnionOfObjectTypeAndEmptyObject(c: Checker, t: Type, readonly: 
       prop.name,
       (prop.checkFlags & CheckFlags.Late) | (readonly ? CheckFlags.Readonly : 0),
     );
-    const links = c.symbolLinks(result);
-    links.type = isSetonlyAccessor ? c.undefinedType : addOptionality(c, getTypeOfSymbol(c, prop), true, true);
+    const id = getSymbolId(result);
+    c.symbolTypes.set(
+      id,
+      isSetonlyAccessor ? c.undefinedType : addOptionality(c, getTypeOfSymbol(c, prop), true, true),
+    );
     result.declarations = prop.declarations;
-    links.nameType = c.symbolLinks(prop).nameType;
-    links.syntheticOrigin = prop;
+    c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(prop)));
+    c.symbolSyntheticOrigins.set(id, prop);
     members.set(prop.name, result);
   }
   const spread = createAnonymousType(c, firstType.symbol, members, [], [], getIndexInfosOfType(c, firstType));

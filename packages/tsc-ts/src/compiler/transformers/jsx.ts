@@ -415,8 +415,8 @@ export class JsxTransformer extends Transformer {
       }
     }
     const call = factory.createCallExpression(this.factoryCallee(isStaticChildren), args);
-    call.pos = pos;
-    call.end = end;
+    call.pos = pos | 0;
+    call.end = end | 0;
     if (this.inChild) this.context.addEmitFlags(call, EmitFlags.StartOnNewLine);
     return call;
   }
@@ -618,8 +618,8 @@ export class JsxTransformer extends Transformer {
         for (let i = first; i < args.length; i++) this.context.addEmitFlags(args[i], EmitFlags.StartOnNewLine);
     }
     const call = this.factory.createCallExpression(callee, args);
-    call.pos = pos;
-    call.end = end;
+    call.pos = pos | 0;
+    call.end = end | 0;
     if (this.inChild) this.context.addEmitFlags(call, EmitFlags.StartOnNewLine);
     return call;
   }

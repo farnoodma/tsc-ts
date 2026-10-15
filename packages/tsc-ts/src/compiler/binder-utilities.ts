@@ -1207,6 +1207,12 @@ export class TextRange {
 let rangeScanner: Scanner | undefined;
 let rangeScannerFile: SourceFile | undefined;
 
+/** Forgets the file the range scanner last visited. */
+export function forgetRangeScannerFile(): void {
+  rangeScanner = undefined;
+  rangeScannerFile = undefined;
+}
+
 function scannerAt(file: SourceFile, pos: number): Scanner {
   let scanner = rangeScanner;
   if (scanner === undefined) {

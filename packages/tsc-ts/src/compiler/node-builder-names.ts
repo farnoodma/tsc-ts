@@ -589,7 +589,7 @@ function lookupInstantiatedTypeArgumentNodes(b: NodeBuilder, chain: Symbol[], in
   if ((nextSymbol.checkFlags & CheckFlags.Instantiated) === 0) return undefined;
   const target = (symbol.flags & SymbolFlags.Alias) !== 0 ? resolveAlias(b.c, symbol) : symbol;
   let params = b.getTypeParametersOfClassOrInterface(target);
-  const mapper = b.c.symbolLinks(nextSymbol).mapper;
+  const mapper = b.c.symbolMappers.get(getSymbolId(nextSymbol));
   if (mapper !== undefined) {
     const mapped: Type[] = [];
     for (const p of params) mapped.push(mapper.map(p));
@@ -622,7 +622,7 @@ function findDefaultBindingContext(node: Node): Node | undefined {
 }
 
 function getNameOfSymbolFromNameType(b: NodeBuilder, symbol: Symbol): string {
-  const nameType = b.c.symbolLinks(symbol).nameType;
+  const nameType = b.c.symbolNameTypes.get(getSymbolId(symbol));
   if (nameType === undefined) return '';
   if ((nameType.flags & TypeFlags.StringOrNumberLiteral) !== 0) {
     const literal = nameType as LiteralType;
@@ -667,7 +667,7 @@ export function getNameOfSymbolAsWritten(b: NodeBuilder, symbol: Symbol): string
     }
     if (name !== undefined) {
       if (name.kind === SyntaxKind.ComputedPropertyName && (symbol.checkFlags & CheckFlags.Late) === 0) {
-        const nameType = b.c.symbolLinks(symbol).nameType;
+        const nameType = b.c.symbolNameTypes.get(getSymbolId(symbol));
         if (nameType !== undefined && (nameType.flags & TypeFlags.StringOrNumberLiteral) !== 0) {
           const result = getNameOfSymbolFromNameType(b, symbol);
           if (result.length > 0) return result;
@@ -773,7 +773,7 @@ function getPropertyNameNodeForSymbolFromNameType(
   stringNamed: boolean,
   isMethod: boolean,
 ): Node | undefined {
-  const nameType = b.c.symbolLinks(symbol).nameType;
+  const nameType = b.c.symbolNameTypes.get(getSymbolId(symbol));
   if (nameType === undefined) return undefined;
   if ((nameType.flags & TypeFlags.StringOrNumberLiteral) !== 0) {
     const literal = nameType as LiteralType;

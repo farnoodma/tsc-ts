@@ -2,6 +2,7 @@
 //
 // Each flow node points back to what runs before it: `antecedent` for most nodes,
 // `antecedents` for labels, where paths join.
+import type { ProgramLifetime } from '@scriptc/types';
 import type { Node } from './ast.js';
 
 export const enum FlowFlags {
@@ -35,7 +36,7 @@ export const enum FlowFlags {
   Condition = TrueCondition | FalseCondition,
 }
 
-export class FlowNode {
+export class FlowNode implements ProgramLifetime {
   flags: FlowFlags;
   /** The assignment, condition, call or function this node is about. */
   node: Node | undefined;

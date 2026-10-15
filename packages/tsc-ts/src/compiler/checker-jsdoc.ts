@@ -25,7 +25,7 @@ import {
   getType,
 } from './ast.js';
 import { getSourceFileOfNode, isTypeNodeKind } from './binder-utilities.js';
-import { getJSDoc } from './parser.js';
+import { getAttachedJSDoc, getJSDoc } from './parser.js';
 import { isInJSFile } from './ast-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -331,7 +331,7 @@ export function findMismatchedAugmentsTag(
   classLike: Node,
   extendsType: ExpressionWithTypeArguments,
 ): AugmentsMismatch | undefined {
-  const jsDoc = classLike.jsDoc;
+  const jsDoc = getAttachedJSDoc(classLike);
   if (jsDoc === undefined) return undefined;
   for (const j of jsDoc) {
     const tags = (j as JSDoc).tags;

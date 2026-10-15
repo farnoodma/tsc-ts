@@ -52,6 +52,7 @@ import {
   newTypeMapper,
   TypeParameter,
   UnionOrIntersectionType,
+  TypeListCache,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -69,6 +70,7 @@ import {
   setStructuredTypeMembers,
   someType,
   tupleTargetOf,
+  typeListHash,
 } from './checker-type-factory.js';
 import {
   getMergedSymbol,
@@ -93,7 +95,12 @@ import {
 import { getTypeOfSymbol, addOptionality } from './checker-symbol-types.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { instantiateSignatureEx, instantiateType, instantiateTypes } from './instantiation.js';
-import { getIndexInfosOfType, getSignaturesOfType, resolveStructuredTypeMembers } from './checker-members.js';
+import {
+  hasResolvedProperties,
+  getIndexInfosOfType,
+  getSignaturesOfType,
+  resolveStructuredTypeMembers,
+} from './checker-members.js';
 import {
   getIndexedAccessType,
   getElementTypeOfSliceOfTupleType,
@@ -169,8 +176,8 @@ function getAnnotatedAccessorThisParameter(accessor: Node): Symbol | undefined {
 }
 
 export function getSignatureFromDeclaration(c: Checker, declaration: Node): Signature {
-  const links = c.nodeLinks(declaration);
-  if (links.resolvedSignature !== undefined) return links.resolvedSignature;
+  const cached = c.resolvedSignatures.get(declaration.id);
+  if (cached !== undefined) return cached;
   const parameters: Symbol[] = [];
   let flags = SignatureFlags.None;
   let thisParameter: Symbol | undefined;
@@ -246,7 +253,7 @@ export function getSignatureFromDeclaration(c: Checker, declaration: Node): Sign
     undefined,
     minArgumentCount,
   );
-  links.resolvedSignature = signature;
+  c.resolvedSignatures.set(declaration.id, signature);
   return signature;
 }
 
@@ -512,7 +519,7 @@ export function getMinArgumentCount(c: Checker, signature: Signature): number {
       if (!someType(t, (u) => (u.flags & TypeFlags.Void) !== 0)) break;
       minArgumentCount = i;
     }
-    signature.resolvedMinArgumentCount = minArgumentCount;
+    signature.resolvedMinArgumentCount = minArgumentCount | 0;
   }
   return signature.resolvedMinArgumentCount;
 }
@@ -718,14 +725,14 @@ export function getSignatureInstantiationWithoutFillingInTypeArguments(
 ): Signature {
   let instantiations = sig.instantiations;
   if (instantiations === undefined) {
-    instantiations = new Map<string, Signature>();
+    instantiations = new TypeListCache<Signature>();
     sig.instantiations = instantiations;
   }
-  const key = typeArguments.map((t) => t.id).join(',');
-  let instantiation = instantiations.get(key);
+  const hash = typeListHash(typeArguments, undefined, 0);
+  let instantiation = instantiations.get(hash, typeArguments, undefined, 0);
   if (instantiation === undefined) {
     instantiation = createSignatureInstantiation(c, sig, typeArguments);
-    instantiations.set(key, instantiation);
+    instantiations.set(hash, typeArguments, undefined, 0, instantiation);
   }
   return instantiation;
 }
@@ -795,7 +802,7 @@ export function getSingleSignature(
 ): Signature | undefined {
   if ((t.flags & TypeFlags.Object) === 0) return undefined;
   const resolved = resolveStructuredTypeMembers(c, t);
-  if (!allowMembers && (resolved.properties.length !== 0 || resolved.indexInfos.length !== 0)) return undefined;
+  if (!allowMembers && (hasResolvedProperties(resolved) || resolved.indexInfos.length !== 0)) return undefined;
   if (kind === SignatureKind.Call && resolved.callSignatures.length === 1 && resolved.constructSignatures.length === 0)
     return resolved.callSignatures[0]!;
   if (

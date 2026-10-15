@@ -145,6 +145,17 @@ const projects = [
       }),
     },
   ],
+  [
+    'excess property check against a union with a union-constrained type parameter',
+    {
+      'a.ts':
+        'export function f<T extends { a: number } | { b: string }>(): void {\n' +
+        '  const ok: { c: boolean } | T = { c: true };\n' +
+        '  const wrong: { c: boolean } | T = { c: 1 };\n' +
+        '  void ok, wrong;\n' +
+        '}\n',
+    },
+  ],
 ];
 
 // Module specifiers of inferred types: `import("…")` types in declaration emit and the TS2883

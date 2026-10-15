@@ -35,7 +35,7 @@ import {
 import { isFunctionLike, isInJSFile } from './ast-utilities.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { type Diagnostic, Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
+import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import {
   CheckMode,
@@ -104,7 +104,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
   writeOnly: boolean,
   checkMode: CheckMode = CheckMode.Normal,
 ): Type {
-  const parentSymbol = c.nodeLinks(left).resolvedSymbol;
+  const parentSymbol = c.resolvedSymbols.get(left.id);
   const assignmentKind = getAssignmentTargetKind(node);
   const widenedType =
     assignmentKind !== AssignmentKind.None || isMethodAccessForCall(node) ? getWidenedType(c, leftType) : leftType;
@@ -146,7 +146,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
       c.error(node, Diagnostics.Private_accessor_was_defined_without_a_getter);
   } else {
     if (isAnyLike) {
-      if (left.kind === SyntaxKind.Identifier && c.nodeLinks(left).resolvedSymbol !== undefined)
+      if (left.kind === SyntaxKind.Identifier && c.resolvedSymbols.get(left.id) !== undefined)
         markPropertyAliasReferenced(c, node, undefined, leftType);
       return isErrorType(c, apparentType) ? c.errorType : apparentType;
     }
@@ -198,7 +198,7 @@ export function checkPropertyAccessExpressionOrQualifiedName(
     checkDeprecatedProperty(c, node, right, prop);
     checkPropertyNotUsedBeforeDeclaration(c, prop, node, right);
     markPropertyAsReferenced(c, prop, node, isSelfTypeAccess(c, left, parentSymbol));
-    c.nodeLinks(node).resolvedSymbol = prop;
+    c.resolvedSymbols.set(node.id, prop);
     checkPropertyAccessibility(
       c,
       node,
@@ -248,10 +248,12 @@ export function checkPrivateIdentifierExpression(c: Checker, node: Node): Type {
 }
 
 export function getSymbolForPrivateIdentifierExpression(c: Checker, node: Node): Symbol | undefined {
-  const links = c.nodeLinks(node);
-  if (links.resolvedSymbol === undefined)
-    links.resolvedSymbol = lookupSymbolForPrivateIdentifierDeclaration(getText(node), node);
-  return links.resolvedSymbol;
+  let symbol = c.resolvedSymbols.get(node.id);
+  if (symbol === undefined) {
+    symbol = lookupSymbolForPrivateIdentifierDeclaration(getText(node), node);
+    c.resolvedSymbols.set(node.id, symbol);
+  }
+  return symbol;
 }
 
 /** The declaration of a private name in the enclosing classes, innermost first. */
@@ -651,7 +653,7 @@ function getUnderlyingProperties(c: Checker, prop: Symbol, out: Symbol[]): void 
     out.push(prop);
     return;
   }
-  const containingType = c.symbolLinks(prop).containingType;
+  const containingType = c.symbolContainingTypes.get(getSymbolId(prop));
   if (containingType === undefined) return;
   for (const t of typesOf(containingType)) {
     const p = getPropertyOfType(c, t, prop.name);

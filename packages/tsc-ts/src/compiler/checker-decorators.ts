@@ -22,7 +22,7 @@ import {
   isStatic,
 } from './binder-utilities.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { type Symbol, SymbolFlags } from './symbol.js';
+import { type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import { ModifierFlags } from './ast.js';
@@ -428,13 +428,13 @@ function newTypedPropertyDescriptorType(c: Checker, propertyType: Type): Type {
 
 function newParameter(c: Checker, name: string, t: Type): Symbol {
   const symbol = c.newSymbol(SymbolFlags.FunctionScopedVariable, name);
-  c.symbolLinks(symbol).type = t;
+  c.symbolTypes.set(getSymbolId(symbol), t);
   return symbol;
 }
 
 function newProperty(c: Checker, name: string, t: Type): Symbol {
   const symbol = c.newSymbol(SymbolFlags.Property, name);
-  c.symbolLinks(symbol).type = t;
+  c.symbolTypes.set(getSymbolId(symbol), t);
   return symbol;
 }
 

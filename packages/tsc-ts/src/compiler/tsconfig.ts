@@ -971,6 +971,12 @@ export class ConfigParser {
    * files to load from the main thread, read the config without matching `include` patterns.
    */
   expandFileNames = true;
+  /**
+   * Called once, with the options of the config, before its `include` patterns are matched; what it
+   * returns is called with each root file name as it is found (literal `files` first, then each
+   * matched file; matches the config later drops as outputs of other matched files included).
+   */
+  beforeRootFiles: ((options: CompilerOptions) => ((fileName: string) => void) | undefined) | undefined = undefined;
 
   constructor(
     readonly fs: FileSystem,
@@ -1084,8 +1090,16 @@ export class ConfigParser {
     file.configFileSpecs = specs;
 
     const literalFiles = new Map<string, string>();
+    const beforeRootFiles = this.beforeRootFiles;
+    this.beforeRootFiles = undefined;
     const fileNames = this.expandFileNames
-      ? this.getFileNamesFromConfigSpecs(specs, basePathForFileNames, options, literalFiles)
+      ? this.getFileNamesFromConfigSpecs(
+          specs,
+          basePathForFileNames,
+          options,
+          literalFiles,
+          beforeRootFiles === undefined ? undefined : beforeRootFiles(options),
+        )
       : [];
     const canReportNoInputFiles =
       !(raw instanceof JsonObject) || (!raw.entries.has('files') && !raw.entries.has('references'));
@@ -1391,6 +1405,7 @@ export class ConfigParser {
     basePath: string,
     options: CompilerOptions,
     literalFiles: Map<string, string>,
+    onRootFile?: (fileName: string) => void,
   ): string[] {
     basePath = normalizePath(basePath);
     const cs = this.fs.useCaseSensitiveFileNames;
@@ -1402,6 +1417,7 @@ export class ConfigParser {
     for (const fileName of specs.validatedFilesSpec) {
       literalFiles.set(getCanonicalFileName(fileName, cs), getNormalizedAbsolutePath(fileName, basePath));
     }
+    if (onRootFile !== undefined) for (const fileName of literalFiles.values()) onRootFile(fileName);
 
     const includes = specs.validatedIncludeSpecs;
     if (includes.length > 0) {
@@ -1413,6 +1429,7 @@ export class ConfigParser {
         specs.validatedExcludeSpecs,
         includes,
         unlimitedDepth,
+        onRootFile,
       );
       let jsonIncludes: SpecMatcher | undefined;
       for (const file of matched) {

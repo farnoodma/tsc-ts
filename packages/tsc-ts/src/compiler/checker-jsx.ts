@@ -28,7 +28,7 @@ import { Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from
 import { JsxEmit } from './options.js';
 import { parseIsolatedEntityName } from './parser.js';
 import { skipTrivia } from './scanner.js';
-import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
+import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
@@ -202,6 +202,8 @@ class JsxFileLinks {
 export class JsxState {
   readonly elementLinks = new Map<Node, JsxElementLinks>();
   readonly fileLinks = new Map<SourceFile, JsxFileLinks>();
+  /** getJsxIntrinsicConstructorType by attributes and element type ids. */
+  readonly intrinsicConstructorTypes = new Map<string, Type>();
   jsxNamespace = '';
   jsxFactoryEntity: Node | undefined = undefined;
 }
@@ -636,15 +638,42 @@ function getIntrinsicAttributesTypeFromStringLiteralType(c: Checker, t: Type, lo
 
 /** A `(props: result) => JSX.Element` signature for an intrinsic element. */
 function createSignatureForJSXIntrinsic(c: Checker, node: Node, result: Type): Signature {
+  return newJsxIntrinsicSignature(c, result, getJsxElementTypeForIntrinsic(c, node));
+}
+
+/** The return type of createSignatureForJSXIntrinsic: `JSX.Element` at `node`, or the error type. */
+function getJsxElementTypeForIntrinsic(c: Checker, node: Node): Type {
   let elementType: Type = c.errorType;
   const namespace = getJsxNamespaceAt(c, node);
   if (namespace !== undefined) {
     const typeSymbol = getSymbolOfMeaning(c, getExportsOfSymbol(c, namespace), jsxElementName, SymbolFlags.Type);
     if (typeSymbol !== undefined) elementType = getDeclaredTypeOfSymbol(c, typeSymbol);
   }
+  return elementType;
+}
+
+function newJsxIntrinsicSignature(c: Checker, result: Type, elementType: Type): Signature {
   const parameterSymbol = c.newSymbol(SymbolFlags.FunctionScopedVariable, 'props');
-  c.symbolLinks(parameterSymbol).type = result;
+  c.symbolTypes.set(getSymbolId(parameterSymbol), result);
   return c.newSignature(SignatureFlags.None, undefined, [], undefined, [parameterSymbol], elementType, 1);
+}
+
+/**
+ * `getOrCreateTypeFromSignature(createSignatureForJSXIntrinsic(node, result))`, the type that
+ * getStaticTypeOfReferencedJsxConstructor gives an intrinsic element: `new (props: result) =>
+ * JSX.Element`. tsgo creates a new one for every element, which makes each element's
+ * `LibraryManagedAttributes<C, P>` a new instantiation; it is a function of the two types, so one is
+ * kept per pair (as bun check does).
+ */
+function getJsxIntrinsicConstructorType(c: Checker, node: Node, result: Type): Type {
+  const elementType = getJsxElementTypeForIntrinsic(c, node);
+  const key = result.id + ',' + elementType.id;
+  let t = c.jsx.intrinsicConstructorTypes.get(key);
+  if (t === undefined) {
+    t = getOrCreateTypeFromSignature(c, newJsxIntrinsicSignature(c, result, elementType));
+    c.jsx.intrinsicConstructorTypes.set(key, t);
+  }
+  return t;
 }
 
 function getJsxReferenceKind(c: Checker, node: Node): JsxReferenceKind {
@@ -783,13 +812,13 @@ function getStaticTypeOfReferencedJsxConstructor(c: Checker, context: Node): Typ
   const tagName = getTagNameOf(context);
   if (isJsxIntrinsicTagName(tagName)) {
     const result = getIntrinsicAttributesTypeFromJsxOpeningLikeElement(c, context);
-    return getOrCreateTypeFromSignature(c, createSignatureForJSXIntrinsic(c, context, result));
+    return getJsxIntrinsicConstructorType(c, context, result);
   }
   const tagType = checkExpressionCached(c, tagName);
   if ((tagType.flags & TypeFlags.StringLiteral) !== 0) {
     const result = getIntrinsicAttributesTypeFromStringLiteralType(c, tagType, context);
     if (result === undefined) return c.errorType;
-    return getOrCreateTypeFromSignature(c, createSignatureForJSXIntrinsic(c, context, result));
+    return getJsxIntrinsicConstructorType(c, context, result);
   }
   return tagType;
 }
@@ -916,9 +945,9 @@ export function createJsxAttributesTypeFromAttributesProperty(
         attributeSymbol.declarations = member.declarations;
         attributeSymbol.parent = member.parent;
         if (member.valueDeclaration !== undefined) attributeSymbol.valueDeclaration = member.valueDeclaration;
-        const links = c.symbolLinks(attributeSymbol);
-        links.type = exprType;
-        links.target = member;
+        const id = getSymbolId(attributeSymbol);
+        c.symbolTypes.set(id, exprType);
+        c.symbolTargets.set(id, member);
         attributesTable.set(attributeSymbol.name, attributeSymbol);
         if (allAttributesTable !== undefined) allAttributesTable.set(attributeSymbol.name, attributeSymbol);
         if (jsxNameText((attributeDecl as JsxAttribute).name) === jsxChildrenPropertyName)
@@ -993,11 +1022,11 @@ export function createJsxAttributesTypeFromAttributesProperty(
           childrenContextualType = getTypeOfPropertyOfContextualType(c, contextualType, jsxChildrenPropertyName);
       }
       const childrenPropSymbol = c.newSymbol(SymbolFlags.Property, jsxChildrenPropertyName);
-      const links = c.symbolLinks(childrenPropSymbol);
-      if (childTypes.length === 1) links.type = childTypes[0]!;
+      const id = getSymbolId(childrenPropSymbol);
+      if (childTypes.length === 1) c.symbolTypes.set(id, childTypes[0]!);
       else if (childrenContextualType !== undefined && someType(childrenContextualType, (t) => isTupleLikeType(c, t)))
-        links.type = createTupleType(c, childTypes);
-      else links.type = createArrayType(c, getUnionType(c, childTypes));
+        c.symbolTypes.set(id, createTupleType(c, childTypes));
+      else c.symbolTypes.set(id, createArrayType(c, getUnionType(c, childTypes)));
       // Errors on the synthetic `children` property are reported on the attributes.
       childrenPropSymbol.valueDeclaration = attributeParent;
       const childPropMap: SymbolTable = new Map<string, Symbol>();
@@ -1560,11 +1589,12 @@ export function getContextualJsxElementAttributesType(c: Checker, node: Node): T
   if (node.kind === SyntaxKind.JsxOpeningElement) {
     // Contextual types of an element's attributes are pushed onto the element, which spans the children.
     const index = findContextualNode(c, node.parent!, true);
-    if (index >= 0) return c.inferenceCaches.contextualTypes.at(index);
+    if (index >= 0) return c.inferenceCaches.contextualTypes[index];
   }
-  const links = c.nodeLinks(node);
   const signature =
-    links.resolvedSignature === c.resolvingSignature ? c.resolvingSignature : getResolvedJsxSignature(c, node);
+    c.resolvedSignatures.get(node.id) === c.resolvingSignature
+      ? c.resolvingSignature
+      : getResolvedJsxSignature(c, node);
   return getEffectiveFirstArgumentForJsxSignature(c, signature, node);
 }
 

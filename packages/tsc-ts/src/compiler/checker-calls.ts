@@ -301,28 +301,27 @@ export function checkTaggedTemplateExpression(c: Checker, node: Node, checkMode:
 
 /** The signature `node` resolves to, computed once. */
 export function getResolvedSignature(c: Checker, node: Node, checkMode: CheckMode): Signature {
-  const links = c.nodeLinks(node);
-  const cached = links.resolvedSignature;
+  const cached = c.resolvedSignatures.get(node.id);
   if (cached !== undefined && cached !== c.resolvingSignature) return cached;
   const saveResolutionStart = c.resolutionStart;
   // Reset the resolution stack so inverted requests retry with the resolving marker in place.
   if (cached === undefined) c.resolutionStart = c.resolutionTargets.length;
-  links.resolvedSignature = c.resolvingSignature;
+  c.resolvedSignatures.set(node.id, c.resolvingSignature);
   let result = resolveSignature(c, node, checkMode);
   c.resolutionStart = saveResolutionStart;
   // resolvingSignature means resolution was deferred under SkipGenericFunctions.
   if (result !== c.resolvingSignature) {
     // A nested resolution may have cached the source-order result first; prefer it.
-    if (links.resolvedSignature !== c.resolvingSignature) result = links.resolvedSignature!;
+    if (c.resolvedSignatures.get(node.id) !== c.resolvingSignature) result = c.resolvedSignatures.get(node.id)!;
     // Results computed during loop analysis may rest on transient flow types.
-    links.resolvedSignature = c.flowLoopStack.length === 0 ? result : cached;
+    c.resolvedSignatures.set(node.id, c.flowLoopStack.length === 0 ? result : cached);
   }
   return result;
 }
 
 /** The signature argument contextual types come from while `call` is checked. */
 export function resolveCallSignatureForContext(c: Checker, call: Node): Signature {
-  return c.nodeLinks(call).resolvedSignature === c.resolvingSignature
+  return c.resolvedSignatures.get(call.id) === c.resolvingSignature
     ? c.resolvingSignature
     : getResolvedSignature(c, call, CheckMode.Normal);
 }
@@ -587,7 +586,7 @@ function invocationError(c: Checker, errorTarget: Node, apparentType: Type, kind
     parent.kind === SyntaxKind.CallExpression &&
     (parent as CallExpression).arguments.nodes.length === 0
   ) {
-    const resolvedSymbol = c.nodeLinks(errorTarget).resolvedSymbol;
+    const resolvedSymbol = c.resolvedSymbols.get(errorTarget.id);
     if (resolvedSymbol !== undefined && (resolvedSymbol.flags & SymbolFlags.GetAccessor) !== 0)
       headMessage =
         Diagnostics.This_expression_is_not_callable_because_it_is_a_get_accessor_Did_you_mean_to_use_it_without;
@@ -685,6 +684,8 @@ export class SyntheticExpression extends Node {
   forEachChild(_visitor: NodeVisitor): boolean {
     return false;
   }
+
+  setParentOfChildren(): void {}
 
   deepClone(): Node {
     return new SyntheticExpression(this.parent!, this.type, this.isSpread, this.tupleNameSource);
@@ -935,7 +936,7 @@ export function resolveCall(
   if (result !== undefined) return result;
   result = getCandidateForOverloadFailure(c, node, s.candidates, s.args, checkMode);
   // Cache now so that error reporting below handles circularities like getResolvedSignature would.
-  c.nodeLinks(node).resolvedSignature = result;
+  c.resolvedSignatures.set(node.id, result);
   reportCallResolutionErrors(c, s, signatures, headMessage);
   return result;
 }

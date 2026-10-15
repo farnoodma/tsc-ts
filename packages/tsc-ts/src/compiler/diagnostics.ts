@@ -2,7 +2,7 @@
  * Diagnostics: message lookup and localization, the `Diagnostic` type, and tsc's plain and
  * pretty diagnostic output.
  */
-import { isDigit, isUnicodeWhiteSpace, utf8Length } from './character-codes.js';
+import { CharacterCodes, isDigit, isUnicodeWhiteSpace, utf8Length } from './character-codes.js';
 import { Locale, translations } from './diagnostic-locales.js';
 import { Diagnostics, messageCodes, messageFlags, messageKeys, messageTexts } from './diagnostic-messages.js';
 import { getPathComponentsRelativeTo, getPathFromPathComponents, isRootedDiskPath, pathIsAbsolute } from './path.js';
@@ -139,12 +139,53 @@ function toWellFormed(text: string): string {
   return text;
 }
 
+/**
+ * Where this thread computes the line starts and UTF-8 offsets of files that may be shared with other
+ * threads (`useThreadTextCaches`): a copy of each such file, by file, that computes them in place.
+ */
+let threadCopies: Map<DiagnosticFile, DiagnosticFile> | undefined = undefined;
+
+/**
+ * Makes this thread compute the caches of files that do not have them yet in copies of its own: the
+ * files may be published (immutable) and shared with other threads. Declaration files leave the
+ * parser without them (`Parser.parseSourceFile`): they make up most of the text of a typical program,
+ * and are rarely checked or pointed into by a diagnostic.
+ */
+export function useThreadTextCaches(): void {
+  if (threadCopies === undefined) threadCopies = new Map<DiagnosticFile, DiagnosticFile>();
+}
+
+/** This thread's copy of `file` for its caches, if this thread computes them in copies. */
+function threadCopyOf(file: DiagnosticFile): DiagnosticFile | undefined {
+  const copies = threadCopies;
+  if (copies === undefined || file.isThreadCopy) return undefined;
+  let copy = copies.get(file);
+  if (copy === undefined) {
+    copy = new DiagnosticFile(file.fileName, file.text);
+    // A copy computes its caches in place, each on first use.
+    copy.isThreadCopy = true;
+    copies.set(file, copy);
+  }
+  return copy;
+}
+
+/** The position of the first code unit at or after `pos` that is a CR or below, or not ASCII; or `end`. */
+function skipPlainASCII(units: Uint16Array, pos: number, end: number): number {
+  for (let i = pos | 0; i < end; i = (i + 1) | 0) {
+    const c = units[i] | 0;
+    if (c <= CharacterCodes.carriageReturn || c >= 0x80) return i;
+  }
+  return end;
+}
+
 /** The text of a file diagnostics point into. */
 export class DiagnosticFile {
   readonly fileName: string;
   readonly text: string;
   // Computed on first use; never empty once computed.
   private lineStarts: number[] = [];
+  /** Whether this is a thread's copy of a possibly shared file (`threadCopyOf`). */
+  isThreadCopy = false;
 
   constructor(fileName: string, text: string) {
     this.fileName = fileName;
@@ -153,13 +194,75 @@ export class DiagnosticFile {
 
   /** Computes the line starts and UTF-8 offsets, so that later reads never write to the file. */
   computeCaches(): void {
-    this.getLineStarts();
+    if (this.lineStarts.length === 0) this.lineStarts = computeLineStarts(this.text);
     this.getNonASCIIStarts();
+  }
+
+  /**
+   * Like `computeCaches`, from the text's UTF-16 code units `units[0, text.length)` in one pass, so
+   * the text itself is neither searched nor copied.
+   */
+  computeCachesFromUnits(units: Uint16Array): void {
+    const text = this.text;
+    // ASCII texts are searched faster than walked, and have no non-ASCII characters to find.
+    if (
+      this.lineStarts.length !== 0 ||
+      this.nonASCIIStarts !== undefined ||
+      Buffer.byteLength(text, 'utf8') === text.length
+    ) {
+      this.computeCaches();
+      return;
+    }
+    const length = text.length | 0;
+    const lineStarts: number[] = [0];
+    const starts: number[] = [];
+    const lengths = this.nonASCIILengths;
+    const extraBytes = this.extraBytes;
+    let extra = 0;
+    // Visit only the code units that need work; `skipPlainASCII` runs over the rest without calls,
+    // so native builds keep its loop on registers. The body never moves `i`: a CR followed by an LF
+    // leaves the line start to the LF, and the low half of a surrogate pair is skipped by looking back.
+    for (let i = skipPlainASCII(units, 0, length); i < length; i = skipPlainASCII(units, (i + 1) | 0, length)) {
+      const ch = units[i] | 0;
+      if (ch < 0x80) {
+        if (
+          ch === CharacterCodes.lineFeed ||
+          (ch === CharacterCodes.carriageReturn &&
+            (i + 1 >= length || (units[(i + 1) | 0] | 0) !== CharacterCodes.lineFeed))
+        )
+          lineStarts.push(i + 1);
+        continue;
+      }
+      // The UTF-8 length of the character; a lone surrogate is encoded as U+FFFD, in 3 bytes.
+      let size = 3;
+      if (ch < 0x800) {
+        size = 2;
+      } else if (ch >= 0xd800 && ch <= 0xdbff) {
+        if (i + 1 < length) {
+          const low = units[(i + 1) | 0] | 0;
+          if (low >= 0xdc00 && low <= 0xdfff) size = 4;
+        }
+      } else if (ch >= 0xdc00 && ch <= 0xdfff && i > 0) {
+        const high = units[(i - 1) | 0] | 0;
+        if (high >= 0xd800 && high <= 0xdbff) continue;
+      }
+      starts.push(i);
+      lengths.push(size);
+      extra = (extra + (size === 4 ? 2 : size - 1)) | 0;
+      extraBytes.push(extra);
+      if (ch === CharacterCodes.lineSeparator || ch === CharacterCodes.paragraphSeparator) lineStarts.push(i + 1);
+    }
+    this.lineStarts = lineStarts;
+    this.nonASCIIStarts = starts;
   }
 
   /** Start offsets of each line, split at CR, LF, CRLF, LS and PS. */
   getLineStarts(): readonly number[] {
-    if (this.lineStarts.length === 0) this.lineStarts = computeLineStarts(this.text);
+    if (this.lineStarts.length === 0) {
+      const copy = threadCopyOf(this);
+      if (copy !== undefined) return copy.getLineStarts();
+      this.lineStarts = computeLineStarts(this.text);
+    }
     return this.lineStarts;
   }
 
@@ -211,6 +314,10 @@ export class DiagnosticFile {
 
   /** The UTF-8 offset of UTF-16 offset `pos`, as tsgo counts positions. */
   toUtf8Offset(pos: number): number {
+    if (this.nonASCIIStarts === undefined) {
+      const copy = threadCopyOf(this);
+      if (copy !== undefined) return copy.toUtf8Offset(pos);
+    }
     const starts = this.getNonASCIIStarts();
     if (starts.length === 0 || pos <= 0 || pos > this.text.length) return pos;
     const count = this.countNonASCIIBefore(starts, pos);
@@ -224,6 +331,10 @@ export class DiagnosticFile {
 
   /** The UTF-16 offset of UTF-8 offset `pos`; inside a character, the offset of its start. */
   fromUtf8Offset(pos: number): number {
+    if (this.nonASCIIStarts === undefined) {
+      const copy = threadCopyOf(this);
+      if (copy !== undefined) return copy.fromUtf8Offset(pos);
+    }
     const starts = this.getNonASCIIStarts();
     if (starts.length === 0 || pos <= 0) return pos;
     const extraBytes = this.extraBytes;
@@ -354,17 +465,26 @@ export function chainDiagnostic(
 /** Orders strings by code point, like Go's byte-wise comparison of UTF-8. */
 export function compareCodePoints(a: string, b: string): number {
   if (a === b) return 0;
-  const length = Math.min(a.length, b.length);
+  // Integer lengths and bound: with a double bound (Math.min, or lengths not coerced) scriptc
+  // rounds the trip count with a libm ceil call on every call.
+  const aLength = a.length | 0;
+  const bLength = b.length | 0;
+  const length = aLength < bLength ? aLength : bLength;
   for (let i = 0; i < length; i++) {
-    let x = a.charCodeAt(i);
-    let y = b.charCodeAt(i);
-    if (x === y) continue;
-    // Surrogates encode code points above every other UTF-16 unit.
-    if (x >= 0xd800 && x <= 0xdfff) x += 0x10000;
-    if (y >= 0xd800 && y <= 0xdfff) y += 0x10000;
-    return x < y ? -1 : 1;
+    const x = a.charCodeAt(i);
+    const y = b.charCodeAt(i);
+    if (x !== y) return x < 0xd800 && y < 0xd800 ? (x < y ? -1 : 1) : compareUnitsAsCodePoints(x, y);
   }
-  return a.length === b.length ? 0 : a.length < b.length ? -1 : 1;
+  // Different strings with a common prefix of the shorter one's length differ in length.
+  return aLength < bLength ? -1 : 1;
+}
+
+/** Orders two different UTF-16 units as the code points they start. */
+function compareUnitsAsCodePoints(x: number, y: number): number {
+  // Surrogates encode code points above every other UTF-16 unit.
+  if (x >= 0xd800 && x <= 0xdfff) x += 0x10000;
+  if (y >= 0xd800 && y <= 0xdfff) y += 0x10000;
+  return x < y ? -1 : 1;
 }
 
 function compareArgs(a: readonly string[], b: readonly string[]): number {
