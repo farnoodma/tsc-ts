@@ -1,6 +1,7 @@
 // tsc-ts: `--api` serves the TypeScript API; anything else runs tsc.
 import { dirname } from 'node:path';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+import { LifetimeRegion } from '@scriptc/experimental';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { runServer } from './api/server.js';
 import { reserveNodeIds, shareNodeIds } from './compiler/ast.js';
@@ -15,6 +16,7 @@ import {
 import { type LoadMessage, parallelParse } from './compiler/parallel-parse.js';
 import { useThreadTextCaches } from './compiler/diagnostics.js';
 import { useLazyJSDocTable } from './compiler/parser.js';
+import { releaseProgramCaches } from './compiler/tsc-watch.js';
 import { CheckedProgram } from './compiler/program-checker.js';
 import type { Program } from './compiler/program.js';
 import { mark, markMemory, setTimelineThread, timeline } from './compiler/timeline.js';
@@ -58,7 +60,19 @@ function startThreads(): void {
   parallelCheck.writer = outputWriterOfThread(defaultLibraryPath);
   parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds, reserved, emits) =>
     new Worker(new URL(import.meta.url), {
-      workerData: { kind: 'check', program, args, index, counter, order, nodeIds, symbolIds, reserved, emits },
+      workerData: {
+        kind: 'check',
+        program,
+        args,
+        index,
+        counter,
+        order,
+        nodeIds,
+        symbolIds,
+        reserved,
+        emits,
+        regions: parallelCheck.regions && packsResults,
+      },
     });
   if (sharesPublishedGraphs)
     parallelParse.spawn = (configFileName, counter, index) =>
@@ -89,6 +103,7 @@ function runCheckerThread(): void {
     symbolIds: number;
     reserved: number[];
     emits: boolean;
+    regions: boolean;
   };
   let program: Program | undefined = undefined;
   if (job.program !== undefined) {
@@ -102,8 +117,8 @@ function runCheckerThread(): void {
     program = publish(job.program);
     mark('program received');
   } else program = programOfCommandLine(job.args, defaultLibraryPath);
-  // Without a program this thread checks nothing; the main thread checks the files it would have.
-  const result =
+  const check = (): CheckerResult =>
+    // Without a program this thread checks nothing; the main thread checks the files it would have.
     program === undefined
       ? new CheckerResult(job.index, [], [], [], [], 0, [])
       : checkFromQueue(
@@ -117,9 +132,18 @@ function runCheckerThread(): void {
           job.reserved,
           job.emits,
         );
+  if (job.regions) {
+    // The packed result is copied out of the region, which nothing then refers to.
+    const region = new LifetimeRegion();
+    parentPort!.postMessage(region.run(() => packResult(check(), program!)));
+    // Module-level caches and lazily parsed JSDoc refer to what the region holds.
+    releaseProgramCaches();
+    useLazyJSDocTable();
+    region.release();
+  }
   // Packed results are copied: nothing this thread allocated stays reachable after it ends.
-  if (packsResults) parentPort!.postMessage(packResult(result, program!));
-  else parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(result) : result });
+  else if (packsResults) parentPort!.postMessage(packResult(check(), program!));
+  else parentPort!.postMessage({ result: sharesPublishedGraphs ? publish(check()) : check() });
   mark('result posted');
 }
 

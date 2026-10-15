@@ -2,6 +2,7 @@
  * `tsc --watch` and `tsc --build --watch`: rebuild when inputs change. Changes are found by polling
  * the time stamps of the files a build read and of the directories that may gain files.
  */
+import { LifetimeRegion } from '@scriptc/experimental';
 import type { ParsedBuildCommandLine, ParsedCommandLine as CommandLine } from './command-line.js';
 import { CheckedProgram, CompileTimes } from './compile-program.js';
 import {
@@ -25,7 +26,10 @@ import { combinePaths, getDirectoryPath, getNormalizedAbsolutePath, toPath } fro
 import { Program } from './program.js';
 import { ConfigParser, ParsedCommandLine } from './tsconfig.js';
 import { DiagnosticReporter, ErrorSummaryReporter, outputLocale, type System, SystemFileSystem } from './tsc-cli.js';
-import { Orchestrator, StatusReporter } from './tsc-build.js';
+import { copyCommandLine, Orchestrator, StatusReporter } from './tsc-build.js';
+import { type CompilerOptions, isIncremental } from './options.js';
+import { assignSymbolIdsAtCreation } from './symbol.js';
+import { checkerThreads, parallelCheck, startParallelCheck } from './parallel-check.js';
 import { emitFilesAndReportErrors, SystemTimeStamps, SystemWriter } from './tsc-compile.js';
 
 /** How often inputs are polled, in milliseconds. */
@@ -114,21 +118,6 @@ function includeDirectories(config: ParsedCommandLine): { path: string; recursiv
 }
 
 /**
- * The source files of the last build, by name, path and module detection options, for the next build
- * to take where their text is unchanged (`WatchCompilerHost`).
- */
-class WatchSourceFiles {
-  previous = new Map<string, SourceFile>();
-  current = new Map<string, SourceFile>();
-
-  /** Starts a build: the files of the last one are what it can take. */
-  next(): void {
-    this.previous = this.current;
-    this.current = new Map<string, SourceFile>();
-  }
-}
-
-/**
  * A compiler host writing `--traceResolution` output to the system, which takes the parsed and bound
  * source file of the last build when a file's text is unchanged, as tsgo's watch reuses the files of
  * its old program. A file parses the same for the same text, name, path and module detection options,
@@ -140,7 +129,12 @@ class WatchCompilerHost extends CompilerHost {
     private readonly sys: System,
     fs: CachedFileSystem,
     private readonly locale: Locale,
-    private readonly files: WatchSourceFiles,
+    /**
+     * The source files of the last build and those of this one, by name, path and module detection
+     * options. Not the watcher's: a program shared with checker threads is frozen with its host.
+     */
+    private readonly previous: ReadonlyMap<string, SourceFile>,
+    private readonly current: Map<string, SourceFile>,
   ) {
     super(fs, sys.currentDirectory, sys.defaultLibraryPath);
   }
@@ -158,16 +152,16 @@ class WatchCompilerHost extends CompilerHost {
       path +
       (externalModuleIndicatorOptions.jsx ? '\u0000j' : '\u0000') +
       (externalModuleIndicatorOptions.force ? 'f' : '');
-    let file = this.files.current.get(key);
+    let file = this.current.get(key);
     if (file !== undefined && file.text === text) return file;
-    file = this.files.previous.get(key);
+    file = this.previous.get(key);
     if (file === undefined || file.text !== text)
       file = parseSourceFile(
         fileName,
         text,
         new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions),
       );
-    this.files.current.set(key, file);
+    this.current.set(key, file);
     return file;
   }
 
@@ -188,7 +182,12 @@ class Watcher {
   private readonly locale: Locale;
   private readonly reporter: DiagnosticReporter;
   private readonly status: WatchStatusReporter;
-  private readonly files = new WatchSourceFiles();
+  /** The source files of the last build (`WatchCompilerHost`). */
+  private files: ReadonlyMap<string, SourceFile> = new Map<string, SourceFile>();
+  /** Whether a build is checking on checker threads. */
+  private building = false;
+  /** The region of the last build's checking on this thread, released by the next build. */
+  private previousRegion: LifetimeRegion | undefined = undefined;
 
   constructor(
     private readonly sys: System,
@@ -219,6 +218,12 @@ class Watcher {
       );
     }
     this.status.report(Diagnostics.Starting_compilation_in_watch_mode);
+    // A program shared with checker threads is never written: symbols get their ids when created.
+    const options = this.config.options;
+    if (mayCheckOnThreads(options) && checkerThreads(options.checkers, options.singleThreaded) > 1) {
+      assignSymbolIdsAtCreation();
+      parallelCheck.regions = true;
+    }
     this.build();
     startPolling(() => this.poll());
   }
@@ -230,6 +235,8 @@ class Watcher {
   }
 
   private poll(): void {
+    // A build on checker threads finishes in a callback; changes during it are picked up after.
+    if (this.building) return;
     const configChanged = this.configStamps.changed();
     if (!configChanged && !this.stamps.changed()) return;
     if (configChanged && !this.reloadConfig()) return;
@@ -270,9 +277,46 @@ class Watcher {
       );
       if (parsed !== undefined) this.config = parsed;
     }
-    this.files.next();
-    const program = new Program(this.config, new WatchCompilerHost(sys, fs, this.locale, this.files));
+    // A program checked by threads is shared with them and can't change after: it gets a copy of the
+    // config.
+    const config = this.config;
+    const options = config.options;
+    const count = mayCheckOnThreads(options) ? checkerThreads(options.checkers, options.singleThreaded) : 1;
+    const files = new Map<string, SourceFile>();
+    const program = new Program(
+      count > 1 ? copyCommandLine(config) : config,
+      new WatchCompilerHost(sys, fs, this.locale, this.files, files),
+    );
+    this.files = files;
     const checked = new CheckedProgram(program);
+    if (count > 1) {
+      // Checker threads check every file, as a build without old state does; the incremental program
+      // then takes the semantic diagnostics of the files it rechecks from them, and emits on this thread.
+      // What this thread's checkers allocate is in a region freed once the next build replaces it.
+      this.building = true;
+      const region = new LifetimeRegion();
+      region.run(() =>
+        startParallelCheck(
+          checked,
+          checkerThreads(options.checkers, options.singleThreaded, program),
+          () => {
+            this.building = false;
+            region.run(() => this.finishBuild(checked));
+            this.previousRegion?.release();
+            this.previousRegion = region;
+          },
+          false,
+        ),
+      );
+      return;
+    }
+    this.finishBuild(checked);
+  }
+
+  /** Emits and reports the checked program of a build, and watches its inputs. */
+  private finishBuild(checked: CheckedProgram): void {
+    const sys = this.sys;
+    const program = checked.program;
     const incremental = new IncrementalProgram(checked, new CompileTimes(), this.snapshot, new SystemTimeStamps(sys));
     const result = emitFilesAndReportErrors(
       sys,
@@ -303,6 +347,14 @@ class Watcher {
     this.stamps = stamps;
     this.configStamps = configStamps;
   }
+}
+
+/**
+ * Whether checker threads may check a watch build: they report a file's semantic diagnostics filtered
+ * for `noEmit`, while a program that keeps incremental state stores them unfiltered (as in build mode).
+ */
+function mayCheckOnThreads(options: CompilerOptions): boolean {
+  return !(options.noEmit === true && isIncremental(options));
 }
 
 /** Starts `tsc --watch`; the process keeps running. */
@@ -368,10 +420,10 @@ export function watchBuild(sys: System, command: ParsedBuildCommandLine): void {
 }
 
 /**
- * A rebuild parses every file again, so drop the module-level caches that still point at the
- * previous build's files and library globals.
+ * Drops the module-level caches that still point at the last build's files and library globals: before
+ * a rebuild, and on a checker thread before it releases its region (main.ts).
  */
-function releaseProgramCaches(): void {
+export function releaseProgramCaches(): void {
   clearLibGlobalsCache();
   forgetLazyJSDocFile();
   forgetNavigationFile();

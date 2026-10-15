@@ -1267,7 +1267,7 @@ export function buildWithThreads(
 }
 
 /** A copy of `config` with its own lazily computed parts and errors. */
-function copyCommandLine(config: ParsedCommandLine): ParsedCommandLine {
+export function copyCommandLine(config: ParsedCommandLine): ParsedCommandLine {
   return new ParsedCommandLine(
     config.options,
     config.typeAcquisition,

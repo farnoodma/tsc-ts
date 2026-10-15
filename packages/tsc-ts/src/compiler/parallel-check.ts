@@ -74,6 +74,12 @@ export class ParallelCheck {
   spawn: CheckerSpawn | undefined = undefined;
   /** Where checkers write the files they emit (`checkersEmit`); set where they can write files. */
   writer: OutputWriter | undefined = undefined;
+  /**
+   * Whether checker threads allocate what they check in a lifetime region they release once their
+   * result is posted (with `packsResults`): natively, types, signatures and checker links are otherwise
+   * never freed, which a long-running process (`tsc -w`) can't afford.
+   */
+  regions = false;
 }
 
 export const parallelCheck = new ParallelCheck();
