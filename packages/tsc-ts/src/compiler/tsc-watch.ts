@@ -16,7 +16,7 @@ import {
 import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
 import { CompilerHost } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
-import { clearLibGlobalsCache } from './checker-symbols.js';
+import { clearLibGlobalsCache, shareMergedGlobals } from './checker-symbols.js';
 import { forgetLazyJSDocFile, parseSourceFile } from './parser.js';
 import { forgetNavigationFile } from './astnav.js';
 import { forgetRangeScannerFile } from './binder-utilities.js';
@@ -294,6 +294,9 @@ class Watcher {
       // then takes the semantic diagnostics of the files it rechecks from them, and emits on this thread.
       // What this thread's checkers allocate is in a region freed once the next build replaces it.
       this.building = true;
+      // The globals and module augmentations shared with checker threads are published with the program,
+      // and so never freed: a checker of their own merges them outside the region.
+      program.mergedGlobals = shareMergedGlobals(checked.createChecker());
       const region = new LifetimeRegion();
       region.run(() =>
         startParallelCheck(

@@ -1612,8 +1612,9 @@ export function startParallelCheck(
   if (shared) {
     program.prepareForSharing();
     mark('prepared for sharing');
-    // This thread's checker merges the globals and module augmentations; checker threads start from them.
-    program.mergedGlobals = shareMergedGlobals(checked.checker);
+    // This thread's checker merges the globals and module augmentations, unless a checker merged them
+    // before; checker threads start from them.
+    if (program.mergedGlobals === undefined) program.mergedGlobals = shareMergedGlobals(checked.checker);
     mark('globals merged');
     publish(program);
     mark('program published');
