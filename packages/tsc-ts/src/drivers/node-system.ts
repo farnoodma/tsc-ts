@@ -240,7 +240,7 @@ function tscSystem(libraryPath: string): System {
 function runCommandLineResult(sys: System, result: CommandLineResult): number {
   if (result.kind === 'exit') return result.status;
   if (result.kind === 'compile') {
-    const threads = compileThreads(result);
+    const threads = compileThreads(sys, result);
     if (threads <= 1) return compile(sys, result);
     // Checker threads report back on this thread's event loop.
     compileInParallel(sys, result, threads, (status) => {

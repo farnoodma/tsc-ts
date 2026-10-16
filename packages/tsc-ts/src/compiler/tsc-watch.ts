@@ -26,7 +26,7 @@ import { combinePaths, getDirectoryPath, getNormalizedAbsolutePath, toPath } fro
 import { Program } from './program.js';
 import { ConfigParser, ParsedCommandLine } from './tsconfig.js';
 import { DiagnosticReporter, ErrorSummaryReporter, outputLocale, type System, SystemFileSystem } from './tsc-cli.js';
-import { copyCommandLine, Orchestrator, StatusReporter } from './tsc-build.js';
+import { copyCommandLine, Orchestrator, StatusReporter, startWatchRebuild } from './tsc-build.js';
 import { type CompilerOptions, isIncremental } from './options.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
 import { checkerThreads, parallelCheck, startParallelCheck } from './parallel-check.js';
@@ -405,6 +405,7 @@ export function watchBuild(sys: System, command: ParsedBuildCommandLine): void {
   status.report(Diagnostics.Starting_compilation_in_watch_mode);
   const run = (): Stamps => {
     releaseProgramCaches();
+    startWatchRebuild();
     const orchestrator = new Orchestrator(sys, command);
     orchestrator.watching = true;
     orchestrator.start();

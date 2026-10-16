@@ -504,7 +504,23 @@ export function compareSymbols(c: Checker, s1: Symbol | undefined, s2: Symbol | 
   else if (s2.declarations.length !== 0) return 1;
   const r = compareCodePoints(s1.name, s2.name);
   if (r !== 0) return r;
-  return getSymbolId(s1) - getSymbolId(s2);
+  return compareIds(getSymbolId(s1), getSymbolId(s2));
+}
+
+/**
+ * `TSC_TS_ID_ORDER` (a test of output that must not depend on the order in which types and symbols
+ * are created): `reverse` reverses, and `scramble` permutes, the order of the ids that
+ * `compareTypes` and `compareSymbols` fall back to. Intrinsic types, created in a fixed order, keep
+ * theirs.
+ */
+const idOrder = process.env.TSC_TS_ID_ORDER === 'reverse' ? 1 : process.env.TSC_TS_ID_ORDER === 'scramble' ? 2 : 0;
+
+/** The order of two ids as a last resort: ascending, or as `TSC_TS_ID_ORDER` chooses. */
+function compareIds(a: number, b: number): number {
+  if (idOrder === 0) return a - b;
+  if (idOrder === 1) return b - a;
+  // A bijection on 32-bit ids (multiplication by an odd constant), so the order stays total.
+  return (Math.imul(a, 0x9e3779b1) >>> 0) - (Math.imul(b, 0x9e3779b1) >>> 0);
 }
 
 function getSortOrderFlags(t: Type): number {
@@ -716,7 +732,7 @@ export function compareTypes(c: Checker, t1: Type, t2: Type): number {
     r = compareTypes(c, (t1 as StringMappingType).target, (t2 as StringMappingType).target);
     if (r !== 0) return r;
   }
-  return t1.id - t2.id;
+  return (flags & TypeFlags.Singleton) !== 0 ? t1.id - t2.id : compareIds(t1.id, t2.id);
 }
 
 /** Binary search position of `t` in the sorted `types`: index if found, else `-(insertion point) - 1`. */

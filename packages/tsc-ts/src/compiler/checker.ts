@@ -83,6 +83,7 @@ import {
 import {
   CheckerNameResolver,
   type LibGlobals,
+  type MergedGlobals,
   TableChanges,
   borrowLibGlobals,
   findLibGlobals,
@@ -145,6 +146,10 @@ export abstract class CheckerHost {
   getJSXRuntimeImportSpecifier(_file: SourceFile): Node | undefined {
     return undefined;
   }
+  /** The globals and module augmentations of the program, if a checker merged them for the others. */
+  getMergedGlobals(): MergedGlobals | undefined {
+    return undefined;
+  }
   /** The format `file` is emitted in when it differs from `module`, else `None`. */
   getImpliedNodeFormatForEmit(_file: SourceFile): ModuleKind {
     return ModuleKind.None;
@@ -177,8 +182,11 @@ class DiagnosticCollection {
   private readonly sortedFiles = new Set<string>();
   private readonly global: Diagnostic[] = [];
   private globalSorted = true;
+  /** The diagnostics added since `startLog`, while recording. */
+  private log: Diagnostic[] | undefined = undefined;
 
   add(diagnostic: Diagnostic): void {
+    if (this.log !== undefined) this.log.push(diagnostic);
     const file = diagnostic.file;
     if (file === undefined) {
       this.global.push(diagnostic);
@@ -225,6 +233,18 @@ class DiagnosticCollection {
       this.globalSorted = true;
     }
     return this.global.slice();
+  }
+
+  /** Records the diagnostics added from now on. */
+  startLog(): void {
+    this.log = [];
+  }
+
+  /** The diagnostics added since `startLog`, in order; stops recording. */
+  takeLog(): Diagnostic[] {
+    const log = this.log!;
+    this.log = undefined;
+    return log;
   }
 }
 
@@ -335,6 +355,13 @@ export class Checker {
   readonly mergedSymbols: Map<number, Symbol>;
   /** Globals merged from the default libraries, shared with other checkers. */
   libGlobals: LibGlobals | undefined;
+  /** The program's globals and module augmentations as another checker merged them, shared with it. */
+  mergedGlobals: MergedGlobals | undefined;
+  /**
+   * The diagnostics and suggestions the merges reported: those of the globals, then those of the
+   * ambient modules and module augmentations.
+   */
+  readonly mergeDiagnostics: Diagnostic[][] = [];
   /**
    * This checker's changes to `globals` and `mergedSymbols` when it uses the tables of
    * `libGlobals` in place rather than copies; they are undone when it is disposed.
@@ -611,9 +638,14 @@ export class Checker {
     this.argumentsSymbol = this.newSymbol(SymbolFlags.Property, 'arguments');
     this.requireSymbol = this.newSymbol(SymbolFlags.Property, 'require');
     this.unknownSymbol = this.newSymbol(SymbolFlags.Property, 'unknown');
-    const libs = findLibGlobals(this);
+    const merged = host.getMergedGlobals();
+    this.mergedGlobals = merged;
+    const libs = merged === undefined ? findLibGlobals(this) : undefined;
     this.libGlobals = libs;
-    if (libs === undefined) {
+    if (merged !== undefined) {
+      this.globals = new Map(merged.globals);
+      this.mergedSymbols = new Map(merged.mergedSymbols);
+    } else if (libs === undefined) {
       this.globals = new Map<string, Symbol>();
       this.mergedSymbols = new Map<number, Symbol>();
     } else if (libs.borrower === undefined) {
@@ -754,7 +786,10 @@ export class Checker {
     this.typeofType = getUnionType(this, typeofTypes);
 
     // initializeChecker
+    this.diagnostics.startLog();
+    this.suggestionDiagnostics.startLog();
     initializeGlobals(this);
+    this.mergeDiagnostics.push(this.diagnostics.takeLog(), this.suggestionDiagnostics.takeLog());
     this.symbolTypes.set(getSymbolId(this.undefinedSymbol), this.undefinedWideningType);
     this.symbolTypes.set(getSymbolId(this.argumentsSymbol), getGlobalType(this, 'IArguments', 0, true));
     this.symbolTypes.set(getSymbolId(this.unknownSymbol), this.errorType);
@@ -782,7 +817,10 @@ export class Checker {
     this.globalReadonlyArrayType = readonlyArrayType;
     this.anyReadonlyArrayType = createTypeFromGenericGlobalType(this, readonlyArrayType, [this.anyType]);
     this.globalThisType = getGlobalType(this, 'ThisType', 1, false);
+    this.diagnostics.startLog();
+    this.suggestionDiagnostics.startLog();
     mergeAmbientModulesAndAugmentations(this);
+    this.mergeDiagnostics.push(this.diagnostics.takeLog(), this.suggestionDiagnostics.takeLog());
   }
 
   // ---- Public API

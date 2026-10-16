@@ -1869,6 +1869,16 @@ export class NodeLinks implements ProgramLifetime {
     if (value === 0 && this.rareLinks === undefined) return;
     this.rare().containsArgumentsReference = value;
   }
+
+  get mentionsArguments(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.mentionsArguments;
+  }
+
+  set mentionsArguments(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().mentionsArguments = value;
+  }
 }
 
 /** The links of a node that few nodes have (NodeLinks). */
@@ -1895,6 +1905,8 @@ export class RareNodeLinks implements ProgramLifetime {
   decoratorSignature: Signature | undefined;
   /** Whether a function body references `arguments`: 0 until computed, 1 for no, 2 for yes. */
   containsArgumentsReference: number;
+  /** For source files: whether the file has an identifier `arguments`: 0 until computed, 1 for no, 2 for yes. */
+  mentionsArguments: number;
 
   constructor() {
     this.contextFreeType = undefined;
@@ -1911,5 +1923,6 @@ export class RareNodeLinks implements ProgramLifetime {
     this.exhaustiveState = 0;
     this.decoratorSignature = undefined;
     this.containsArgumentsReference = 0;
+    this.mentionsArguments = 0;
   }
 }

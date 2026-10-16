@@ -734,6 +734,86 @@ export class LibGlobals {
   }
 }
 
+/**
+ * The globals, merged symbols and module augmentations of a whole program, as one checker merged
+ * them before checker threads share the program (parallel-check.ts). Other checkers of the program
+ * start from copies of the tables and add the diagnostics the merges reported; the merged symbols
+ * are shared, and a later merge into one merges into a copy.
+ */
+export class MergedGlobals {
+  readonly globals: SymbolTable;
+  readonly mergedSymbols: Map<number, Symbol>;
+  readonly ambientModuleSymbols: Symbol[];
+  readonly patternAmbientModules: PatternAmbientModule[];
+  readonly patternAmbientModuleAugmentations: Map<string, Symbol>;
+  /** Whether the global `undefined` is the checker's own (no declaration of `undefined` merged). */
+  readonly ownUndefined: boolean;
+  /** Ids of the symbols merged into each shared symbol. */
+  readonly sources = new Map<Symbol, number[]>();
+  /** Copies of the checker's `mergeDiagnostics`. */
+  readonly diagnostics: Diagnostic[][] = [];
+
+  constructor(c: Checker) {
+    this.globals = new Map(c.globals);
+    // Each checker sets its own `globalThis` and `undefined`, in the same places in the table.
+    this.globals.set(c.globalThisSymbol.name, new Symbol(SymbolFlags.None, 'globalThis'));
+    this.ownUndefined = c.globals.get('undefined') === c.undefinedSymbol;
+    if (this.ownUndefined) this.globals.set('undefined', new Symbol(SymbolFlags.None, 'undefined'));
+    for (const symbol of this.globals.values()) getSymbolId(symbol);
+    this.mergedSymbols = new Map(c.mergedSymbols);
+    this.ambientModuleSymbols = c.ambientModuleSymbols.slice();
+    this.patternAmbientModules = c.patternAmbientModules.slice();
+    this.patternAmbientModuleAugmentations = new Map(c.patternAmbientModuleAugmentations);
+    for (const [id, target] of this.mergedSymbols) {
+      let ids = this.sources.get(target);
+      if (ids === undefined) {
+        // Shared symbols are never written, so they need their ids now.
+        getSymbolId(target);
+        ids = [];
+        this.sources.set(target, ids);
+      }
+      ids.push(id);
+    }
+    // The checker can add related information to its diagnostics later.
+    for (const list of c.mergeDiagnostics) this.diagnostics.push(copyDiagnostics(list));
+  }
+}
+
+function copyDiagnostics(list: readonly Diagnostic[]): Diagnostic[] {
+  const result: Diagnostic[] = [];
+  for (const diagnostic of list) {
+    const copy = diagnostic.clone();
+    copy.relatedInformation = diagnostic.relatedInformation.slice();
+    result.push(copy);
+  }
+  return result;
+}
+
+/** Adds the diagnostics and suggestions of `merged`'s merge `step` (0: globals, 1: augmentations). */
+function addMergeDiagnostics(c: Checker, merged: MergedGlobals, step: number): void {
+  for (const diagnostic of copyDiagnostics(merged.diagnostics[2 * step]!)) c.diagnostics.add(diagnostic);
+  for (const diagnostic of copyDiagnostics(merged.diagnostics[2 * step + 1]!)) c.suggestionDiagnostics.add(diagnostic);
+}
+
+/**
+ * Shares the globals and module augmentations `c` merged with the other checkers of its program;
+ * `c` treats its merged symbols as shared from now on.
+ */
+export function shareMergedGlobals(c: Checker): MergedGlobals {
+  const merged = new MergedGlobals(c);
+  c.mergedGlobals = merged;
+  return merged;
+}
+
+/** The ids of the symbols merged into `symbol`, if it is shared with other checkers. */
+function sharedSources(c: Checker, symbol: Symbol): number[] | undefined {
+  const merged = c.mergedGlobals;
+  const ids = merged !== undefined ? merged.sources.get(symbol) : undefined;
+  if (ids !== undefined) return ids;
+  const libs = c.libGlobals;
+  return libs !== undefined ? libs.sources.get(symbol) : undefined;
+}
+
 const libGlobalsCache: LibGlobals[] = [];
 
 /** Drops the shared library globals (a rebuild reparses the library files). */
@@ -785,6 +865,17 @@ function setMergedSymbol(c: Checker, id: number, target: Symbol): void {
 /** Merges script locals into globals; ambient modules and augmentations wait for global types. */
 export function initializeGlobals(c: Checker): void {
   const globals = c.globals;
+  const merged = c.mergedGlobals;
+  if (merged !== undefined) {
+    // The constructor copied the globals and merged symbols.
+    for (const symbol of merged.ambientModuleSymbols) c.ambientModuleSymbols.push(symbol);
+    for (const pattern of merged.patternAmbientModules) c.patternAmbientModules.push(pattern);
+    for (const [name, symbol] of merged.patternAmbientModuleAugmentations)
+      c.patternAmbientModuleAugmentations.set(name, symbol);
+    addMergeDiagnostics(c, merged, 0);
+    if (merged.ownUndefined) setGlobal(c, 'undefined', c.undefinedSymbol);
+    return;
+  }
   const libraryCount = getLibraryCount(c);
   const libs = c.libGlobals;
   if (libs !== undefined) {
@@ -821,6 +912,11 @@ export function initializeGlobals(c: Checker): void {
 }
 
 export function mergeAmbientModulesAndAugmentations(c: Checker): void {
+  const merged = c.mergedGlobals;
+  if (merged !== undefined) {
+    addMergeDiagnostics(c, merged, 1);
+    return;
+  }
   for (const symbol of c.ambientModuleSymbols) mergeGlobalSymbol(c, symbol);
   for (const file of c.files)
     for (const augmentation of file.moduleAugmentations)
@@ -947,7 +1043,7 @@ export function mergeSymbol(c: Checker, target: Symbol, source: Symbol, unidirec
         reportMergeSymbolError(c, target, source);
         return source;
       }
-    } else if (c.libGlobals !== undefined && c.libGlobals.sources.has(target)) target = copySharedSymbol(c, target);
+    } else if (sharedSources(c, target) !== undefined) target = copySharedSymbol(c, target);
     if (
       (source.flags & SymbolFlags.ValueModule) !== 0 &&
       (target.flags & SymbolFlags.ValueModule) !== 0 &&
@@ -1095,11 +1191,10 @@ function copySharedSymbol(c: Checker, shared: Symbol): Symbol {
 function recordMergedSymbol(c: Checker, target: Symbol, source: Symbol): void {
   setMergedSymbol(c, getSymbolId(source), target);
   // Merging a copy merges what it stands for.
-  const libs = c.libGlobals;
-  const shared = libs !== undefined ? c.sharedSymbolCopies.get(source) : undefined;
+  const shared = c.sharedSymbolCopies.get(source);
   if (shared !== undefined) {
     setMergedSymbol(c, getSymbolId(shared), target);
-    for (const id of libs!.sources.get(shared)!) setMergedSymbol(c, id, target);
+    for (const id of sharedSources(c, shared)!) setMergedSymbol(c, id, target);
   }
 }
 

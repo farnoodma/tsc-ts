@@ -36,6 +36,7 @@ import type { CheckedProgram } from './program-checker.js';
 import type { Program } from './program.js';
 import type { SourceFile } from './ast.js';
 import { lastSymbolIdValue } from './symbol.js';
+import { shareMergedGlobals } from './checker-symbols.js';
 import { readFileSync } from 'node:fs';
 import { availableParallelism, totalmem } from 'node:os';
 
@@ -1611,6 +1612,9 @@ export function startParallelCheck(
   if (shared) {
     program.prepareForSharing();
     mark('prepared for sharing');
+    // This thread's checker merges the globals and module augmentations; checker threads start from them.
+    program.mergedGlobals = shareMergedGlobals(checked.checker);
+    mark('globals merged');
     publish(program);
     mark('program published');
     // The program is immutable now; lazily parsed JSDoc goes to a table of this thread.
@@ -1718,7 +1722,8 @@ export function startParallelCheck(
   };
   for (let i = firstThread; i < count; i++) spawn(i, []);
   mark('checkers spawned');
-  // This thread's checker (`CheckedProgram.checker`) merges the globals while the threads start.
+  // Without a shared program, this thread's checker (`CheckedProgram.checker`) merges the globals
+  // while the threads start.
   void checked.checker;
   mark('reporting checker created');
   if (mainChecks) record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits));

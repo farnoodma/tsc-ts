@@ -361,7 +361,7 @@ export class RepopulateInfo {
  * offsets; compiler diagnostics have no file and a position of -1.
  *
  * `messageChain` holds the elaborations printed indented below the message; they are diagnostics
- * whose file and position are unused.
+ * whose file and position are not printed, but recorded in build info.
  */
 export class Diagnostic {
   file: DiagnosticFile | undefined;
@@ -458,7 +458,8 @@ export function chainDiagnostic(
 ): Diagnostic {
   if (chain === undefined) return new Diagnostic(undefined, 0, 0, message, args);
   const result = new Diagnostic(chain.file, chain.pos, chain.end, message, args).addMessageChain(chain);
-  result.relatedInformation = chain.relatedInformation;
+  // A copy: related information added to the result later is not part of the chained diagnostic, as in tsgo.
+  result.relatedInformation = chain.relatedInformation.slice();
   return result;
 }
 

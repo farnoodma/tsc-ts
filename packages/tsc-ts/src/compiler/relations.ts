@@ -1022,7 +1022,10 @@ function reportDiagnostic(c: Checker, diagnostic: Diagnostic, output: Diagnostic
   else c.addDiagnostic(diagnostic);
 }
 
-/** The diagnostic for an error chain, skipping elided head messages; nested messages become its chain. */
+/**
+ * The diagnostic for an error chain, skipping elided messages; nested messages become its chain. As in tsgo, every
+ * message of the chain has the location and related information of the error, which build info records.
+ */
 function createDiagnosticFromErrorChain(
   chain: ErrorChain | undefined,
   errorNode: Node | undefined,
@@ -1036,7 +1039,8 @@ function createDiagnosticFromErrorChain(
   let parent = diagnostic;
   while (next !== undefined) {
     if (!messageElidedInCompatibilityPyramid(next.message)) {
-      const child = new Diagnostic(undefined, 0, 0, next.message, next.args);
+      const child = new Diagnostic(diagnostic.file, diagnostic.pos, diagnostic.end, next.message, next.args);
+      for (const info of relatedInfo) child.addRelatedInfo(info);
       parent.addMessageChain(child);
       parent = child;
     }

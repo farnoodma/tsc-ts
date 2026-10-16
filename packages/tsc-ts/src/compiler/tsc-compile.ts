@@ -18,6 +18,7 @@ import { checkerThreads, startParallelCheck, traceSingleChecker } from './parall
 import { getNormalizedAbsolutePath } from './path.js';
 import { sortAndDeduplicateDiagnostics } from './program.js';
 import {
+  checksIncrementalOnThreads,
   type CommandLineResult,
   type DiagnosticReporter,
   type ErrorSummaryReporter,
@@ -90,11 +91,15 @@ export function compile(sys: System, work: CompileWork): ExitStatus {
   return emitStatusAndReportStatistics(sys, compilerProgram, result);
 }
 
-/** The number of checker threads for `work` (`--checkers`); 1 checks on this thread with `compile`. */
-export function compileThreads(work: CompileWork): number {
-  if (work.incremental) return 1;
-  mark('compile threads');
+/**
+ * The number of checker threads for `work` (`--checkers`); 1 checks on this thread with `compile`. An
+ * incremental program is checked on threads only without build info (`checksIncrementalOnThreads`).
+ */
+export function compileThreads(sys: System, work: CompileWork): number {
   const options = work.program.options;
+  if (work.incremental && !checksIncrementalOnThreads(sys, options, work.program.commandLine.buildInfoFileName()))
+    return 1;
+  mark('compile threads');
   return checkerThreads(options.checkers, options.singleThreaded, work.program);
 }
 
@@ -118,7 +123,13 @@ export function compileInParallel(
   times.bindTime = performance.now() - bindStart;
   mark('checker created');
   startParallelCheck(checked, threads, (checkTime) => {
-    const compilerProgram = new PlainProgram(checked, times);
+    // An incremental program here has no build info (`compileThreads`).
+    let compilerProgram: CompilerProgram;
+    if (work.incremental) {
+      const changesStart = performance.now();
+      compilerProgram = new IncrementalProgram(checked, times, undefined, new SystemTimeStamps(sys));
+      times.changesComputeTime = performance.now() - changesStart;
+    } else compilerProgram = new PlainProgram(checked, times);
     mark('report start');
     const result = emitFilesAndReportErrors(
       sys,

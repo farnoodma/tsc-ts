@@ -38,6 +38,7 @@ import {
   type RedirectFile,
 } from './file-loader.js';
 import type { PackageJsonInfo } from './package-json.js';
+import type { MergedGlobals } from './checker-symbols.js';
 import { ProcessingDiagnostic, type IncludeProcessor } from './file-include.js';
 import type { ResolvedModule } from './module-resolution-types.js';
 import { getTypesPackageName, moduleResolutionKindName } from './module-resolution-types.js';
@@ -121,6 +122,8 @@ export class Program implements OutputPathsHost {
   private symlinks: KnownSymlinks | undefined = undefined;
   /** Set by `prepareForSharing`: the program is immutable from then on. */
   private shared = false;
+  /** The globals and module augmentations as the main thread's checker merged them, for checker threads. */
+  mergedGlobals: MergedGlobals | undefined = undefined;
 
   /** `loader`, if given, is a FileLoader of `host` and `commandLine` that has not loaded yet. */
   constructor(

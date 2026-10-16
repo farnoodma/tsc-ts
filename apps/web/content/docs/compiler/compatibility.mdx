@@ -28,6 +28,13 @@ A match means the compared outputs agree for the tested inputs, options, and ups
 
 The generated checker and the standalone `relater` package are separate tools. Their benchmarks and limitations do not describe whole-compiler performance. In particular, synthetic assignability timings do not establish a speedup for compiling a project.
 
+## Known differences
+
+These results differ from TypeScript-Go 7.0.2 by design:
+
+- **Member order in widened object literal unions.** Widening a union of object literals gives each literal an optional member for every property that only its siblings have, printed as `name?: undefined` or `name?: never`. tsc-ts orders these members by the literal's own sibling, so declaration output is the same in every run. TypeScript-Go orders them by the first literal its checker widened with that property name, which depends on the files that checker checked before. The types are identical; the member order in `.d.ts` files, and the build information signatures computed from it, can differ.
+- **JavaScript `require` dependencies in build information.** A `require` call that does not initialize a variable, such as `exports.value = require("./dep").value`, is recorded in the `referencedMap` of `.tsbuildinfo`. TypeScript-Go leaves it out, and its incremental builds then keep the declarations and diagnostics that depend on the required module after the module changes. tsc-ts rebuilds them, so its output matches a clean build.
+
 ## Known API limits
 
 The API server does not implement profiling methods. Auto-import-dependent completions return the upstream limitation response. See [API server](/compiler/api).

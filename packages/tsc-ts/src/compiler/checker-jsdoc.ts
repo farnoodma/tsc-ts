@@ -192,8 +192,11 @@ function getNextJSDocCommentLocation(node: Node): Node | undefined {
  * without a parent `@param {object}`.
  */
 export function checkUnmatchedJSDocParameters(c: Checker, node: Node): void {
-  // Only JavaScript files report unmatched tags, so the JSDoc of TypeScript files isn't parsed.
-  if (!isInJSFile(node)) return;
+  // Only JavaScript files report unmatched tags. In a TypeScript file with `@param` tags, tsgo still resolves the
+  // `arguments` references of the body (containsArgumentsReference), which can report errors, such as TS2448 for a
+  // `const arguments`. The JSDoc of a TypeScript function is parsed only when its file has an identifier `arguments`.
+  const isJs = isInJSFile(node);
+  if (!isJs && !fileMentionsArguments(c, node)) return;
   const jsdocParameters: JSDocParameterOrPropertyTag[] = [];
   for (const tag of getAllJSDocTags(node)) {
     if (tag.kind !== SyntaxKind.JSDocParameterTag) continue;
@@ -212,6 +215,7 @@ export function checkUnmatchedJSDocParameters(c: Checker, node: Node): void {
       excludedParameters.add(i);
   }
   if (containsArgumentsReference(c, node)) {
+    if (!isJs) return;
     const lastIndex = jsdocParameters.length - 1;
     const last = jsdocParameters[lastIndex]!;
     if (last.name.kind !== SyntaxKind.Identifier) return;
@@ -226,6 +230,7 @@ export function checkUnmatchedJSDocParameters(c: Checker, node: Node): void {
     );
     return;
   }
+  if (!isJs) return;
   for (let index = 0; index < jsdocParameters.length; index++) {
     const tag = jsdocParameters[index]!;
     const name = tag.name;
@@ -289,6 +294,14 @@ function startsNewLexicalEnvironment(node: Node): boolean {
       return true;
   }
   return false;
+}
+
+/** Whether the file of `node` has an identifier `arguments`; cached in the links of the source file. */
+function fileMentionsArguments(c: Checker, node: Node): boolean {
+  const file = getSourceFileOfNode(node);
+  const links = c.nodeLinks(file);
+  if (links.mentionsArguments === 0) links.mentionsArguments = file.identifierTexts.includes('arguments') ? 2 : 1;
+  return links.mentionsArguments === 2;
 }
 
 function containsArgumentsReference(c: Checker, node: Node): boolean {

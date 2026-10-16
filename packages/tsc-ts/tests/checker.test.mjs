@@ -114,6 +114,22 @@ const cases = [
       "/input.tsx 2322 222 4 Type '{ resizable: true; children: string; }' is not assignable to type 'Props'.",
     ],
   },
+  {
+    // A function with `@param` tags has the `arguments` references of its body resolved, in TypeScript files too.
+    name: '`const arguments` in a function with JSDoc parameters',
+    source: [
+      'class A {',
+      '  /** @param {object} [foo] */',
+      '  constructor(foo = {}) {',
+      '    const arguments = foo;',
+      '  }',
+      '}',
+    ],
+    expected: [
+      "/input.ts 1210 77 9 Code contained in a class is evaluated in JavaScript's strict mode which does not allow this use of 'arguments'. For more information, see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode.",
+      "/input.ts 2448 77 9 Block-scoped variable 'arguments' used before its declaration.",
+    ],
+  },
 ];
 
 test(

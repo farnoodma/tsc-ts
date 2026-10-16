@@ -23,6 +23,19 @@ const skip = (!existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo') || tscTsMiss
 
 /** @type {Record<string, Scenario>} */
 const scenarios = {
+  'stored relation errors with elaborations and related information': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"strict":true,"noEmit":true,"incremental":true},"files":["a.ts","b.ts"]}',
+      // TS2322 elaborated by TS2326 and TS2741, with "'b' is declared here." as related information.
+      'a.ts':
+        'interface P { a: number; b: string; }\ndeclare const r: { x: { a: number } };\nexport const p: { x: P } = r;\n' +
+        'declare function f(x: { a: { b: number } }): void;\ndeclare const v: { a: { b: string } };\nf(v);\n' +
+        // TS2769 with "The last overload is declared here." as related information of the outermost message.
+        'declare function g(x: number): void;\ndeclare function g(x: { a: number }): void;\ng({ a: "s" });\n',
+      'b.ts': 'export const b = 1;\n',
+    },
+    steps: [{ args: [] }, { args: [], edit: { 'b.ts': 'export const b = 2;\n' } }, { args: [] }],
+  },
   'references with --verbose, --force, --dry and --clean': {
     files: {
       'a/tsconfig.json': '{"compilerOptions":{"composite":true,"outDir":"out"},"files":["index.ts"]}',
@@ -47,6 +60,23 @@ const scenarios = {
       { args: ['-b', 'b', '--clean'] },
       { args: ['-b', 'b', '--dry'] },
       { args: ['-b', 'b', '--pretty'] },
+    ],
+  },
+  'signatures of files with several declaration errors': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"incremental":true,"outDir":"out","module":"nodenext"},"files":["a.ts"]}',
+      'package.json': '{"name":"app","type":"module"}',
+      'node_modules/dep/package.json': '{"name":"dep","exports":{".":{"types":"./index.d.ts"}}}',
+      'node_modules/dep/index.d.ts':
+        'import type { Z, A } from "./internal.js";\nexport declare function make(): { z: Z; a: A };\n',
+      'node_modules/dep/internal.d.ts': 'export interface Z { z: 1 }\nexport interface A { a: 1 }\n',
+      // TS2883 for Z, then for A: the declaration emitter reports them in that order.
+      'a.ts': 'import { make } from "dep";\nexport const x = make();\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'a.ts': 'import { make } from "dep";\nexport const x = make();\n// edit\n' } },
     ],
   },
   'upstream errors, --stopBuildOnErrors, solutions and missing references': {
@@ -162,6 +192,32 @@ const scenarios = {
       { args: ['-b', 'b', '--verbose', '--checkers', '3', '--force'] },
     ],
   },
+  // In native builds the first step checks and emits on three checker threads (no build info yet).
+  'incremental program on checker threads': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"declaration":true,"declarationMap":true,"outDir":"out"},' +
+        '"include":["src"]}',
+      'src/shapes.ts':
+        'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 1 };\n',
+      'src/area.ts':
+        'import { Shape, unit } from "./shapes";\nexport function area(s: Shape) { return s.size * 2; }\n' +
+        'export const total = [unit].map(area);\n',
+      'src/hidden.ts': 'export const instance = new (class { private secret = 1; open = 2 })();\n',
+      'src/wrong.ts': 'export const n: number = "not a number";\n',
+    },
+    steps: [
+      { args: ['--checkers', '3', '--listEmittedFiles'] },
+      {
+        args: ['--checkers', '3', '--listEmittedFiles'],
+        edit: {
+          'src/shapes.ts':
+            'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 2 };\n',
+        },
+      },
+      { args: ['--checkers', '3', '--listEmittedFiles'] },
+    ],
+  },
   'composite, node16 packages, tsBuildInfoFile and noEmitOnError': {
     files: {
       'tsconfig.json':
@@ -252,6 +308,88 @@ const scenarios = {
       },
     ],
   },
+  'dependencies of each kind of import': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"incremental":true,"declaration":true,"outDir":"out","module":"nodenext"},' +
+        '"files":["main.ts","d1.ts","d2.ts","d3.ts","d4.ts","d5.ts","d6.ts"]}',
+      'package.json': '{"name":"app","type":"module"}',
+      'main.ts':
+        'import { a } from "./d1.js";\nexport { b } from "./d2.js";\nimport type { C } from "./d3.js";\n' +
+        'export type D = typeof import("./d4.js");\nexport const e = () => import("./d5.js");\n' +
+        'import f = require("./d6.cjs");\nexport const c: C = a;\nexport const g = f;\n',
+      'd1.ts': 'export const a = 1;\n',
+      'd2.ts': 'export const b = 1;\n',
+      'd3.ts': 'export type C = number;\n',
+      'd4.ts': 'export const d = 1;\n',
+      'd5.ts': 'export const e = 1;\n',
+      'd6.cts': 'export = 1;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'd4.ts': 'export const d = "s";\n' } },
+      { args: [], edit: { 'd6.cts': 'export = "s";\n' } },
+      { args: [] },
+    ],
+  },
+  'modules augmented in several files': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"noEmit":true,"incremental":true,"esModuleInterop":true,"types":[]},' +
+        '"files":["a.ts","m.ts","m-aug1.ts","m-aug2.ts"]}',
+      // A package whose `export =` target is augmented in two files.
+      'node_modules/@types/lib/package.json': '{"name":"@types/lib","version":"1.0.0"}',
+      'node_modules/@types/lib/index.d.ts':
+        '/// <reference path="./common/one.d.ts" />\n/// <reference path="./common/two.d.ts" />\n' +
+        'export = _;\nexport as namespace _;\ndeclare const _: _.Static;\ndeclare namespace _ {\n  interface Static {}\n}\n',
+      'node_modules/@types/lib/common/one.d.ts':
+        'import _ = require("../index");\ndeclare module "../index" {\n  interface Static { one(): number; }\n}\n',
+      'node_modules/@types/lib/common/two.d.ts':
+        'import _ = require("../index");\ndeclare module "../index" {\n  interface Static { two(): number; }\n}\n',
+      // A module of the program augmented in two files.
+      'm.ts': 'export interface M { m: number; }\n',
+      'm-aug1.ts': 'export {};\ndeclare module "./m" { interface M { aug1: number; } }\n',
+      'm-aug2.ts': 'export {};\ndeclare module "./m" { interface M { aug2: number; } }\n',
+      'a.ts':
+        'import _ from "lib";\nimport type { M } from "./m";\nexport const a = (m: M) => _.one() + _.two() + m.aug1;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'm-aug2.ts': 'export {};\ndeclare module "./m" { interface M { aug2: string; } }\n' } },
+      {
+        args: [],
+        edit: {
+          'node_modules/@types/lib/common/two.d.ts':
+            'import _ = require("../index");\ndeclare module "../index" {\n  interface Static { two(): string; }\n}\n',
+        },
+      },
+    ],
+  },
+  'type references that are not found in files whose diagnostics are not reported': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"skipLibCheck":true,"composite":true,"types":[]},' +
+        '"files":["a.ts","b.ts","env.d.ts"]}',
+      // Not checked with skipLibCheck.
+      'env.d.ts': '/// <reference types="missing-env" />\n',
+      // Filtered by the directive.
+      'b.ts': '// @ts-ignore\n/// <reference types="missing-b" />\nexport const b = 1;\n',
+      'a.ts': 'export const a = 1;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: ['-b', '-v'] },
+      { args: ['-b', '-v'], edit: { 'a.ts': 'export const a = 2;\n' } },
+      {
+        args: ['-b', '-v'],
+        edit: {
+          'tsconfig.json':
+            '{"compilerOptions":{"strict":true,"composite":true,"types":[]},"files":["a.ts","b.ts","env.d.ts"]}',
+        },
+      },
+      { args: ['-b', '-v'] },
+    ],
+  },
   'explainFiles and statistics': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"outDir":"out"},"files":["a.ts"]}',
@@ -259,6 +397,20 @@ const scenarios = {
       'b.ts': 'export {};\n',
     },
     steps: [{ args: ['--explainFiles'] }, { args: ['--diagnostics'] }, { args: ['--extendedDiagnostics', '--noEmit'] }],
+  },
+  'signatures of files whose declaration files are empty': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"strict":true,"incremental":true,"outDir":"out"},"files":["m.ts","g.ts"]}',
+      'm.ts': 'export interface I { a: number; }\n',
+      // A script whose declarations are all inside a function: its declaration file is empty.
+      'g.ts': '(function () {\n  type T = import("./m").I;\n  const t: T = { a: 1 };\n  console.log(t);\n})();\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'm.ts': 'export interface I { a: number; }\n// edit\n' } },
+      { args: [], edit: { 'm.ts': 'export interface I { a: number; b?: string; }\n' } },
+      { args: [] },
+    ],
   },
 };
 
@@ -363,6 +515,41 @@ for (const [name, scenario] of Object.entries(scenarios)) {
     assert.deepEqual(failures, []);
   });
 }
+
+// tsgo leaves out of build info the modules of JavaScript `require` calls that do not initialize a variable, and its
+// incremental builds then keep outputs that depend on them; tsc-ts records them, so its output matches a clean build.
+test('JavaScript require dependencies are rebuilt', { skip: tscTsMissing }, () => {
+  const files = {
+    'tsconfig.json':
+      '{"compilerOptions":{"allowJs":true,"checkJs":true,"declaration":true,"incremental":true,"outDir":"out",' +
+      '"module":"commonjs"},"files":["main.js","dep.js","dep2.js","dep3.js"]}',
+    'main.js':
+      'exports.value = require("./dep").value;\nmodule.exports.other = require("./dep2");\n' +
+      '/** @type {number} */\nexports.m = require("./dep3").m;\n',
+    'dep.js': 'exports.value = 1;\n',
+    'dep2.js': 'exports.other = 1;\n',
+    'dep3.js': 'module.exports = { m: 1 };\n',
+  };
+  const edit = {
+    'dep.js': 'exports.value = "s";\n',
+    'dep2.js': 'exports.other = "s";\n',
+    'dep3.js': 'module.exports = { m: "s" };\n',
+  };
+  const incremental = tempDir('tsc-ts-build-require-');
+  writeFiles(incremental, files);
+  run(tscTs, [], incremental);
+  writeFiles(incremental, edit);
+  const rebuilt = run(tscTs, [], incremental);
+  const clean = tempDir('tsc-ts-build-require-clean-');
+  writeFiles(clean, files);
+  writeFiles(clean, edit);
+  const expected = run(tscTs, [], clean);
+  assert.equal(normalize(rebuilt.output, incremental), normalize(expected.output, clean));
+  assert.equal(rebuilt.status, expected.status);
+  const outputs = (dir) =>
+    Object.fromEntries(Object.entries(readFiles(join(dir, 'out'))).filter(([file]) => !file.endsWith('.tsbuildinfo')));
+  assert.deepEqual(outputs(incremental), outputs(clean));
+});
 
 // tsgo's file watching doesn't report changes in every environment, so watch mode is checked against the output
 // tsgo prints for the same sequence.

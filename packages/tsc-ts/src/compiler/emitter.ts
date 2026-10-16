@@ -1,7 +1,7 @@
 // Emits JavaScript and declarations for source files: runs the transforms, prints, and writes
 // the output, source map and `//# sourceMappingURL` comment.
 import { ScriptKind, type SourceFile } from './ast.js';
-import type { Diagnostic } from './diagnostics.js';
+import { compareDiagnostics, type Diagnostic } from './diagnostics.js';
 import { type CompilerOptions, JsxEmit, NewLineKind, getEmitScriptTarget, getIsolatedModules } from './options.js';
 import { LanguageVariant } from './types.js';
 import { type OutputPathsHost, getOutputPathsFor } from './output-paths.js';
@@ -201,7 +201,8 @@ function emitDeclarationFile(
     emitSourceMaps,
     false,
     result,
-    diagnostics,
+    // Sorted, as tsgo's emitter diagnostics are; the order is part of the file's signature in build info.
+    diagnostics.length > 1 ? diagnostics.toSorted(compareDiagnostics) : diagnostics,
   );
 }
 

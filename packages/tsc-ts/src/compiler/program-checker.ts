@@ -17,6 +17,7 @@ import { ModuleSpecifierHost } from './module-specifiers.js';
 import type { OutputPathsHost } from './output-paths.js';
 import type { PackageJsonInfo } from './package-json.js';
 import type { KnownSymlinks } from './symlinks.js';
+import type { MergedGlobals } from './checker-symbols.js';
 import { Program, sortAndDeduplicateDiagnostics } from './program.js';
 import {
   getEmitModuleFormatOfFile,
@@ -80,6 +81,10 @@ export class ProgramCheckerHost extends CheckerHost {
 
   getJSXRuntimeImportSpecifier(file: SourceFile): Node | undefined {
     return this.program.jsxRuntimeImportSpecifier(file.path);
+  }
+
+  getMergedGlobals(): MergedGlobals | undefined {
+    return this.program.mergedGlobals;
   }
 
   getImpliedNodeFormatForEmit(file: SourceFile): ModuleKind {
@@ -390,7 +395,8 @@ export class CheckedProgram {
 
   getIncludeProcessorDiagnostics(file: SourceFile): Diagnostic[] {
     if (this.skipTypeChecking(file)) return [];
-    return new Directives(file).filter(this.program.getIncludeProcessorDiagnostics(file));
+    const diagnostics = this.program.getIncludeProcessorDiagnostics(file);
+    return diagnostics.length === 0 ? diagnostics : new Directives(file).filter(diagnostics);
   }
 }
 

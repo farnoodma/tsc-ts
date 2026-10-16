@@ -30,11 +30,13 @@ import {
 import { Colors, defaultIsPretty, header, printBuildHelp, printHelp, printVersion } from './help.js';
 import { generateTSConfig } from './init.js';
 import { isIncremental, type CompilerOptions } from './options.js';
+import { getBuildInfoFileName } from './output-paths.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
 import { checkerThreads, parseThreads } from './parallel-check.js';
 import { ParseSession, parallelParse, reportPreparedFiles } from './parallel-parse.js';
 import { showConfig, type ShowConfigInput } from './show-config.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
+import { sharesPublishedGraphs } from '@scriptc/threads';
 
 export enum ExitStatus {
   Success = 0,
@@ -328,7 +330,8 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   // the libraries and the root files found so far while the config's `include` patterns are matched.
   let session: ParseSession | undefined = undefined;
   const beforeRootFiles = (projectOptions: CompilerOptions): ((fileName: string) => void) | undefined => {
-    if (projectOptions.watch === true || options.showConfig === true || !parsesAhead(projectOptions)) return undefined;
+    if (projectOptions.watch === true || options.showConfig === true || !parsesAhead(sys, projectOptions))
+      return undefined;
     assignSymbolIdsAtCreation();
     const started = new ParseSession(
       parseThreads(checkerThreads(projectOptions.checkers, projectOptions.singleThreaded)),
@@ -385,7 +388,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
       errorSummary,
     };
   };
-  if (parsesAhead(config.options)) {
+  if (parsesAhead(sys, config.options)) {
     // Threads parse and bind the files the program is expected to load first (parallel-parse.ts), and
     // share the program it becomes: its symbols get their ids when they are created.
     assignSymbolIdsAtCreation();
@@ -406,28 +409,58 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
         // the file up) runs, and the tasks of the files they return are built ahead.
         const host = new SystemCompilerHost(sys, fs, locale);
         const loader = new FileLoader(host, config);
+        // An incremental program takes the files the threads prepared and resolves their imports and
+        // references itself (`takesPreparedResolutions`), as in build mode (tsc-build.ts): its build
+        // info lists the `package.json` files its module resolution looked up.
+        const incremental = isIncremental(config.options);
+        if (incremental) loader.takesPreparedResolutions = false;
         let rootFilesAdded = false;
         session.onIdle = (batch) => {
           if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(rootFilesPerChunk);
-          loader.takeAhead(batch.files);
+          if (!incremental) loader.takeAhead(batch.files);
         };
         session.start(config.fileNames, () => done(createProgram(host, loader)));
       },
     };
   }
+  // An incremental program without build info is shared with checker threads too (`compileThreads`).
+  if (
+    sharesPublishedGraphs &&
+    isIncremental(config.options) &&
+    checkerThreads(config.options.checkers, config.options.singleThreaded) > 1
+  )
+    assignSymbolIdsAtCreation();
   return createProgram();
 }
 
 /** Root file tasks the main thread adds each time a parse thread returns a chunk (`FileLoader.addRootFiles`). */
 const rootFilesPerChunk = 32;
 
-/** Whether threads parse and bind the files of a program with `options` ahead of it (parallel-parse.ts). */
-function parsesAhead(options: CompilerOptions): boolean {
+/**
+ * Whether threads parse and bind the files of a program with `options` ahead of it (parallel-parse.ts):
+ * with checker threads, which an incremental program uses only without build info (`checksIncrementalOnThreads`).
+ */
+function parsesAhead(sys: System, options: CompilerOptions): boolean {
   return (
     checkerThreads(options.checkers, options.singleThreaded) > 1 &&
     parallelParse.spawn !== undefined &&
-    !isIncremental(options)
+    (!isIncremental(options) ||
+      checksIncrementalOnThreads(
+        sys,
+        options,
+        getBuildInfoFileName(options, sys.currentDirectory, sys.useCaseSensitiveFileNames),
+      ))
   );
+}
+
+/**
+ * Whether an incremental program with `options` and the build info file `buildInfoFileName` is checked on
+ * checker threads (tsc-compile.ts): only where its build info file doesn't exist, so that every file is
+ * checked, and not under `noEmit`, where it keeps its files' diagnostics unfiltered, as in build mode
+ * (tsc-build.ts).
+ */
+export function checksIncrementalOnThreads(sys: System, options: CompilerOptions, buildInfoFileName: string): boolean {
+  return options.noEmit !== true && (buildInfoFileName === '' || !sys.fileExists(buildInfoFileName));
 }
 
 /**

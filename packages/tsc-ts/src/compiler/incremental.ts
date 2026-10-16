@@ -41,6 +41,7 @@ import {
   moduleNotFoundDetails,
   resolveExternalModuleName,
 } from './checker-modules.js';
+import { getSymbolAtLocation } from './checker-services.js';
 import { resolveAlias } from './checker-symbols.js';
 import {
   CompilerProgram,
@@ -729,6 +730,9 @@ function getReferencedFiles(
   const program = checked.program;
   const checker = checked.checker;
   const referenced = new Set<string>();
+  // Every import is resolved. tsgo takes the symbol at each import name, which is undefined for a JavaScript `require`
+  // call that does not initialize a variable (`exports.a = require("./a").a`), so its build info leaves out that
+  // module and its incremental builds keep outputs that depend on it.
   for (const importName of file.imports) {
     addReferencedFilesFromSymbol(file, referenced, resolveExternalModuleName(checker, importName, importName, true));
   }
@@ -739,9 +743,11 @@ function getReferencedFiles(
   for (const resolved of program.getResolvedTypeReferenceDirectiveFiles(file.path)) {
     addReferencedFileFromFileName(program, resolved, referenced, sourceFileDirectory);
   }
+  // The symbol of an augmentation's name is the symbol the augmentation is merged into (the module, or the
+  // target of its `export =`), which has the declarations of every augmentation of the module.
   for (const moduleName of file.moduleAugmentations) {
     if (moduleName.kind !== SyntaxKind.StringLiteral) continue;
-    addReferencedFilesFromSymbol(file, referenced, resolveExternalModuleName(checker, moduleName, moduleName, true));
+    addReferencedFilesFromSymbol(file, referenced, getSymbolAtLocation(checker, moduleName));
   }
   for (const ambientModule of ambientModules) addReferencedFilesFromSymbol(file, referenced, ambientModule);
   return referenced.size > 0 ? referenced : undefined;
@@ -948,7 +954,8 @@ class AffectedFilesHandler {
 
   private computeDtsSignature(file: SourceFile): string {
     const emitted = this.incremental.emitter.forcedDeclaration(file);
-    if (emitted.text === '') return '';
+    // A file without declarations, such as a script of statements, has an empty declaration file and a signature.
+    if (!emitted.written) return '';
     return computeSignatureWithDiagnostics(file, emitted.text, emitted.diagnostics, this.snapshot.options);
   }
 
@@ -1883,8 +1890,10 @@ export class IncrementalProgram extends CompilerProgram {
   private ensureHasErrorsForState(): void {
     const snapshot = this.snapshot;
     const program = this.program;
+    const checked = this.checked;
     const files = program.getSourceFiles();
     let hasEmitDiagnostics = false;
+    // Without the files whose checking is skipped, and filtered by comment directives, as when reported.
     let hasIncludeProcessingDiagnostics = false;
     if (snapshot.canUseIncrementalState()) {
       for (const file of files) {
@@ -1892,13 +1901,13 @@ export class IncrementalProgram extends CompilerProgram {
           hasEmitDiagnostics = true;
           break;
         }
-        if (!hasIncludeProcessingDiagnostics && program.getIncludeProcessorDiagnostics(file).length > 0) {
+        if (!hasIncludeProcessingDiagnostics && checked.getIncludeProcessorDiagnostics(file).length > 0) {
           hasIncludeProcessingDiagnostics = true;
         }
       }
     } else {
       hasEmitDiagnostics = snapshot.hasEmitDiagnostics;
-      hasIncludeProcessingDiagnostics = files.some((file) => program.getIncludeProcessorDiagnostics(file).length > 0);
+      hasIncludeProcessingDiagnostics = files.some((file) => checked.getIncludeProcessorDiagnostics(file).length > 0);
     }
     if (hasEmitDiagnostics) {
       snapshot.hasErrors = isIncremental(snapshot.options) ? Tristate.False : Tristate.True;

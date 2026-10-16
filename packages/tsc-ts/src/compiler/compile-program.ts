@@ -28,10 +28,13 @@ export abstract class OutputWriter {
 
 /** Collects what a forced declaration emit produces instead of writing it. */
 export class CapturingWriter extends OutputWriter {
+  /** Whether a file was written; its text can be empty. */
+  written = false;
   text = '';
   diagnostics: readonly Diagnostic[] = [];
 
   write(_fileName: string, text: string, declarationDiagnostics: readonly Diagnostic[]): string {
+    this.written = true;
     this.text = text;
     this.diagnostics = declarationDiagnostics;
     return skippedWrite;
