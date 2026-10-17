@@ -2694,6 +2694,8 @@ export class IncrementalProgram extends CompilerProgram {
       }
     }
     if (!snapshot.buildInfoEmitPending) return undefined;
+    // Global diagnostics are not stored per file. Leave semantic checks pending so the next build recreates them.
+    if (this.checked.getGlobalDiagnostics().length > 0) snapshot.semanticDiagnosticsPerFile.clear();
     const absolute = getNormalizedAbsolutePath(buildInfoFileName, program.currentDirectory);
     const buildInfo = new ToBuildInfo(snapshot, program, absolute).build();
     const text = buildInfoToJson(buildInfo);
@@ -2737,6 +2739,11 @@ export class IncrementalProgram extends CompilerProgram {
       hasEmitDiagnostics = snapshot.hasEmitDiagnostics;
       hasIncludeProcessingDiagnostics = files.some((file) => checked.getIncludeProcessorDiagnostics(file).length > 0);
     }
+    if (this.checked.getGlobalDiagnostics().length > 0) {
+      snapshot.hasErrors = Tristate.True;
+      snapshot.hasSemanticErrors = false;
+      return;
+    }
     if (hasEmitDiagnostics) {
       snapshot.hasErrors = isIncremental(snapshot.options) ? Tristate.False : Tristate.True;
       snapshot.hasSemanticErrors = false;
@@ -2746,8 +2753,7 @@ export class IncrementalProgram extends CompilerProgram {
       hasIncludeProcessingDiagnostics ||
       program.getConfigFileParsingDiagnostics().length > 0 ||
       program.getSyntacticDiagnostics().length > 0 ||
-      program.getProgramDiagnostics().length > 0 ||
-      this.checked.getGlobalDiagnostics().length > 0
+      program.getProgramDiagnostics().length > 0
     ) {
       snapshot.hasErrors = Tristate.True;
       snapshot.hasSemanticErrors = false;

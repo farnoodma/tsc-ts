@@ -948,6 +948,80 @@ test('JavaScript require dependencies are rebuilt', { skip: tscTsMissing }, () =
   assert.deepEqual(outputs(incremental), outputs(clean));
 });
 
+// tsgo also loses diagnostics discovered lazily by the checker on an unchanged incremental run.
+// Compare with a fresh compile instead, including when build info already contains file diagnostics.
+test('lazy global diagnostics survive unchanged incremental checks', { skip: tscTsMissing }, async (t) => {
+  for (const scenario of [
+    'without file diagnostics',
+    'alongside cached file diagnostics',
+    'alongside declaration diagnostics',
+  ]) {
+    await t.test(scenario, () => {
+      const fileError = scenario === 'alongside cached file diagnostics';
+      const declarationError = scenario === 'alongside declaration diagnostics';
+      const files = {
+        'tsconfig.json': JSON.stringify({
+          compilerOptions: {
+            strict: true,
+            target: 'es2022',
+            lib: ['es2022'],
+            incremental: true,
+            noEmit: true,
+            types: [],
+            ...(declarationError
+              ? { target: 'es2015', lib: ['es5'], noEmit: false, declaration: true, outDir: 'out' }
+              : {}),
+          },
+          files: fileError || declarationError ? ['a.ts', 'b.ts'] : ['a.ts'],
+        }),
+        'a.ts': declarationError ? 'export function* g() { yield 1; }\n' : 'export {};\nusing resource = null;\n',
+        ...(fileError ? { 'b.ts': 'export const value: number = "wrong";\n' } : {}),
+        ...(declarationError ? { 'b.ts': 'export const Foo = class { private x = 0; };\n' } : {}),
+      };
+      const phases = declarationError
+        ? [
+            { name: 'missing global', edit: {}, diagnostics: [2318, 4094] },
+            {
+              name: 'declaration repaired',
+              edit: { 'b.ts': 'export const Foo = class { x = 0; };\n' },
+              diagnostics: [2318],
+            },
+            { name: 'all repaired', edit: { 'a.ts': 'export function g() { return 1; }\n' }, diagnostics: [] },
+          ]
+        : [
+            { name: 'missing global', edit: {}, diagnostics: fileError ? [2318, 2322] : [2318] },
+            {
+              name: 'global repaired',
+              edit: { 'a.ts': 'export {};\n' },
+              diagnostics: fileError ? [2322] : [],
+            },
+            ...(fileError
+              ? [{ name: 'all repaired', edit: { 'b.ts': 'export const value: number = 1;\n' }, diagnostics: [] }]
+              : []),
+          ];
+      const incremental = tempDir('tsc-ts-build-global-');
+      for (const phase of phases) {
+        Object.assign(files, phase.edit);
+        writeFiles(incremental, files);
+        const clean = tempDir('tsc-ts-build-global-clean-');
+        writeFiles(clean, files);
+        const expected = run(tscTs, [], clean);
+        assert.equal(expected.status === 0, phase.diagnostics.length === 0, expected.output);
+        assert.deepEqual(
+          [...expected.output.matchAll(/error TS(\d+):/g)].map((match) => Number(match[1])).sort(),
+          phase.diagnostics,
+        );
+        for (const attempt of ['initial', 'unchanged 1', 'unchanged 2']) {
+          const actual = run(tscTs, [], incremental);
+          const label = `${phase.name}, ${attempt}`;
+          assert.equal(actual.status, expected.status, `${label}\n${actual.output}`);
+          assert.equal(normalize(actual.output, incremental), normalize(expected.output, clean), label);
+        }
+      }
+    });
+  }
+});
+
 const watchProject = {
   'tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"src"},"include":["src"]}',
   'src/a.ts': 'export const a: number = 1;\n',
