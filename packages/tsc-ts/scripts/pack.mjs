@@ -46,7 +46,6 @@ const kinds = positionals.length === 0 ? ['main', 'platform'] : positionals;
 const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const common = {
   version: manifest.version,
-  private: manifest.private,
   license: manifest.license,
   repository: manifest.repository,
 };
@@ -64,7 +63,7 @@ function packMain() {
   for (const file of manifest.files) cpSync(join(root, file), join(dir, file), { recursive: true });
   copyFileSync(join(repo, 'LICENSE'), join(dir, 'LICENSE'));
   copyFileSync(join(repo, 'THIRD_PARTY_NOTICES.md'), join(dir, 'THIRD_PARTY_NOTICES.md'));
-  const { scripts: _scripts, devDependencies: _devDependencies, ...fields } = manifest;
+  const { scripts: _scripts, devDependencies: _devDependencies, private: _private, ...fields } = manifest;
   fields.files = [...manifest.files, 'THIRD_PARTY_NOTICES.md'];
   fields.optionalDependencies = Object.fromEntries(platforms.map((p) => [packageName(p), manifest.version]));
   writeJson(join(dir, 'package.json'), fields);
