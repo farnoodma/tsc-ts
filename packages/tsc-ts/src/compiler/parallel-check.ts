@@ -12,8 +12,8 @@
  * diagnostics of their files (and under `noEmit` with declarations, their declaration diagnostics)
  * and their global diagnostics, and the main thread reports them like a single checker would. Which
  * checker checks a file does not change its diagnostics. When the program emits, each checker also
- * emits the files it checks, right after checking each one, as tsgo emits on its checkers, and sends
- * back what it wrote (`checkersEmit`).
+ * emits its files after collecting their semantic diagnostics, as tsgo emits on its checkers, and
+ * sends back what it wrote (`checkersEmit`).
  *
  * In scriptc builds, threads share one program: the main thread computes the program's lazy caches,
  * publishes it with `@scriptc/threads` (the program becomes immutable and immortal, and threads
@@ -38,7 +38,7 @@ import { EmitOnly, EmitResult } from './emitter.js';
 import { getEmitDeclarations, isIncremental } from './options.js';
 import { DeclarationSignatureWriter } from './incremental.js';
 import { useLazyJSDocTable } from './parser.js';
-import type { CheckedProgram } from './program-checker.js';
+import { CheckedProgram } from './program-checker.js';
 import type { Program } from './program.js';
 import type { SourceFile } from './ast.js';
 import { lastSymbolIdValue } from './symbol.js';
@@ -386,7 +386,7 @@ function blocksEmit(schedule: Int32Array): boolean {
 }
 
 /**
- * Whether checkers emit the files they check, each right after checking it (where they can write
+ * Whether checkers emit their files after collecting semantic diagnostics (where they can write
  * files): unless the program doesn't emit. The checker that checked a file has its types at hand, and
  * its declarations print as on the checker tsgo emits the file with. Under `noEmitOnError`, which
  * makes emit wait for every file's diagnostics, they hold the outputs (`EmitResult.heldOutputs`) for
@@ -1556,7 +1556,7 @@ export function checkFromQueue(
   const emits: EmitResult[] = [];
   const unitsDone: number[] = [];
   const reportingUnits: number[] = [];
-  // Emit (or declaration emit) of a file right after checking it, with this checker.
+  // Keep this checker warm for emitting its files after semantic diagnostics are collected.
   const emitting = checkersEmit(checked, emit);
   // Outputs are held for the main thread under `noEmitOnError`, where emit waits for every file's diagnostics,
   // and when a composite program's rebuild emits on the threads (`emitKinds`): its main thread decides which
@@ -1575,6 +1575,7 @@ export function checkFromQueue(
     writer !== undefined && isIncremental(options) && getEmitDeclarations(options)
       ? new DeclarationSignatureWriter(writer, options)
       : undefined;
+  const ownGlobals = onMainThread ? checked.checker.getGlobalDiagnostics().slice() : undefined;
   const plan = schedulePlan(counter);
   const retirement = retirementMemory(index);
   let memoryReadAt = 0;
@@ -1634,6 +1635,13 @@ export function checkFromQueue(
       process.stderr.write(
         `checkers: file ${index} ${(performance.now() - fileStart).toFixed(1)}ms ${files[i]!.text.length} ${files[i]!.fileName}\n`,
       );
+  }
+  mark(`checked ${done.length} files, ${unitsDone.length} ranges`);
+  // Declaration serialization may add checker diagnostics that are not declaration diagnostics.
+  // Capture semantic globals before emitting any file, including on the main thread.
+  const globals = checked.getGlobalDiagnostics().slice();
+  if (onMainThread) checked.ownGlobalDiagnostics = ownGlobals;
+  for (const i of done) {
     if (blocksOnErrors && blocksEmit(counter)) {
       // The program won't emit (`handleNoEmitOnError`).
       const skipped = new EmitResult();
@@ -1657,9 +1665,6 @@ export function checkFromQueue(
       if (timeline) markAt(emitStart, `emit ${(performance.now() - emitStart).toFixed(1)} ${files[i]!.fileName}`);
     } else if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
   }
-  mark(`checked ${done.length} files, ${unitsDone.length} ranges`);
-  // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
-  const globals = onMainThread ? [] : checked.getGlobalDiagnostics().slice();
   let stats: number[] = [];
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined) {
     const cpu = process.threadCpuUsage();
@@ -1901,9 +1906,16 @@ export function startParallelCheck(
   const finish = (): void => {
     if (checking) {
       joinRanges(checked, units, perUnit, perFile);
-      // A thread that failed may have taken files it never checked: check them here.
-      for (const i of order)
-        if (i >= 0 && perFile[i] === undefined) perFile[i] = checked.unfilteredDiagnosticsOfFile(files[i]!);
+      // A failed thread may have taken files it never reported. The main checker may already have
+      // emitted, so use a fresh checker to keep emission diagnostics out of these semantic globals.
+      let fallback: CheckedProgram | undefined = undefined;
+      for (const i of order) {
+        if (i < 0 || perFile[i] !== undefined) continue;
+        if (fallback === undefined) fallback = new CheckedProgram(program);
+        perFile[i] = fallback.unfilteredDiagnosticsOfFile(files[i]!);
+      }
+      if (fallback !== undefined)
+        for (const d of fallback.getGlobalDiagnostics()) checked.parallelGlobalDiagnostics.push(d);
       checked.checkedInParallel = perFile;
     }
     mark('all checked');

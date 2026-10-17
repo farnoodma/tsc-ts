@@ -5,6 +5,7 @@
 // declaration file that several checkers check.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -32,11 +33,13 @@ const {
   libraryBoundCount,
   newSchedule,
   packResult,
+  parallelCheck,
   planSchedule,
   rangeUnits,
   retirementMemory,
   retires,
   scheduleOf,
+  startParallelCheck,
   takePosition,
   textLengths,
   unpackResult,
@@ -561,4 +564,57 @@ test('a checker checks the statement ranges it takes, and tells which found diag
     const back = unpackResult(structuredClone(packResult(result, c.program)), c.program, new Map());
     assert.deepEqual([back.units, back.reportingUnits], [result.units, result.reportingUnits]);
   }
+});
+
+test('failed checker fallback preserves semantic globals after the main checker emits', async () => {
+  const dir = tempDir('tsc-ts-parallel-fallback-globals-');
+  const files = {
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: {
+        target: 'es2015',
+        lib: ['es5'],
+        strict: true,
+        noEmit: true,
+        declaration: true,
+        skipLibCheck: true,
+        types: [],
+      },
+      include: ['src'],
+    }),
+    'src/library.d.ts':
+      'type Recursive<T> = T extends { value: unknown } ? Recursive<T> : T;\n' +
+      'export declare const object: { property: Recursive<{ value: 1 }> };\n',
+    'src/index.ts': 'import { object } from "./library"; export const result = object;\n',
+    'src/errors.ts':
+      'export function* generator() { yield 1; }\nexport const n: number = "s";\n' +
+      `/* ${'padding '.repeat(1000)} */\n`,
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const work = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', dir]);
+  assert.equal(work.kind, 'compile');
+  const checked = new CheckedProgram(work.program);
+  const originalSpawn = parallelCheck.spawn;
+  parallelCheck.spawn = (_program, _index, counter, order) => {
+    const worker = new EventEmitter();
+    // Take the expensive file without reporting it. The main thread checks and declaration-emits
+    // index.ts before the error event makes it recover the lost file.
+    const position = takePosition(new Int32Array(counter), order.length, 0);
+    assert.ok(work.program.getSourceFiles()[order[position]].fileName.endsWith('/errors.ts'));
+    setImmediate(() => worker.emit('error', new Error('simulated checker failure')));
+    return worker;
+  };
+  try {
+    await new Promise((resolve) => startParallelCheck(checked, 2, resolve));
+  } finally {
+    parallelCheck.spawn = originalSpawn;
+  }
+  assert.ok(checked.checker.getGlobalDiagnostics().some((d) => d.code === 2589));
+  const reported = getDiagnosticsOfProgram(new PlainProgram(checked, new CompileTimes()), false);
+  assert.deepEqual(
+    reported.map((d) => d.code),
+    [2322, 2318],
+  );
 });

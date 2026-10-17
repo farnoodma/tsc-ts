@@ -248,3 +248,64 @@ test('parse and checker threads start and finish without failing', { skip: tscTs
   assert.match(result.stderr, /checkers: finished/);
   assert.doesNotMatch(result.stderr, /thread \d+ failed/);
 });
+
+// Declaration serialization can resolve a recursive alias that semantic checking never instantiates.
+// Its internal checker diagnostic is not a declaration diagnostic, and must not leak into the
+// semantic globals collected from a checker thread.
+test(
+  'declaration serialization preserves the semantic diagnostic phase',
+  { skip: tscTsMissing || tsgoMissing },
+  async (t) => {
+    for (const scenario of ['clean', 'semantic globals', 'semantic recursion']) {
+      for (const mode of ['noEmit', 'emitDeclarationOnly', 'emit', 'noEmitOnError']) {
+        await t.test(`${scenario}: ${mode}`, () => {
+          const cwd = tempDir('tsc-ts-declaration-diagnostic-phase-');
+          const project = {
+            'src/library.d.ts':
+              'type Recursive<T> = T extends { value: unknown } ? Recursive<T> : T;\n' +
+              'export declare const object: { property: Recursive<{ value: 1 }> };\n',
+            'src/index.ts':
+              'import { object } from "./library";\n' +
+              (scenario === 'semantic recursion'
+                ? 'export const result = object.property;\n'
+                : 'export const result = object;\n'),
+            'tsconfig.json': JSON.stringify({
+              compilerOptions: {
+                target: 'es2015',
+                lib: ['es5'],
+                strict: true,
+                types: [],
+                module: 'esnext',
+                moduleResolution: 'bundler',
+                skipLibCheck: true,
+                declaration: true,
+                rootDir: 'src',
+                outDir: 'out',
+              },
+              include: ['src'],
+            }),
+          };
+          if (scenario === 'semantic globals')
+            project['src/errors.ts'] = 'export function* generator() { yield 1; }\nexport const n: number = "s";\n';
+          for (const [path, content] of Object.entries(project)) {
+            mkdirSync(dirname(join(cwd, path)), { recursive: true });
+            writeFileSync(join(cwd, path), content);
+          }
+          const args = mode === 'emit' ? [] : [`--${mode}`];
+          const oracle = spawnSync(tsgo, ['-p', '.', '--pretty', 'false', ...args], { cwd, encoding: 'utf8' });
+          assert.equal(oracle.stderr, '');
+          assert.equal(oracle.status, scenario === 'clean' ? 0 : mode === 'noEmit' || mode === 'noEmitOnError' ? 1 : 2);
+          if (scenario === 'semantic globals') {
+            assert.match(oracle.stdout, /TS2318/);
+            assert.match(oracle.stdout, /TS2322/);
+          } else if (scenario === 'semantic recursion') assert.match(oracle.stdout, /src\/index.ts\([^]*TS2589/);
+          const expected = { stdout: oracle.stdout, status: oracle.status, outputs: readOutputs(join(cwd, 'out')) };
+          for (const checkers of ['1', '2', '4']) {
+            const actual = run(cwd, [...args, '--checkers', checkers]);
+            assert.deepEqual(actual, expected, `diagnostics and outputs with --checkers ${checkers}`);
+          }
+        });
+      }
+    }
+  },
+);
