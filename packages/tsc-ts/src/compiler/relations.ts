@@ -72,6 +72,8 @@ import {
   getTypeArguments,
   getTypeReferenceArity,
   getUnionType,
+  getUnionTypeEx,
+  UnionReduction,
   isArrayOrTupleType,
   isArrayType,
   isEmptyAnonymousObjectType,
@@ -150,6 +152,7 @@ import {
 } from './checker-declared-types.js';
 import {
   getNonMissingTypeOfSymbol,
+  getOptionalType,
   getTypeOfSymbol,
   isReadonlySymbol,
   removeMissingType,
@@ -3953,23 +3956,50 @@ function findMatchingDiscriminantType(c: Checker, source: Type, target: Type, re
   const discriminants: Symbol[] = [];
   for (const p of getPropertiesOfType(c, source)) if (isDiscriminantProperty(c, target, p.name)) discriminants.push(p);
   if (discriminants.length === 0) return undefined;
-  // Constituents whose discriminant types the source's values relate to.
-  let types = typesOf(target);
+  const discriminated = discriminateTypeByDiscriminants(c, target, discriminants, relater);
+  return discriminated !== target ? discriminated : undefined;
+}
+
+/**
+ * The constituents of the union `target` whose types of each discriminant property the source's
+ * values relate to (discriminateTypeByDiscriminableItems). Primitive and never constituents are left
+ * out. A discriminant that no remaining constituent matches is ignored, so the result is never empty.
+ */
+function discriminateTypeByDiscriminants(c: Checker, target: Type, discriminants: Symbol[], relater: Relater): Type {
+  const types = typesOf(target);
+  const include: Ternary[] = [];
+  for (const t of types)
+    include.push(
+      (t.flags & TypeFlags.Primitive) === 0 && (getReducedType(c, t).flags & TypeFlags.Never) === 0
+        ? Ternary.True
+        : Ternary.False,
+    );
   for (const prop of discriminants) {
-    const propType = getTypeOfSymbol(c, prop);
-    const filtered: Type[] = [];
-    for (const t of types) {
-      const targetPropType = getTypeOfPropertyOfType(c, t, prop.name);
-      if (
-        targetPropType === undefined ||
-        someType(propType, (s) => relater.isRelatedToSimple(s, targetPropType) !== Ternary.False)
-      )
-        filtered.push(t);
+    let matched = false;
+    for (let i = 0; i < types.length; i++) {
+      if (include[i] === Ternary.False) continue;
+      const targetType = getTypeOfPropertyOrIndexSignatureOfType(c, types[i]!, prop.name);
+      if (targetType === undefined) continue;
+      if (someType(getTypeOfSymbol(c, prop), (s) => relater.isRelatedToSimple(s, targetType) !== Ternary.False))
+        matched = true;
+      else include[i] = Ternary.Maybe;
     }
-    if (filtered.length !== 0) types = filtered;
+    // Without a match the discriminant is ignored.
+    for (let i = 0; i < types.length; i++)
+      if (include[i] === Ternary.Maybe) include[i] = matched ? Ternary.False : Ternary.True;
   }
-  if (types.length === typesOf(target).length) return undefined;
-  return getUnionType(c, types);
+  if (!include.includes(Ternary.False)) return target;
+  const filtered: Type[] = [];
+  for (let i = 0; i < types.length; i++) if (include[i] === Ternary.True) filtered.push(types[i]!);
+  const result = getUnionTypeEx(c, filtered, UnionReduction.None, undefined, undefined);
+  return (result.flags & TypeFlags.Never) === 0 ? result : target;
+}
+
+function getTypeOfPropertyOrIndexSignatureOfType(c: Checker, t: Type, name: string): Type | undefined {
+  const propType = getTypeOfPropertyOfType(c, t, name);
+  if (propType !== undefined) return propType;
+  const info = getApplicableIndexInfoForName(c, t, name);
+  return info !== undefined ? getOptionalType(c, info.valueType, true) : undefined;
 }
 
 export function isDiscriminantProperty(c: Checker, t: Type, name: string): boolean {

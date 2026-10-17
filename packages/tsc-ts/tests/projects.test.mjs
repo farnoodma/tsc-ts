@@ -285,6 +285,43 @@ const projects = [
     },
   ],
   [
+    'discriminated unions with primitive and unmatched constituents',
+    {
+      'a.ts':
+        'type G = { type: "geo"; props: { w: number; h: number }; x: number };\n' +
+        'type R = { type: "arrow"; props: { start: number }; x: number };\n' +
+        'type P1 = ({ type: "geo"; props?: Partial<G["props"]> } & Partial<Omit<G, "type" | "props">>) | ({ type: "arrow"; props?: Partial<R["props"]> } & Partial<Omit<R, "type" | "props">>);\n' +
+        'declare function f1(p: P1 | null | undefined): void;\n' +
+        'f1({ type: "geo", props: { w: "x" } });\n' +
+        'f1({ type: "geo", extra: 1 });\n' +
+        'f1({ type: "line", props: { w: "x" } });\n' +
+        'type U = { kind: "a"; a: number } | { kind: "b"; b: string } | { [k: string]: boolean } | string | null;\n' +
+        'declare function f2(u: U): void;\n' +
+        'f2({ kind: "a", a: "x" });\n' +
+        'f2({ kind: "c", a: 1 });\n' +
+        'f2({ kind: "b", b: 1, c: 2 });\n' +
+        'type V = { kind: "a"; v: 1 } | { kind: "b"; v: 2 } | { other: true };\n' +
+        'declare function f3(v: V): void;\n' +
+        'f3({ kind: "a", v: 2 });\n' +
+        'f3({ kind: "z", v: 1 });\n' +
+        'declare function f4(v: V | undefined): void;\n' +
+        'f4({ kind: "a", v: 2, extra: 0 });\n' +
+        'const x: { tag: 1; n: number } | { tag: 2; s: string } | number = { tag: 1, n: "no" };\n',
+      'b.ts':
+        'type G = { type: "geo"; props: { w: number; h: number }; x: number };\n' +
+        'type R = { type: "arrow"; props: { start: number }; x: number };\n' +
+        'type P1 = ({ type: "geo"; props?: Partial<G["props"]> } & Partial<Omit<G, "type" | "props">>) | ({ type: "arrow"; props?: Partial<R["props"]> } & Partial<Omit<R, "type" | "props">>);\n' +
+        'declare function f1(p: P1 | null | undefined): void;\n' +
+        'f1({ type: "geo", props: { w: "x" } });\n' +
+        'type P2 = ({ type: "geo"; props?: Partial<G["props"]> } & Partial<Omit<G, "type" | "props">>) | ({ type: "arrow"; props?: Partial<R["props"]> } & Partial<Omit<R, "type" | "props">>);\n' +
+        'declare function f2(p: P2): void;\n' +
+        'f2({ type: "geo", props: { w: "x" } });\n' +
+        'type P3 = ({ type: "geo"; props?: Partial<G["props"]> } & { x?: number }) | ({ type: "arrow"; props?: Partial<R["props"]> } & { x?: number });\n' +
+        'declare function f3(p: P3 | null): void;\n' +
+        'f3({ type: "geo", props: { w: "x" } });\n',
+    },
+  ],
+  [
     'narrowing a NoInfer parameter',
     {
       'a.ts':
